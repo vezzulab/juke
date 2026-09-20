@@ -581,8 +581,8 @@ class RadioFlowTests(unittest.TestCase):
             self.assertTrue(w.radio_view._chips.isVisible())
             saved_flags = {r.station.name: not r.action_button.isEnabled() for r in w.radio_view._rows}
             self.assertEqual(saved_flags, {"Latina Salsa": False, "Cima 100.5": True})   # the saved one cannot be saved twice
-            w.radio_view._chip_buttons[1].click()                                        # the "salsa" chip
-            self.assertTrue(self.spin_until(lambda: queries[-1] == ("", "salsa")))
+            w.radio_view._chip_buttons[1].click()                                        # the first genre chip (index 0 is "All")
+            self.assertTrue(self.spin_until(lambda: queries[-1] == ("", rv.CHIPS[0])))
             w.search.setText("boom")                                                     # typed search hits the directory (debounced)
             self.assertTrue(self.spin_until(lambda: queries[-1][0] == "boom" and w.radio_view._message.button.isVisible()))
             self.assertEqual(w.radio_view._message.title.text(), "Could not reach the radio directory")

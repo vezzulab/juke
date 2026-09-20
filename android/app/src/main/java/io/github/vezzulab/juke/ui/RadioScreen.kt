@@ -88,7 +88,7 @@ fun StationRow(vm: JukeViewModel, station: Station, trailing: @Composable () -> 
     }
 }
 
-private val Genres = listOf("salsa", "bachata", "merengue", "latin", "pop", "rock", "jazz", "classical", "news")
+private val Genres = listOf("pop", "rock", "jazz", "blues", "country", "electronic", "classical", "oldies", "news")
 
 @Composable
 private fun Explore(vm: JukeViewModel) {

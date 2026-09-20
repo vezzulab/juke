@@ -67,7 +67,7 @@ h1 span { background: var(--grad); -webkit-background-clip: text; background-cli
 .btn svg { width: 19px; height: 19px; }
 .fine { margin: 16px 0 0; font-size: 13.5px; color: var(--muted); }
 .shot { margin: 46px auto 0; border-radius: 16px; border: 1px solid rgba(255,255,255,.09); overflow: hidden; box-shadow: 0 40px 90px -20px rgba(0,0,0,.65), 0 0 0 1px rgba(0,0,0,.4); background: var(--base); }
-.hero .shot { max-width: 1040px; mask-image: linear-gradient(#000 78%, transparent); -webkit-mask-image: linear-gradient(#000 78%, transparent); border-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.hero .shot { max-width: 1040px; }
 
 /* sections */
 section { padding: 88px 0; }
@@ -233,14 +233,14 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
     <p class="eyebrow" data-i18n="a_eyebrow">Android</p>
     <div class="two-up">
       <div>
-        <h2 data-i18n="a_title">The same player, in your pocket.</h2>
-        <p class="intro" data-i18n="a_intro">Juke for Android carries the music on your card or phone, your Airsonic server and your radio stations, in a full-screen player built for phones and tablets alike.</p>
+        <h2 data-i18n="a_title">Juke on your phone.</h2>
+        <p class="intro" data-i18n="a_intro">Juke also runs on a phone or a tablet: your files, your server and your stations, in a player that uses the whole screen.</p>
         <ul class="reqs">
-          <li data-i18n="a_r1">Your card and your storage, browsed by folders — exactly as you filed them</li>
+          <li data-i18n="a_r1">Your card or the phone's own storage, listed by folders</li>
           <li data-i18n="a_r2">Airsonic / Subsonic on its own tab, by folders too</li>
-          <li data-i18n="a_r3">Internet radio: the directory, or any page you paste — a page that lists several stations offers them all</li>
-          <li data-i18n="a_r4">Plays in the background, with the notification and lock-screen controls</li>
-          <li data-i18n="a_r5">10-band equalizer with the same presets, English and Español, dark and light</li>
+          <li data-i18n="a_r3">Radio: the directory, or paste an address. A page with several stations offers all of them</li>
+          <li data-i18n="a_r4">Keeps playing with the screen off, with the controls in the notification</li>
+          <li data-i18n="a_r5">10-band equalizer, English and Spanish, dark and light</li>
         </ul>
         <div class="cta" style="justify-content:flex-start">
           <a class="btn primary" href="https://github.com/vezzulab/juke/releases/latest">
@@ -319,13 +319,13 @@ const T = {
   es: {
     nav_features: "Características", nav_screens: "Capturas", nav_install: "Instalar", nav_android: "Android",
     cta_android: "También en Android", cta_apk: "Descargar el APK",
-    a_eyebrow: "Android", a_title: "El mismo reproductor, en tu bolsillo.",
-    a_intro: "Juke para Android lleva la música de tu tarjeta o tu teléfono, tu servidor Airsonic y tus emisoras, en un reproductor a pantalla completa hecho igual para teléfonos y tabletas.",
-    a_r1: "Tu tarjeta y tu almacenamiento, por carpetas — tal como las guardaste",
+    a_eyebrow: "Android", a_title: "Juke en tu teléfono.",
+    a_intro: "Juke también funciona en un teléfono o una tableta: tus archivos, tu servidor y tus emisoras, en un reproductor que usa toda la pantalla.",
+    a_r1: "Tu tarjeta o el almacenamiento del propio teléfono, por carpetas",
     a_r2: "Airsonic / Subsonic en su propia pestaña, también por carpetas",
-    a_r3: "Radio por Internet: el directorio, o cualquier página que pegues — si la página lista varias emisoras, te las ofrece todas",
-    a_r4: "Suena en segundo plano, con los controles en la notificación y en la pantalla de bloqueo",
-    a_r5: "Ecualizador de 10 bandas con los mismos presets, English y Español, oscuro y claro",
+    a_r3: "Radio: el directorio, o pega una dirección. Una página con varias emisoras te las ofrece todas",
+    a_r4: "Sigue sonando con la pantalla apagada, con los controles en la notificación",
+    a_r5: "Ecualizador de 10 bandas, español e inglés, oscuro y claro",
     a_fine: "Android 8 o superior · teléfonos y tabletas · unos 3 MB",
     a_c1: "Tus carpetas, tal como las guardaste",
     a_c2: "Emisoras del directorio o de cualquier página",
@@ -406,14 +406,19 @@ function showShot(tab) {
   document.getElementById("gallery-frame").classList.toggle("small", !!tab.dataset.small);
   document.getElementById("gallery-frame").style.maxWidth = tab.dataset.small ? "780px" : "";
   document.getElementById("gallery-cap").textContent = T[lang][tab.dataset.cap];
-  document.getElementById("hero-shot").src = lang === "es" ? "assets/screenshot-main-es.png" : "assets/screenshot-main.png";
+  heroShot();
+}
+function heroShot() {
+  const light = document.documentElement.dataset.theme === "light";
+  const name = light ? "screenshot-light" : (lang === "es" ? "screenshot-main-es" : "screenshot-main");
+  document.getElementById("hero-shot").src = `assets/${name}.png`;
 }
 document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => showShot(t)));
 document.getElementById("lang").addEventListener("click", () => { lang = lang === "en" ? "es" : "en"; safe.set("juke-lang", lang); applyLang(); });
 
 const root = document.documentElement;
 let theme = safe.get("juke-theme") || "dark";   // Juke itself is a dark app; the toggle is there for daytime reading
-function applyTheme() { root.dataset.theme = theme; document.getElementById("theme").textContent = theme === "dark" ? "☾" : "☀"; }
+function applyTheme() { root.dataset.theme = theme; document.getElementById("theme").textContent = theme === "dark" ? "☾" : "☀"; heroShot(); }
 document.getElementById("theme").addEventListener("click", () => { theme = theme === "dark" ? "light" : "dark"; safe.set("juke-theme", theme); applyTheme(); });
 
 document.querySelectorAll(".copy").forEach(btn => btn.addEventListener("click", async () => {

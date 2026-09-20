@@ -39,7 +39,7 @@ from juke.i18n import translator  # noqa: E402
 CATALOG = [
     ("Aurora Vale", "Glasshouse", "Indie Pop", ("Paper Moons", "Slow Motion Summer", "Glasshouse", "Northern Lights Café", "Pale Blue Static", "Hello, Golden Hour")),
     ("The Lantern Club", "After Hours in Color", "Rock", ("Neon Rain", "Cassette Heart", "Midnight Bus", "Faster Than Sleep", "Static & Sparks")),
-    ("Mira Solano", "Costa", "Latin Jazz", ("Marea Baja", "Café con Luna", "Sal y Arena", "El Último Tranvía", "Bossa para Dos")),
+    ("Delta & Rye", "Front Porch", "Americana", ("Front Porch", "Dust on the Dashboard", "Blue Ridge Morning", "Whiskey & Rain", "Long Way Home")),
     ("Nightjar", "Low Light", "Electronic", ("Signal Bloom", "Low Light", "Afterimage", "Ghost Frequency", "Glass Circuit")),
     ("Kōji Hara", "Quiet Rooms", "Ambient", ("Quiet Rooms", "Tatami Rain", "Snow on the Rails", "Slow Kettle")),
     ("Velvet Static", "Ultraviolet", "Synthpop", ("Ultraviolet", "Drive Me Somewhere", "Chrome Lovers", "Sunset Boulevard Blues", "Night Shift")),
@@ -97,9 +97,9 @@ def build_library(db: Database) -> None:
             })
     db.upsert_many(rows)
     ids = db.query_ids()
-    party = db.create_playlist("Fiesta")
+    party = db.create_playlist("Night Drive")
     db.add_to_playlist(party, [ids[i] for i in (3, 9, 14, 20, 27, 31)])
-    sunday = db.create_playlist("Domingo tranquilo")
+    sunday = db.create_playlist("Sunday Morning")
     db.add_to_playlist(sunday, [ids[i] for i in (5, 11, 16, 22)])
 
 
@@ -294,10 +294,10 @@ def main() -> None:
     # Airsonic: the server's own folder hierarchy
     sidebar = window.sidebar
     sidebar._items[("airsonic", None)].setExpanded(True)
-    for name in ("Mira Solano", "Nightjar"):
+    for name in ("Delta & Rye", "Nightjar"):
         sidebar._items[("folder", name)].setExpanded(True)
-    sidebar.select("folder", "Mira Solano/Costa")
-    window._show_view("folder", "Mira Solano/Costa")
+    sidebar.select("folder", "Delta & Rye/Front Porch")
+    window._show_view("folder", "Delta & Rye/Front Porch")
     window.table.clearSelection()
     grab(window, out / "screenshot-folders.png")
     sidebar.select("all")

@@ -5,7 +5,7 @@
 <br>
 
 **Un reproductor de música moderno de 3 paneles para Linux.**<br>
-Tu biblioteca local, tu servidor Airsonic / Subsonic, radio por Internet y un ecualizador de 10 bandas — instantáneo con más de 50.000 pistas y amable con la batería.
+Tus archivos, tu servidor Airsonic / Subsonic, radio por Internet y un ecualizador de 10 bandas. Se mantiene rápido con bibliotecas grandes y gasta poca batería.
 
 <br>
 
@@ -128,33 +128,27 @@ Inglés y español, con cambio en vivo. Escalado HiDPI de Qt 6 (también fraccio
 ## Juke para Android
 
 <div align="center">
-<img src="assets/android-player.png" alt="Juke reproduciendo una emisora en vivo en Android" width="30%">
+<img src="assets/android-player.png" alt="El reproductor en Android" width="30%">
 <img src="assets/android-library.png" alt="Carpetas de música en la tarjeta" width="30%">
 <img src="assets/android-radio.png" alt="El directorio de radios en Android" width="30%">
 </div>
 
-El mismo reproductor en un teléfono o una tableta: un cuerpo a pantalla completa con la carátula, la
-placa del formato y las teclas de transporte, hecho con Jetpack Compose y Media3.
+Juke también funciona en un teléfono o una tableta. Está en [`android/`](android), escrito en Kotlin
+con Jetpack Compose y Media3.
 
-- **Tu tarjeta y tu almacenamiento, por carpetas** — tal como las guardaste; no hace falta tarjeta, el
-  almacenamiento del propio aparato aparece igual.
-- **Airsonic / Subsonic en su propia pestaña**, también por carpetas.
-- **Radio por Internet** — el directorio comunitario o cualquier dirección que pegues. Si la página
-  lista varias emisoras, te las ofrece todas, y una emisora guardada encuentra su nueva dirección
-  cuando se muda.
-- **Suena en segundo plano**, con los controles en la notificación, la pantalla de bloqueo, Bluetooth
-  y los auriculares.
-- **Ecualizador de 10 bandas** con los mismos presets, English y Español, oscuro y claro.
+- Tu música de la tarjeta o del almacenamiento del teléfono, por carpetas. Hay teléfonos sin tarjeta,
+  y entonces muestra el almacenamiento interno.
+- Tu servidor Airsonic / Subsonic en su propia pestaña, también por carpetas.
+- Radio: el directorio, o pega una dirección. Si una página tiene varias emisoras, te las ofrece todas.
+- Sigue sonando con la pantalla apagada, con los controles de siempre en la notificación.
+- Ecualizador de 10 bandas, español e inglés, oscuro y claro.
 
-Instala `Juke-<versión>.apk` desde la [última versión](https://github.com/vezzulab/juke/releases/latest)
-(Android 8 o superior, unos 3 MB). La primera vez, Android te pedirá permitir la instalación desde tu
-navegador o tu explorador de archivos.
-
-Constrúyelo tú con el SDK de Android (API 35) y JDK 17:
+Descarga `Juke-<versión>.apk` de la [última versión](https://github.com/vezzulab/juke/releases/latest).
+Necesita Android 8 o superior y pesa unos 3 MB. Para construirlo hacen falta el SDK de Android y JDK 17:
 
 ```sh
 cd android
-./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:assembleDebug
 ```
 
 ## Instalación

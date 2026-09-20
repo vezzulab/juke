@@ -143,10 +143,13 @@ QSlider::sub-page:horizontal {{
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {ACCENT}, stop:1 {ACCENT2});
     border-radius: 2px;
 }}
+QSlider::add-page:horizontal {{ background: {OVERLAY}; border-radius: 2px; }}
 QSlider::handle:horizontal {{ width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; background: {TEXT}; }}
-QSlider::handle:horizontal:hover {{ background: {HANDLE_HOVER}; }}
+/* the hover rules keep the geometry, and :hover belongs on the handle: as ":hover::handle" Qt
+   paints the state across the whole bar (white on the dark theme, black on the light one) */
+QSlider::handle:horizontal:hover {{ width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; background: {HANDLE_HOVER}; }}
 QSlider#seek::handle:horizontal {{ width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; background: transparent; }}
-QSlider#seek:hover::handle:horizontal {{ width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; background: {HANDLE_HOVER}; }}
+QSlider#seek::handle:horizontal:hover {{ width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; background: {HANDLE_HOVER}; }}
 QSlider::groove:vertical {{ width: 4px; background: {OVERLAY}; border-radius: 2px; }}
 QSlider::sub-page:vertical {{ background: {OVERLAY}; border-radius: 2px; }}
 QSlider::add-page:vertical {{
@@ -154,7 +157,7 @@ QSlider::add-page:vertical {{
     border-radius: 2px;
 }}
 QSlider::handle:vertical {{ height: 14px; width: 14px; margin: 0 -5px; border-radius: 7px; background: {TEXT}; }}
-QSlider::handle:vertical:hover {{ background: {HANDLE_HOVER}; }}
+QSlider::handle:vertical:hover {{ height: 14px; width: 14px; margin: 0 -5px; border-radius: 7px; background: {HANDLE_HOVER}; }}
 
 /* Search field --------------------------------------------------------------------- */
 QLineEdit {{

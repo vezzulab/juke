@@ -15,7 +15,7 @@ from ...workers import AsyncWorker
 from .. import icons, styles
 from .widgets import ElidedLabel
 
-CHIPS = ("salsa", "bachata", "merengue", "latin", "pop", "rock", "jazz", "electronic", "classical", "news")
+CHIPS = ("pop", "rock", "jazz", "blues", "country", "electronic", "classical", "oldies", "news")
 ROW_HEIGHT = 70
 ICON = 46
 

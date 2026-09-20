@@ -5,7 +5,7 @@
 <br>
 
 **A modern 3-pane music player for Linux.**<br>
-Your local library, your Airsonic / Subsonic server, internet radio and a 10-band equalizer — instant with 50,000+ tracks, and easy on the battery.
+Your own files, your Airsonic / Subsonic server, internet radio and a 10-band equalizer. It stays quick with big libraries and light on the battery.
 
 <br>
 
@@ -27,13 +27,13 @@ Your local library, your Airsonic / Subsonic server, internet radio and a 10-ban
 
 ## Why Juke
 
-A classic three-pane layout — sources on the left, songs in the middle, the player on top — rebuilt for today: a dark *or* light, rounded, Libadwaita-flavoured interface, a real audio pipeline, and a library that does not stutter when it grows.
+The layout is the classic one: sources on the left, songs in the middle, the player on top. Dark or light theme, libVLC underneath, and a song list that stays quick as the library grows.
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-### Instant, whatever the size
+### Quick with big libraries
 The song table never loads your library into memory. It keeps an ordered list of ids and pulls rows from SQLite one page at a time while you scroll. Search, sort and filter happen in the database, over indexed columns.
 
 </td>
@@ -126,31 +126,27 @@ English and Spanish, switchable live. Qt 6 HiDPI scaling (fractional too), Wayla
 ## Juke for Android
 
 <div align="center">
-<img src="assets/android-player.png" alt="Juke playing a live station on Android" width="30%">
+<img src="assets/android-player.png" alt="The player on Android" width="30%">
 <img src="assets/android-library.png" alt="Music folders on the card" width="30%">
 <img src="assets/android-radio.png" alt="The radio directory on Android" width="30%">
 </div>
 
-The same player on a phone or a tablet: a full-screen body with the art, the format plate and the
-transport keys, built with Jetpack Compose and Media3.
+Juke also runs on a phone or a tablet. It is in [`android/`](android), written in Kotlin with Jetpack
+Compose and Media3.
 
-- **Your card and your storage, by folders** — exactly as you filed them; no card is needed, the
-  device's own storage shows up the same way.
-- **Airsonic / Subsonic on its own tab**, browsed by folders too.
-- **Internet radio** — the community directory, or any address you paste. A page whose player lists
-  several stations offers them all, and a saved station finds its new address when it moves.
-- **Background playback** with the notification and lock-screen controls, Bluetooth and headsets.
-- **10-band equalizer** with the same presets, English and Español, dark and light.
+- Your music on the card or in the phone's storage, listed by folders. There is no card in some
+  phones, and then it just shows the internal storage.
+- Your Airsonic / Subsonic server on its own tab, also by folders.
+- Radio: the directory, or paste an address. If a page has several stations, it offers all of them.
+- Keeps playing with the screen off, with the usual controls in the notification.
+- 10-band equalizer, English and Spanish, dark and light.
 
-Install `Juke-<version>.apk` from the [latest release](https://github.com/vezzulab/juke/releases/latest)
-(Android 8 or newer, about 3 MB). Android asks you to allow installing from your browser or file
-manager the first time.
-
-Build it yourself with the Android SDK (API 35) and JDK 17:
+Get `Juke-<version>.apk` from the [latest release](https://github.com/vezzulab/juke/releases/latest).
+It needs Android 8 or newer and weighs about 3 MB. To build it you need the Android SDK and JDK 17:
 
 ```sh
 cd android
-./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:assembleDebug
 ```
 
 ## Install
