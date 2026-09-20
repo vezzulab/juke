@@ -192,7 +192,7 @@ STRINGS = {
     "settings.meter_hint": "El medidor animado es lo más costoso que dibuja Juke. En automático se queda quieto con batería y siempre que la ventana esté oculta.",
     "menu.check_updates": "Buscar actualizaciones…",
     "settings.updates": "Buscar actualizaciones automáticamente",
-    "settings.updates_hint": "Una vez al día Juke pregunta a GitHub (api.github.com) si hay una versión más reciente. No se envía nada salvo el nombre y la versión del programa, y tú decides siempre si actualizar.",
+    "settings.updates_hint": "Al abrirse, y cada 30 minutos mientras está abierto, Juke pregunta a GitHub (api.github.com) si hay una versión más reciente. No se envía nada salvo el nombre y la versión del programa, y tú decides siempre si actualizar.",
     "update.title": "Actualización de Juke",
     "update.headline": "Juke {version} está disponible",
     "update.current": "Estás usando Juke {current}.",

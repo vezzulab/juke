@@ -82,7 +82,7 @@ Elige un tema, o deja que Juke siga a tu escritorio. Las dos paletas están comp
 <td valign="top">
 
 ### Actualizaciones a tu manera
-Una vez al día (desactivable) Juke pregunta a GitHub si hay una versión más reciente. Si la hay, muestra qué cambió y **tú** eliges *Actualizar ahora*, *Más tarde* u *Omitir esta versión*. Las descargas se verifican con su SHA-256 antes de reemplazar nada.
+Al abrirse, y cada 30 minutos mientras está abierto (desactivable), Juke pregunta a GitHub si hay una versión más reciente. Si la hay, muestra qué cambió y **tú** eliges *Actualizar ahora*, *Más tarde* u *Omitir esta versión*. Las descargas se verifican con su SHA-256 antes de reemplazar nada.
 
 </td>
 </tr>
@@ -213,7 +213,7 @@ Juke no tiene telemetría, ni cuentas, ni analítica. Lleva incluidas su tipogra
 | Qué | Cuándo |
 | --- | --- |
 | Tu servidor Airsonic / Subsonic | Solo si configuras uno. |
-| `api.github.com` | Una vez al día para buscar una versión nueva, si dejas activada *Buscar actualizaciones automáticamente*. Solo se envían el nombre y la versión del programa. |
+| `api.github.com` | Al abrirse y cada 30 minutos mientras está abierto, para buscar una versión nueva, si dejas activada *Buscar actualizaciones automáticamente*. Solo se envían el nombre y la versión del programa. |
 | Radio Browser (`*.api.radio-browser.info`) y las propias emisoras | Solo cuando abres *Explorar Radio*, añades una emisora o la sintonizas. |
 
 ## Rendimiento

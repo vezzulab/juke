@@ -1,7 +1,8 @@
 """Update check against GitHub Releases, and in-place replacement of a running AppImage.
 
-Privacy: the check is one HTTPS GET to api.github.com (at most once a day, and it can be switched
-off in Settings). The only things sent are the program name and version in the User-Agent.
+Privacy: the check is one HTTPS GET to api.github.com when Juke starts and every 30 minutes while it
+stays open (it can be switched off in Settings). The only things sent are the program name and
+version in the User-Agent.
 """
 
 from __future__ import annotations
@@ -17,7 +18,8 @@ from . import __version__, integration
 
 # JUKE_UPDATE_URL points the check at another server (used by the tests and by anyone developing the updater).
 API_LATEST = os.environ.get("JUKE_UPDATE_URL") or "https://api.github.com/repos/vezzulab/juke/releases/latest"
-CHECK_INTERVAL_S = 24 * 3600
+RECHECK_INTERVAL_S = 30 * 60    # while Juke stays open; it also checks at every start
+SNOOZE_S = 24 * 3600            # "Later" silences that version for a day
 
 
 class UpdateError(Exception):

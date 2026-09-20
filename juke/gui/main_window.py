@@ -167,6 +167,11 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.status_label)
         self.statusBar().addPermanentWidget(self.progress)
 
+        self._recheck_timer = QTimer(self)
+        self._recheck_timer.setSingleShot(True)
+        self._recheck_timer.setTimerType(Qt.VeryCoarseTimer)
+        self._recheck_timer.setInterval(updater.RECHECK_INTERVAL_S * 1000)
+        self._recheck_timer.timeout.connect(self._auto_update_check)
         self._power_timer = QTimer(self)
         self._power_timer.setTimerType(Qt.VeryCoarseTimer)
         self._power_timer.setInterval(30_000)
@@ -912,9 +917,11 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------------------ scanning
     # ------------------------------------------------------------------------------ updates
     def _auto_update_check(self) -> None:
-        settings = self.config.get("update")
-        if settings["enabled"] and time.time() - float(settings["last_check"]) >= updater.CHECK_INTERVAL_S:
+        """At every start, then every 30 minutes while open. (A once-a-day limit made people who opened
+        Juke just before a release wait a day for it.) "Skip" and "Later" keep it from nagging."""
+        if self.config.get("update.enabled"):
             self.check_for_updates(manual=False)
+        self._recheck_timer.start()
 
     def check_for_updates(self, manual: bool = False) -> None:
         """Ask GitHub for the latest release. Automatic checks are silent unless there is news."""
@@ -949,11 +956,18 @@ class MainWindow(QMainWindow):
             if manual:
                 notice(self, tr("update.title"), tr("update.uptodate", version=__version__))
             return
-        if not manual and release.version == self.config.get("update.skipped"):
-            return                     # the user said "skip this version": stay quiet until the next one
+        if not manual:
+            if release.version == self.config.get("update.skipped"):
+                return                 # "skip this version": stay quiet until the next one
+            if release.version == self.config.get("update.snoozed") and time.time() < float(self.config.get("update.snooze_until") or 0):
+                return                 # "later": ask again tomorrow, or as soon as a newer version appears
         choice = self._ask_update(release)
         if choice == "skip":
             self.config.set("update.skipped", release.version)
+            self.config.save()
+        elif choice == "later":
+            self.config.set("update.snoozed", release.version)
+            self.config.set("update.snooze_until", time.time() + updater.SNOOZE_S)
             self.config.save()
         elif choice == "update":
             self._perform_update(release)
@@ -985,7 +999,7 @@ class MainWindow(QMainWindow):
             self.close()
 
     def _startup_tasks(self) -> None:
-        QTimer.singleShot(12_000, self._auto_update_check)
+        QTimer.singleShot(6_000, self._auto_update_check)
         if self.config.get("scan_on_start") or self.db.count(SOURCE_LOCAL) == 0:
             self.start_scan()
         if integration.is_installed():

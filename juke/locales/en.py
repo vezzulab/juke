@@ -192,7 +192,7 @@ STRINGS = {
     "settings.meter_hint": "The animated meter is the costliest thing Juke draws. Automatic keeps it still on battery and whenever the window is hidden.",
     "menu.check_updates": "Check for updates…",
     "settings.updates": "Check for updates automatically",
-    "settings.updates_hint": "Once a day Juke asks GitHub (api.github.com) whether a newer release exists. Nothing but the program name and version is sent, and you always decide whether to update.",
+    "settings.updates_hint": "When it opens, and every 30 minutes while it is open, Juke asks GitHub (api.github.com) whether a newer release exists. Nothing but the program name and version is sent, and you always decide whether to update.",
     "update.title": "Juke update",
     "update.headline": "Juke {version} is available",
     "update.current": "You are using Juke {current}.",

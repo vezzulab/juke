@@ -82,7 +82,7 @@ Pick a theme, or let Juke match your desktop. Both palettes are checked for legi
 <td valign="top">
 
 ### Updates on your terms
-Once a day (switchable) Juke asks GitHub whether a newer release exists. If so it shows what changed and **you** choose *Update now*, *Later* or *Skip this version*. Downloads are verified against their SHA-256 before anything is replaced.
+When it opens, and every 30 minutes while it is open (switchable), Juke asks GitHub whether a newer release exists. If so it shows what changed and **you** choose *Update now*, *Later* or *Skip this version*. Downloads are verified against their SHA-256 before anything is replaced.
 
 </td>
 </tr>
@@ -211,7 +211,7 @@ Juke has no telemetry, no accounts and no analytics. It bundles its font and ico
 | What | When |
 | --- | --- |
 | Your Airsonic / Subsonic server | Only if you configure one. |
-| `api.github.com` | Once a day to look for a new release, if you leave *Check for updates automatically* on. Only the program name and version are sent. |
+| `api.github.com` | When it opens and every 30 minutes while open, to look for a new release, if you leave *Check for updates automatically* on. Only the program name and version are sent. |
 | Radio Browser (`*.api.radio-browser.info`) and the stations themselves | Only when you open *Explore Radio*, add a station, or tune in. |
 
 ## Performance

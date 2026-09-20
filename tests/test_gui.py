@@ -699,7 +699,7 @@ class RadioFlowTests(unittest.TestCase):
 class UpdateFlowTests(unittest.TestCase):
     def setUp(self):
         translator.set_language("en")
-        self.window, self.cfg, self.db, self.engine, self.eq = make_window("gui-update", n=2)
+        self.window, self.cfg, self.db, self.engine, self.eq = make_window(f"gui-update-{self._testMethodName}", n=2)
         import juke.gui.main_window as mw
         self.mw = mw
         from juke.updater import ReleaseInfo
@@ -762,20 +762,39 @@ class UpdateFlowTests(unittest.TestCase):
         self.window._update_checked(self.newer, manual=True)
         self.assertEqual(self.opened, [self.newer.page_url] * 2)
 
-    def test_automatic_check_runs_at_most_daily_and_can_be_switched_off(self):
+    def test_every_start_checks_and_it_can_be_switched_off(self):
+        """Regression: a once-a-day limit hid a release published an hour after the last check."""
         import time as _time
         calls = []
         self.window.check_for_updates = lambda manual=False: calls.append(manual)
         self.cfg.set("update.enabled", True)
-        self.cfg.set("update.last_check", _time.time())
+        self.cfg.set("update.last_check", _time.time())                              # checked a minute ago...
         self.window._auto_update_check()
-        self.assertEqual(calls, [])                                                  # checked minutes ago
-        self.cfg.set("update.last_check", _time.time() - 2 * 86400)
-        self.window._auto_update_check()
-        self.assertEqual(calls, [False])
+        self.assertEqual(calls, [False])                                             # ...and it asks again anyway
+        self.assertTrue(self.window._recheck_timer.isActive())                       # then again every 30 minutes while open
+        self.assertEqual(self.window._recheck_timer.interval(), 30 * 60 * 1000)
         self.cfg.set("update.enabled", False)
         self.window._auto_update_check()
         self.assertEqual(calls, [False])                                             # switched off: never asks GitHub
+
+    def test_later_snoozes_only_that_version_for_a_day(self):
+        import time as _time
+        self.answer = "later"
+        self.window._update_checked(self.newer, manual=False)
+        self.assertEqual(self.asked, ["9.0.0"])
+        self.assertEqual(self.cfg.get("update.snoozed"), "9.0.0")
+        self.assertGreater(self.cfg.get("update.snooze_until"), _time.time() + 23 * 3600)
+        self.window._update_checked(self.newer, manual=False)                        # next automatic check: quiet
+        self.assertEqual(self.asked, ["9.0.0"])
+        from juke.updater import ReleaseInfo
+        newest = ReleaseInfo("v9.1.0", "9.1.0", "", "", "", 0, "")
+        self.window._update_checked(newest, manual=False)                            # a newer version is news again
+        self.assertEqual(self.asked, ["9.0.0", "9.1.0"])
+        self.window._update_checked(self.newer, manual=True)                         # "Check for updates…" always asks
+        self.assertEqual(self.asked, ["9.0.0", "9.1.0", "9.0.0"])
+        self.cfg.set("update.snooze_until", _time.time() - 1)                        # the day passed
+        self.window._update_checked(self.newer, manual=False)
+        self.assertEqual(len(self.asked), 4)
 
 
 @unittest.skipUnless(AudioEngine().available, "libVLC not available")

@@ -46,7 +46,7 @@ DEFAULTS: dict[str, Any] = {
     "airsonic": {"enabled": False, "url": "", "username": "", "password": "", "auth": "auto"},  # auth: auto | token | password
     "window": {"geometry": "", "splitter": [240, 960]},
     "desktop_integration": {"asked": False, "enabled": False},
-    "update": {"enabled": True, "last_check": 0.0, "skipped": ""},
+    "update": {"enabled": True, "last_check": 0.0, "skipped": "", "snoozed": "", "snooze_until": 0.0},
 }
 
 
