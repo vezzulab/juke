@@ -47,6 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     from .db.database import Database
     from .gui import icons, styles
     from .gui.main_window import MainWindow
+    from .gui.theme import ThemeManager
     from .i18n import translator
 
     if args.install_desktop or args.uninstall_desktop:
@@ -56,17 +57,17 @@ def main(argv: list[str] | None = None) -> int:
     for font in sorted(FONTS_DIR.glob("*.ttf")):
         QFontDatabase.addApplicationFont(str(font))
     app.setStyle("Fusion")  # one predictable base for the stylesheet on every desktop
-    app.setPalette(styles.build_palette())
-    app.setStyleSheet(styles.build_stylesheet())
     app.setWindowIcon(icons.app_icon())
 
     ensure_dirs()
     config = Config(CONFIG_PATH)
+    theme = ThemeManager(app, config.get("theme"))
+    theme.apply()                     # dark, light, or whatever the desktop is using
     translator.set_language(config.get("language"))
     db = Database(DB_PATH)
     engine = AudioEngine()
     equalizer = Equalizer(config)
-    window = MainWindow(config, db, engine, equalizer)
+    window = MainWindow(config, db, engine, equalizer, theme)
     window.show()
     if args.files:
         QTimer.singleShot(600, lambda: window.open_paths(args.files))

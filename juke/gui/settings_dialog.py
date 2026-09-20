@@ -51,6 +51,11 @@ class SettingsDialog(QDialog):
             self.language.addItem(label, code)
         self.language.setCurrentIndex(max(0, self.language.findData(self._config.get("language"))))
         form.addRow(tr("settings.language"), self.language)
+        self.theme = QComboBox()
+        for value, label in (("auto", "settings.theme_auto"), ("dark", "settings.theme_dark"), ("light", "settings.theme_light")):
+            self.theme.addItem(tr(label), value)
+        self.theme.setCurrentIndex(max(0, self.theme.findData(self._config.get("theme"))))
+        form.addRow(tr("settings.theme"), self.theme)
         self.meter = QComboBox()
         for value, label in (("auto", "settings.meter_auto"), ("on", "settings.meter_on"), ("off", "settings.meter_off")):
             self.meter.addItem(tr(label), value)
@@ -60,6 +65,13 @@ class SettingsDialog(QDialog):
         meter_hint.setObjectName("muted")
         meter_hint.setWordWrap(True)
         form.addRow("", meter_hint)
+        self.updates = QCheckBox(tr("settings.updates"))
+        self.updates.setChecked(bool(self._config.get("update.enabled")))
+        form.addRow("", self.updates)
+        updates_hint = QLabel(tr("settings.updates_hint"))
+        updates_hint.setObjectName("muted")
+        updates_hint.setWordWrap(True)
+        form.addRow("", updates_hint)
         self.integration = QCheckBox(tr("settings.integration"))
         self.integration.setChecked(integration_installed)
         form.addRow("", self.integration)
@@ -163,7 +175,9 @@ class SettingsDialog(QDialog):
         self._worker.start()
 
     def _status(self, text: str, *, ok: bool = False, error: bool = False) -> None:
-        color = "#a6e3a1" if ok else "#f38ba8" if error else "#9399b2"
+        from . import styles
+
+        color = styles.GREEN if ok else styles.RED if error else styles.SUBTEXT
         self.as_status.setStyleSheet(f"color: {color};")
         self.as_status.setText(text)
 
@@ -178,7 +192,9 @@ class SettingsDialog(QDialog):
         config.set("language", self.language.currentData())
         config.set("music_dirs", self.folder_list())
         config.set("scan_on_start", self.scan_on_start.isChecked())
+        config.set("theme", self.theme.currentData())
         config.set("meter", self.meter.currentData())
+        config.set("update.enabled", self.updates.isChecked())
         config.set("airsonic", {
             "enabled": self.as_enabled.isChecked(), "url": normalize_base_url(self.as_url.text()),
             "username": self.as_user.text().strip(), "password": self.as_password.text(),

@@ -100,7 +100,7 @@ class EqualizerDialog(QDialog):
         self._add_column(grid, 0, self.preamp_value, self.preamp_slider, self.preamp_name)
         divider = QWidget()
         divider.setFixedWidth(1)
-        divider.setStyleSheet(f"background: {styles.BORDER};")
+        divider.setObjectName("eqDivider")
         grid.addWidget(divider, 0, 1, 3, 1)
         for i, label in enumerate(BAND_LABELS):
             slider, value = self._vertical_slider(), self._value_label()
@@ -180,7 +180,7 @@ class EqualizerDialog(QDialog):
     def _value_label() -> QLabel:
         label = QLabel("0.0")
         label.setAlignment(Qt.AlignCenter)
-        label.setStyleSheet(f"font-family: {styles.MONO_FAMILY}; font-size: 11px; color: {styles.ACCENT};")
+        label.setObjectName("eqValue")
         return label
 
     @staticmethod

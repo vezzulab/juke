@@ -331,6 +331,153 @@ class LightweightTests(unittest.TestCase):
             window.close()
 
 
+class ThemeTests(unittest.TestCase):
+    def tearDown(self):
+        styles.set_theme("dark")
+
+    @staticmethod
+    def _luminance(hex_color):
+        channels = [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        r, g, b = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+    def contrast(self, a, b):
+        high, low = sorted((self._luminance(a), self._luminance(b)), reverse=True)
+        return (high + 0.05) / (low + 0.05)
+
+    def test_both_palettes_are_legible(self):
+        """WCAG: 7:1 for body text, 4.5:1 for secondary text and text on the accent, 3:1 for UI glyphs."""
+        needs = [("TEXT", "BASE", 7), ("TEXT", "PANEL", 7), ("TEXT", "ALT_ROW", 7), ("SUBTEXT", "BASE", 4.5),
+                 ("SUBTEXT", "MANTLE", 4.5), ("SUBTEXT", "PANEL", 4.5), ("MUTED", "BASE", 3), ("ACCENT", "BASE", 3),
+                 ("ACCENT", "MANTLE", 3), ("ON_ACCENT", "ACCENT", 4.5), ("ON_ACCENT", "ACCENT2", 4.5),
+                 ("ON_ACCENT", "ACCENT_HOVER", 4.5), ("ON_ACCENT", "ACCENT2_HOVER", 4.5), ("RED", "BASE", 3), ("GREEN", "BASE", 3)]
+        for name, table in styles.THEMES.items():
+            for fg, bg, minimum in needs:
+                self.assertGreaterEqual(self.contrast(table[fg], table[bg]), minimum, f"{name}: {fg} on {bg}")
+
+    def test_switching_changes_stylesheet_palette_and_helpers(self):
+        from juke.gui.theme import ThemeManager, resolve
+        self.assertEqual((resolve("dark"), resolve("light")), ("dark", "light"))
+        self.assertEqual(resolve("auto"), "dark")                     # offscreen reports no scheme: default to Juke's own look
+        manager = ThemeManager(app, "light")
+        self.assertEqual(manager.apply(), "light")
+        self.assertTrue(styles.NAME == "light" and not styles.is_dark())
+        self.assertEqual(styles.BASE, styles.LIGHT["BASE"])
+        css = app.styleSheet()
+        self.assertIn(styles.LIGHT["BASE"], css)
+        self.assertNotIn(styles.DARK["BASE"], css)
+        self.assertEqual(app.palette().window().color().name(), styles.LIGHT["BASE"])
+        manager.apply("dark")
+        self.assertEqual(styles.BASE, styles.DARK["BASE"])
+        self.assertIn(styles.DARK["BASE"], app.styleSheet())
+
+    def test_every_widget_rebuilds_its_colours(self):
+        translator.set_language("en")
+        window, cfg, db, engine, eq = make_window("gui-theme", n=6)
+        stop = window.top_bar.btn_stop
+
+        def icon_ink():                                               # colour of the solid centre of the "stop" square
+            return stop.icon().pixmap(24, 24).toImage().pixelColor(12, 12).name()
+
+        window.theme.apply("dark")
+        self.assertEqual(icon_ink(), styles.DARK["TEXT"])
+        window.theme.apply("light")
+        self.assertEqual(icon_ink(), styles.LIGHT["TEXT"])            # top-bar icons follow
+        self.assertEqual(window.table.track_model._accent.name(), styles.LIGHT["ACCENT"])
+        sidebar_icon = window.sidebar._items[("all", None)].icon(0).pixmap(18, 18, mode=__import__("PySide6.QtGui", fromlist=["QIcon"]).QIcon.Normal,
+                                                                         state=__import__("PySide6.QtGui", fromlist=["QIcon"]).QIcon.Off)
+        self.assertFalse(sidebar_icon.isNull())
+        cover = window.top_bar.lcd.cover.pixmap().toImage()
+        self.assertGreater(sum(cover.pixelColor(cover.width() // 2, y).lightness() for y in range(4, 12)) / 8, 150)   # light placeholder
+        window.toggle_theme()                                          # menu action / Ctrl+T
+        self.assertEqual(styles.NAME, "dark")
+        self.assertEqual(cfg.get("theme"), "dark")
+        window.close()
+        window.theme.apply("dark")
+
+
+class UpdateFlowTests(unittest.TestCase):
+    def setUp(self):
+        translator.set_language("en")
+        self.window, self.cfg, self.db, self.engine, self.eq = make_window("gui-update", n=2)
+        import juke.gui.main_window as mw
+        self.mw = mw
+        from juke.updater import ReleaseInfo
+        self.newer = ReleaseInfo("v9.0.0", "9.0.0", "## Big\n- things", "https://github.com/vezzulab/juke/releases/tag/v9.0.0",
+                                 "https://dl.example/x", 10, "")
+        self.asked, self.notices, self.opened = [], [], []
+        self.window._ask_update = lambda release: (self.asked.append(release.version), self.answer)[1]
+        self._notice, self._open = mw.notice, mw.QDesktopServices.openUrl
+        mw.notice = lambda parent, title, text: self.notices.append(text)
+        mw.QDesktopServices.openUrl = staticmethod(lambda url: self.opened.append(url.toString()) or True)
+        self.answer = "later"
+
+    def tearDown(self):
+        self.mw.notice, self.mw.QDesktopServices.openUrl = self._notice, self._open
+        self.window.close()
+
+    def test_dialog_lets_the_user_decide(self):
+        from juke.gui.update_dialog import UpdateDialog
+        for button, expected in (("skip_button", "skip"), ("later_button", "later"), ("primary_button", "update")):
+            dialog = UpdateDialog(self.newer, "0.1.0", True)
+            getattr(dialog, button).click()
+            self.assertEqual(dialog.choice, expected)
+        manual = UpdateDialog(self.newer, "0.1.0", False)                            # source install: cannot self-update
+        self.assertEqual(manual.primary_button.text(), tr("update.open_page"))
+        manual.primary_button.click()
+        self.assertEqual(manual.choice, "page")
+        shown = UpdateDialog(self.newer, "0.1.0", True)
+        self.assertIn("things", shown.notes.toPlainText())                           # release notes are rendered
+        from PySide6.QtWidgets import QLabel
+        texts = [label.text() for label in shown.findChildren(QLabel)]
+        self.assertTrue(any("9.0.0" in t for t in texts) and any("0.1.0" in t for t in texts))
+
+    def test_skipped_version_stays_quiet_until_asked_manually(self):
+        self.answer = "skip"
+        self.window._update_checked(self.newer, manual=False)
+        self.assertEqual(self.asked, ["9.0.0"])
+        self.assertEqual(self.cfg.get("update.skipped"), "9.0.0")
+        self.window._update_checked(self.newer, manual=False)                        # next automatic check: silent
+        self.assertEqual(self.asked, ["9.0.0"])
+        self.answer = "later"
+        self.window._update_checked(self.newer, manual=True)                         # "Check for updates…": asks again
+        self.assertEqual(self.asked, ["9.0.0", "9.0.0"])
+
+    def test_up_to_date_is_silent_unless_you_asked(self):
+        from juke.updater import ReleaseInfo
+        same = ReleaseInfo("v0.1.0", "0.1.0", "", "", "", 0, "")
+        self.window._update_checked(same, manual=False)
+        self.window._update_checked(None, manual=False)
+        self.assertEqual((self.asked, self.notices), ([], []))
+        self.window._update_checked(same, manual=True)
+        self.assertEqual(len(self.notices), 1)
+        self.assertIn("up to date", self.notices[0])
+        self.assertEqual(self.asked, [])
+
+    def test_page_choice_and_no_self_update_open_the_release_page(self):
+        self.answer = "page"
+        self.window._update_checked(self.newer, manual=True)
+        self.assertEqual(self.opened, [self.newer.page_url])
+        self.answer = "update"                                                       # not an AppImage here -> download page
+        self.window._update_checked(self.newer, manual=True)
+        self.assertEqual(self.opened, [self.newer.page_url] * 2)
+
+    def test_automatic_check_runs_at_most_daily_and_can_be_switched_off(self):
+        import time as _time
+        calls = []
+        self.window.check_for_updates = lambda manual=False: calls.append(manual)
+        self.cfg.set("update.enabled", True)
+        self.cfg.set("update.last_check", _time.time())
+        self.window._auto_update_check()
+        self.assertEqual(calls, [])                                                  # checked minutes ago
+        self.cfg.set("update.last_check", _time.time() - 2 * 86400)
+        self.window._auto_update_check()
+        self.assertEqual(calls, [False])
+        self.cfg.set("update.enabled", False)
+        self.window._auto_update_check()
+        self.assertEqual(calls, [False])                                             # switched off: never asks GitHub
+
+
 @unittest.skipUnless(AudioEngine().available, "libVLC not available")
 class PlaybackTests(unittest.TestCase):
     def test_local_file_plays_seeks_and_finishes_with_eq_applied(self):

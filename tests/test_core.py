@@ -293,17 +293,27 @@ class AirsonicTests(unittest.TestCase):
             self.run_async(go())
         self.assertEqual(ctx.exception.code, 40)
 
-    def _server(self, tree, indexes, folders=None):
-        """A tiny fake Subsonic server: getMusicFolders / getIndexes / getMusicDirectory."""
+    def _server(self, tree, indexes, folders=None, bulk=None):
+        """A tiny fake Subsonic server. ``bulk`` maps musicFolderId (or None) -> songs served by search3;
+        without it search3 is "unsupported" and Juke must crawl folder by folder."""
         def handler(request):
             params = parse_qs(request.url.query.decode())
             path = request.url.path
             if path.endswith("getMusicFolders.view"):
                 body = {"musicFolders": {"musicFolder": folders or []}}
+            elif path.endswith("search3.view"):
+                if bulk is None:
+                    return httpx.Response(200, json={"subsonic-response": {"status": "failed", "error": {"code": 0, "message": "not implemented"}}})
+                songs = bulk.get(params.get("musicFolderId", [None])[0], [])
+                offset, count = int(params["songOffset"][0]), int(params["songCount"][0])
+                body = {"searchResult3": {"song": songs[offset:offset + count]}}
             elif path.endswith("getIndexes.view"):
                 body = {"indexes": indexes(params.get("musicFolderId", [None])[0])}
             else:
-                body = {"directory": tree[params["id"][0]]}
+                key = params["id"][0]
+                if key not in tree:
+                    return httpx.Response(500)
+                body = {"directory": tree[key]}
             return httpx.Response(200, json={"subsonic-response": {"status": "ok", **body}})
         return handler
 
@@ -347,6 +357,121 @@ class AirsonicTests(unittest.TestCase):
         rows = self.sync(handler)
         self.assertEqual(rows["x1"]["folder"], "Bachata/Aventura")
         self.assertEqual(rows["x2"]["folder"], "Salsa/Marc Anthony")
+
+    def test_bulk_sync_pages_through_search3_and_reads_folders_from_paths(self):
+        songs = [{"id": str(i), "title": f"T{i}", "path": f"Bachata-/Artist{i // 100}/Album/{i}.mp3", "duration": 200, "isVideo": False}
+                 for i in range(1200)]
+        calls, seen = [], []
+
+        def counting(request):
+            calls.append(request.url.path.rsplit("/", 1)[-1])
+            return self._server({}, lambda f: {}, bulk={None: songs})(request)
+
+        async def go():
+            client = self.make_client(counting)
+            try:
+                return await client.sync_library(seen.append), client.incomplete
+            finally:
+                await client.aclose()
+
+        rows, incomplete = self.run_async(go())
+        by_id = {r["location"]: r for r in rows}
+        self.assertEqual((len(rows), incomplete), (1200, False))
+        self.assertEqual(by_id["0"]["folder"], "Bachata-/Artist0/Album")
+        self.assertEqual(by_id["1199"]["folder"], "Bachata-/Artist11/Album")
+        self.assertEqual(calls.count("search3.view"), 3)                     # 500 + 500 + 200, not thousands of requests
+        self.assertNotIn("getMusicDirectory.view", calls)
+        self.assertEqual(seen[-1], 1200)
+
+    def test_bulk_sync_with_several_music_folders(self):
+        bulk = {"0": [{"id": "a", "path": "Bachata-/X/a.mp3"}], "1": [{"id": "b", "path": "Show/b.mp3"}, {"id": "c", "path": "c.mp3"}]}
+        rows = self.sync(self._server({}, lambda f: {}, folders=[{"id": 0, "name": "Music"}, {"id": 1, "name": "Podcasts"}], bulk=bulk))
+        self.assertEqual((rows["a"]["folder"], rows["b"]["folder"], rows["c"]["folder"]), ("Music/Bachata-/X", "Podcasts/Show", "Podcasts"))
+
+    def test_bulk_sync_that_dies_half_way_keeps_what_it_has_and_says_so(self):
+        songs = [{"id": str(i), "path": f"A/{i}.mp3"} for i in range(700)]
+        inner = self._server({}, lambda f: {}, bulk={None: songs})
+
+        def flaky(request):
+            if "songOffset=500" in str(request.url):
+                return httpx.Response(500)
+            return inner(request)
+
+        async def go():
+            client = self.make_client(flaky)
+            try:
+                return await client.sync_library(), client.incomplete
+            finally:
+                await client.aclose()
+
+        rows, incomplete = self.run_async(go())
+        self.assertEqual((len(rows), incomplete), (500, True))
+
+    def test_transient_failures_are_retried(self):
+        import juke.api.airsonic as module
+        attempts = []
+
+        def handler(request):
+            attempts.append(1)
+            if len(attempts) == 1:
+                raise httpx.ReadTimeout("slow", request=request)
+            if len(attempts) == 2:
+                return httpx.Response(503)
+            return httpx.Response(200, json={"subsonic-response": {"status": "ok", "version": "1.15.0"}})
+
+        async def go():
+            client = self.make_client(handler)
+            try:
+                return await client.ping()
+            finally:
+                await client.aclose()
+
+        original, module.RETRY_DELAY = module.RETRY_DELAY, 0
+        try:
+            self.assertEqual(self.run_async(go()), "1.15.0")
+            self.assertEqual(len(attempts), 3)
+            attempts.clear()
+            with self.assertRaises(AirsonicError):                            # a server that never recovers still ends in an error
+                self.run_async(self._always(httpx.Response(503)))
+        finally:
+            module.RETRY_DELAY = original
+
+    def _always(self, response):
+        async def go():
+            client = self.make_client(lambda request: response)
+            try:
+                return await client.ping()
+            finally:
+                await client.aclose()
+        return go()
+
+    def test_crawl_skips_a_folder_that_keeps_failing_and_flags_incomplete(self):
+        import juke.api.airsonic as module
+        tree = {"ok": {"child": [{"id": "s1", "title": "Fine"}]},
+                "bad": {"child": [{"id": "s2", "title": "Never seen"}]}}                # "bad" is missing -> the server answers 500
+        del tree["bad"]
+        indexes = lambda f: {"index": [{"artist": [{"id": "ok", "name": "Good"}, {"id": "bad", "name": "Broken"}]}]}
+        original, module.RETRY_DELAY = module.RETRY_DELAY, 0
+        try:
+            async def go():
+                client = self.make_client(self._server(tree, indexes))
+                try:
+                    return await client.sync_library(), client.incomplete
+                finally:
+                    await client.aclose()
+            rows, incomplete = self.run_async(go())
+        finally:
+            module.RETRY_DELAY = original
+        self.assertEqual(([r["location"] for r in rows], incomplete), (["s1"], True))
+
+    def test_incomplete_sync_never_deletes_songs_it_did_not_reach(self):
+        db = make_db("partial.db")
+        old = [row(i, source_type=SOURCE_AIRSONIC, location=str(i)) for i in range(5)]
+        db.apply_sync(SOURCE_AIRSONIC, old, complete=True)
+        db.apply_sync(SOURCE_AIRSONIC, old[:2], complete=False)               # only saw two songs
+        self.assertEqual(sorted(db.locations(SOURCE_AIRSONIC)), ["0", "1", "2", "3", "4"])
+        db.apply_sync(SOURCE_AIRSONIC, old[:2], complete=True)                # a full pass may remove what vanished
+        self.assertEqual(sorted(db.locations(SOURCE_AIRSONIC)), ["0", "1"])
 
     def test_client_adapts_to_an_older_server_protocol(self):
         seen = []
@@ -481,6 +606,125 @@ class IndexerTests(unittest.TestCase):
         bad = Path(helpers.ROOT) / "bad.mp3"
         bad.write_bytes(b"not audio at all")
         self.assertIsNone(read_tags(bad))
+
+
+class UpdaterTests(unittest.TestCase):
+    def run_async(self, coro):
+        return asyncio.run(coro)
+
+    def payload(self, **kw):
+        data = {"tag_name": "v0.2.0", "html_url": "https://github.com/vezzulab/juke/releases/tag/v0.2.0", "body": "## New\n- radio",
+                "draft": False, "prerelease": False,
+                "assets": [{"name": "Juke-x86_64.AppImage", "browser_download_url": "https://dl.example/Juke-x86_64.AppImage",
+                            "size": 300000, "digest": "sha256:" + hashlib.sha256(b"x" * 300000).hexdigest()},
+                           {"name": "notes.txt", "browser_download_url": "https://dl.example/notes.txt", "size": 5}]}
+        data.update(kw)
+        return data
+
+    def test_version_comparison(self):
+        from juke.updater import is_newer, parse_version
+        self.assertEqual(parse_version("v1.2.3-beta"), (1, 2, 3))
+        self.assertIsNone(parse_version("latest"))
+        self.assertTrue(is_newer("0.2.0", "0.1.0"))
+        self.assertTrue(is_newer("v0.1.10", "0.1.9"))          # numeric, not textual
+        self.assertTrue(is_newer("1.0", "0.9.9"))
+        self.assertFalse(is_newer("v0.1.0", "0.1.0"))
+        self.assertFalse(is_newer("0.1", "0.1.0"))             # padded with zeros
+        self.assertFalse(is_newer("0.0.9", "0.1.0"))
+        self.assertFalse(is_newer("nonsense", "0.1.0"))
+
+    def test_release_payload(self):
+        from juke.updater import release_from_json
+        rel = release_from_json(self.payload())
+        self.assertEqual((rel.version, rel.tag, rel.asset_size), ("0.2.0", "v0.2.0", 300000))
+        self.assertEqual(rel.asset_url, "https://dl.example/Juke-x86_64.AppImage")
+        self.assertEqual(len(rel.asset_sha256), 64)
+        self.assertIn("radio", rel.notes)
+        self.assertIsNone(release_from_json(self.payload(draft=True)))
+        self.assertIsNone(release_from_json(self.payload(prerelease=True)))
+        self.assertIsNone(release_from_json(self.payload(tag_name="nightly")))
+        self.assertEqual(release_from_json(self.payload(assets=[])).asset_url, "")   # no AppImage attached
+
+    def test_fetch_latest(self):
+        from juke.updater import fetch_latest
+        seen = []
+
+        def handler(request):
+            seen.append(request)
+            return httpx.Response(200, json=self.payload())
+
+        rel = self.run_async(fetch_latest(transport=httpx.MockTransport(handler)))
+        self.assertEqual(rel.version, "0.2.0")
+        self.assertEqual(str(seen[0].url), "https://api.github.com/repos/vezzulab/juke/releases/latest")
+        self.assertTrue(seen[0].headers["user-agent"].startswith("Juke/"))
+        self.assertEqual(set(seen[0].headers) & {"authorization", "cookie"}, set())   # nothing identifying is sent
+        none_yet = self.run_async(fetch_latest(transport=httpx.MockTransport(lambda r: httpx.Response(404))))
+        self.assertIsNone(none_yet)                                                  # repository has no release yet
+
+    def test_download_verifies_checksum_and_size_and_cleans_up(self):
+        import tempfile
+        from juke.updater import ReleaseInfo, UpdateError, download_asset, release_from_json
+        body = b"x" * 300000
+        handler = lambda request: httpx.Response(200, content=body, headers={"content-length": str(len(body))})
+        rel = release_from_json(self.payload())
+        part = lambda d: Path(d) / ".Juke-update.part"
+        with tempfile.TemporaryDirectory() as d:
+            steps = []
+            path = self.run_async(download_asset(rel, Path(d), steps.append, transport=httpx.MockTransport(handler)))
+            self.assertEqual(path.read_bytes(), body)
+            self.assertTrue(path.stat().st_mode & 0o100)                             # executable
+            self.assertEqual(steps[-1], 100)
+            path.unlink()
+            wrong_sum = ReleaseInfo("v0.2.0", "0.2.0", "", "", rel.asset_url, len(body), "0" * 64)
+            with self.assertRaises(UpdateError) as ctx:
+                self.run_async(download_asset(wrong_sum, Path(d), transport=httpx.MockTransport(handler)))
+            self.assertEqual(str(ctx.exception), "checksum")
+            self.assertFalse(part(d).exists())                                       # a rejected file is never kept
+            wrong_size = ReleaseInfo("v0.2.0", "0.2.0", "", "", rel.asset_url, len(body) + 5, "")
+            with self.assertRaises(UpdateError):
+                self.run_async(download_asset(wrong_size, Path(d), transport=httpx.MockTransport(handler)))
+            self.assertFalse(part(d).exists())
+            with self.assertRaises(Exception):                                       # server error
+                self.run_async(download_asset(rel, Path(d), transport=httpx.MockTransport(lambda r: httpx.Response(500))))
+            self.assertFalse(part(d).exists())
+            self.assertEqual(list(Path(d).iterdir()), [])                            # the folder is left exactly as found
+
+    def test_install_swaps_atomically_and_keeps_it_executable(self):
+        import os
+        import tempfile
+        from juke.updater import install_update
+        with tempfile.TemporaryDirectory() as d:
+            target, part = Path(d) / "Juke.AppImage", Path(d) / ".Juke-update.part"
+            target.write_bytes(b"old")
+            os.chmod(target, 0o755)
+            part.write_bytes(b"new")
+            os.chmod(part, 0o755)
+            install_update(part, target)
+            self.assertEqual(target.read_bytes(), b"new")
+            self.assertTrue(target.stat().st_mode & 0o100)
+            self.assertFalse(part.exists())
+
+    def test_self_update_only_when_the_appimage_can_be_replaced(self):
+        import os
+        import tempfile
+        from juke.updater import self_update_target
+        original = os.environ.get("APPIMAGE")
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                image = Path(d) / "Juke.AppImage"
+                image.write_bytes(b"x")
+                os.environ["APPIMAGE"] = str(image)
+                self.assertEqual(self_update_target(), image)
+                os.chmod(d, 0o500)                                                   # read-only folder
+                try:
+                    self.assertIsNone(self_update_target())
+                finally:
+                    os.chmod(d, 0o700)
+            os.environ.pop("APPIMAGE")
+            self.assertIsNone(self_update_target())                                  # source install: update by hand
+        finally:
+            if original is not None:
+                os.environ["APPIMAGE"] = original
 
 
 class LocaleTests(unittest.TestCase):

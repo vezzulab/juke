@@ -195,6 +195,9 @@ class LcdDisplay(QFrame):
         self._length_ms = int(track.duration * 1000)
         self.seek.setEnabled(True)
 
+    def apply_theme(self) -> None:
+        self._show_cover(self._cover)            # the placeholder is drawn in theme colours
+
     def set_cover(self, cover: QPixmap | None) -> None:
         self._cover = cover
         self._show_cover(cover)
@@ -247,11 +250,12 @@ class TopBar(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("topBar")
+        self._icon_specs: list[tuple[QToolButton, str, str, bool, int]] = []
         self._repeat = "off"
         self._state = "stopped"
 
         self.btn_prev = self._button("prev", 36)
-        self.btn_play = self._button("play", 44, icon_color=styles.BASE, icon_size=22, name="play")
+        self.btn_play = self._button("play", 44, tone="accent", icon_size=22, name="play")
         self.btn_next = self._button("next", 36)
         self.btn_stop = self._button("stop", 36)
         self.btn_shuffle = self._button("shuffle", 34, checkable=True)
@@ -292,7 +296,10 @@ class TopBar(QWidget):
         self.retranslate()
 
     @staticmethod
-    def _button(glyph: str, side: int, *, checkable: bool = False, icon_color: str = styles.TEXT,
+    def _tone(tone: str) -> str:
+        return styles.ON_ACCENT if tone == "accent" else styles.TEXT
+
+    def _button(self, glyph: str, side: int, *, checkable: bool = False, tone: str = "text",
                 icon_size: int = 20, name: str | None = None) -> QToolButton:
         button = QToolButton()
         button.setFixedSize(side, side)
@@ -302,13 +309,23 @@ class TopBar(QWidget):
         button.setFocusPolicy(Qt.NoFocus)
         if name:
             button.setObjectName(name)
-        button.setIcon(icons.icon(glyph, icon_color, active=styles.ACCENT if checkable else None))
+        button.setIcon(icons.icon(glyph, self._tone(tone), active=styles.ACCENT if checkable else None))
+        self._icon_specs.append((button, glyph, tone, checkable, icon_size))
         return button
+
+    def apply_theme(self) -> None:
+        """Rebuild every icon in the new theme's colours."""
+        for button, glyph, tone, checkable, _size in self._icon_specs:
+            button.setIcon(icons.icon(glyph, self._tone(tone), active=styles.ACCENT if checkable else None))
+        self.set_state(self._state)
+        self.set_repeat(self._repeat)
+        self._refresh_volume_icon()
+        self.lcd.apply_theme()
 
     # -- state from the outside --------------------------------------------------------
     def set_state(self, state: str) -> None:
         self._state = state
-        self.btn_play.setIcon(icons.icon("pause" if state == "playing" else "play", styles.BASE, size=24))
+        self.btn_play.setIcon(icons.icon("pause" if state == "playing" else "play", styles.ON_ACCENT, size=24))
         self.btn_play.setToolTip(tr("tip.pause") if state == "playing" else tr("tip.play"))
         self.lcd.spectrum.set_active(state == "playing")
         if state == "stopped":

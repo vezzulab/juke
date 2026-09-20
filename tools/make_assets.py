@@ -250,6 +250,11 @@ def main() -> None:
     stage_playing(window, db)
     grab(window, out / "screenshot-main.png")
 
+    # the same window in the light theme
+    window.theme.apply("light")
+    grab(window, out / "screenshot-light.png")
+    window.theme.apply("dark")
+
     # queue view with "Play next" / "Add to queue" items
     ids = db.query_ids()
     window.queue.play_next([ids[20], ids[9]])

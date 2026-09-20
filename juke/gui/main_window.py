@@ -5,12 +5,12 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSize, QThread, QTimer, Qt, QUrl
-from PySide6.QtGui import QAction, QGuiApplication, QKeySequence, QPixmap, QShortcut
+from PySide6.QtCore import QEvent, QProcess, QSize, QThread, QTimer, Qt, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QProgressBar, QSizePolicy, QSplitter, QToolButton, QVBoxLayout, QWidget)
 
-from .. import REPO_URL, __version__, integration
+from .. import REPO_URL, __version__, integration, updater
 from ..api.airsonic import AirsonicClient, normalize_base_url
 from ..audio.engine import AudioEngine
 from ..audio.equalizer import Equalizer
@@ -27,6 +27,7 @@ from .components.sidebar import Sidebar
 from .components.top_bar import TopBar
 from .components.track_table import TrackTable
 from .dialogs import ask_text, confirm, notice
+from .theme import ThemeManager
 
 MAX_CONSECUTIVE_ERRORS = 4
 
@@ -43,8 +44,11 @@ def format_total(seconds: float) -> str:
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, config: Config, db: Database, engine: AudioEngine, equalizer: Equalizer) -> None:
+    def __init__(self, config: Config, db: Database, engine: AudioEngine, equalizer: Equalizer,
+                 theme: ThemeManager | None = None) -> None:
         super().__init__()
+        self.theme = theme or ThemeManager(QApplication.instance(), config.get("theme"))
+        self.theme.apply()          # palette + stylesheet first, so every icon below is built in the right colours
         self.config, self.db, self.engine, self.equalizer = config, db, engine, equalizer
         self.queue = PlayQueue()
         self.queue.shuffle = bool(config.get("shuffle"))
@@ -58,6 +62,7 @@ class MainWindow(QMainWindow):
         self._workers: set[AsyncWorker] = set()
         self._eq_dialog: EqualizerDialog | None = None
         self._playlists: list[tuple[int, str, int]] = []
+        self._update_worker: AsyncWorker | None = None
         self._empty_action = ""
         self._errors_in_a_row = 0
         self._warned_no_vlc = False
@@ -79,7 +84,8 @@ class MainWindow(QMainWindow):
         self.search.setObjectName("search")
         self.search.setClearButtonEnabled(True)
         self.search.setMinimumWidth(300)
-        self.search.addAction(icons.icon("search", styles.MUTED, size=18), QLineEdit.LeadingPosition)
+        self._search_action = QAction(icons.icon("search", styles.MUTED, size=18), "", self.search)
+        self.search.addAction(self._search_action, QLineEdit.LeadingPosition)
         self.menu_button = QToolButton()
         self.menu_button.setObjectName("menuButton")
         self.menu_button.setIcon(icons.icon("more", styles.TEXT))
@@ -200,11 +206,13 @@ class MainWindow(QMainWindow):
         self.sidebar.delete_playlist_requested.connect(self._delete_playlist)
         translator.changed.connect(self.retranslate)
         QGuiApplication.instance().applicationStateChanged.connect(lambda _state: self._update_activity())
+        self._theme_slot = lambda _name: self._on_theme_changed()
+        styles.signals.changed.connect(self._theme_slot)
 
         for keys, slot in (("Space", self._play_pressed), ("Ctrl+F", lambda: (self.search.setFocus(), self.search.selectAll())),
                            ("Ctrl+E", self.toggle_equalizer), ("Ctrl+,", self.open_settings),
                            ("Ctrl+Right", lambda: self._advance(auto=False)), ("Ctrl+Left", self._previous),
-                           ("Ctrl+Q", self.close), ("Ctrl+N", lambda: self._new_playlist())):
+                           ("Ctrl+Q", self.close), ("Ctrl+N", lambda: self._new_playlist()), ("Ctrl+T", self.toggle_theme)):
             QShortcut(QKeySequence(keys), self).activated.connect(slot)
 
     def _restore_state(self) -> None:
@@ -230,6 +238,24 @@ class MainWindow(QMainWindow):
         self.config.set("shuffle", self.queue.shuffle)
         self.config.set("repeat", self.queue.repeat)
         self.config.save()
+
+    # ------------------------------------------------------------------------------ theme
+    def _on_theme_changed(self) -> None:
+        """Icons and brushes are built once, so the widgets that own them rebuild them now."""
+        self.menu_button.setIcon(icons.icon("more", styles.TEXT))
+        self.settings_button.setIcon(icons.icon("gear", styles.SUBTEXT, active=styles.TEXT, size=18))
+        self._search_action.setIcon(icons.icon("search", styles.MUTED, size=18))
+        self.top_bar.apply_theme()
+        self.sidebar.apply_theme()
+        self.table.track_model.apply_theme()
+        self.table.viewport().update()
+
+    def toggle_theme(self) -> None:
+        """Flip between the dark and light look (also leaves "follow the system" mode)."""
+        choice = "light" if styles.is_dark() else "dark"
+        self.config.set("theme", choice)
+        self.config.save()
+        self.theme.apply(choice)
 
     # ------------------------------------------------------------------------------ power
     def _meter_allowed(self) -> bool:
@@ -262,6 +288,10 @@ class MainWindow(QMainWindow):
         self._update_activity()
 
     def closeEvent(self, event) -> None:  # noqa: N802
+        try:
+            styles.signals.changed.disconnect(self._theme_slot)
+        except (RuntimeError, TypeError):
+            pass
         self.save_state()
         if self._scanner is not None:
             self._scanner.cancel()
@@ -296,12 +326,14 @@ class MainWindow(QMainWindow):
 
         add(tr("menu.new_playlist"), lambda: self._new_playlist(), "Ctrl+N")
         add(tr("menu.equalizer"), self.toggle_equalizer, "Ctrl+E")
+        add(tr("menu.toggle_theme"), self.toggle_theme, "Ctrl+T")
         menu.addSeparator()
         add(tr("menu.rescan"), self.start_scan)
         self.sync_action = add(tr("menu.sync_airsonic"), self.sync_airsonic)
         self.sync_action.setEnabled(self.airsonic is not None)
         menu.addSeparator()
         add(tr("menu.settings"), self.open_settings, "Ctrl+,")
+        add(tr("menu.check_updates"), lambda: self.check_for_updates(manual=True))
         add(tr("menu.about"), self.show_about)
         menu.addSeparator()
         add(tr("menu.quit"), self.close, "Ctrl+Q")
@@ -676,7 +708,82 @@ class MainWindow(QMainWindow):
         self._airsonic_task(fetch, on_result=done, quiet=True)
 
     # ------------------------------------------------------------------------------ scanning
+    # ------------------------------------------------------------------------------ updates
+    def _auto_update_check(self) -> None:
+        settings = self.config.get("update")
+        if settings["enabled"] and time.time() - float(settings["last_check"]) >= updater.CHECK_INTERVAL_S:
+            self.check_for_updates(manual=False)
+
+    def check_for_updates(self, manual: bool = False) -> None:
+        """Ask GitHub for the latest release. Automatic checks are silent unless there is news."""
+        if self._update_worker is not None:
+            return
+
+        async def look(_progress):
+            return await updater.fetch_latest()
+
+        worker = AsyncWorker(look, self)
+        self._update_worker = worker
+
+        def found(release) -> None:
+            self.config.set("update.last_check", time.time())
+            self.config.save()
+            self._update_checked(release, manual)
+
+        worker.result.connect(found)
+        worker.failed.connect(lambda message: self.notify(tr("update.check_failed", error=message), 8000) if manual else None)
+        worker.finished.connect(lambda: (setattr(self, "_update_worker", None), worker.deleteLater()))
+        worker.start()
+
+    def _ask_update(self, release: updater.ReleaseInfo) -> str:
+        from .update_dialog import UpdateDialog
+
+        dialog = UpdateDialog(release, __version__, updater.self_update_target() is not None, self)
+        dialog.exec()
+        return dialog.choice
+
+    def _update_checked(self, release: updater.ReleaseInfo | None, manual: bool) -> None:
+        if release is None or not updater.is_newer(release.version):
+            if manual:
+                notice(self, tr("update.title"), tr("update.uptodate", version=__version__))
+            return
+        if not manual and release.version == self.config.get("update.skipped"):
+            return                     # the user said "skip this version": stay quiet until the next one
+        choice = self._ask_update(release)
+        if choice == "skip":
+            self.config.set("update.skipped", release.version)
+            self.config.save()
+        elif choice == "update":
+            self._perform_update(release)
+        elif choice == "page":
+            QDesktopServices.openUrl(QUrl(release.page_url))
+
+    def _perform_update(self, release: updater.ReleaseInfo) -> None:
+        from .update_dialog import DownloadDialog
+
+        target = updater.self_update_target()
+        if target is None or not release.asset_url:
+            QDesktopServices.openUrl(QUrl(release.page_url))
+            return
+        dialog = DownloadDialog(release, target.parent, self)
+        path = dialog.run()
+        if path is None:
+            if dialog.error:
+                text = tr("update.verify_failed") if dialog.error == "checksum" else tr("update.download_failed", error=dialog.error)
+                notice(self, tr("update.title"), text)
+            return
+        try:
+            updater.install_update(path, target)
+        except OSError as exc:
+            notice(self, tr("update.title"), tr("update.download_failed", error=str(exc)))
+            return
+        self.notify(tr("update.installed", version=release.version), 6000)
+        if confirm(self, tr("update.title"), tr("update.restart_ask")):
+            QProcess.startDetached(str(target), [])
+            self.close()
+
     def _startup_tasks(self) -> None:
+        QTimer.singleShot(12_000, self._auto_update_check)
         if self.config.get("scan_on_start") or self.db.count(SOURCE_LOCAL) == 0:
             self.start_scan()
         if integration.is_installed():
@@ -779,13 +886,13 @@ class MainWindow(QMainWindow):
             return
         db = self.db
 
-        async def sync(client: AirsonicClient, progress) -> int:
+        async def sync(client: AirsonicClient, progress) -> tuple[int, bool]:
             rows = await client.sync_library(progress)
             try:  # written from this worker thread so the UI never waits on the database
-                db.replace_source(SOURCE_AIRSONIC, rows)
+                db.apply_sync(SOURCE_AIRSONIC, rows, complete=not client.incomplete)
             finally:
                 db.close_thread_connection()
-            return len(rows)
+            return len(rows), client.incomplete
 
         self.progress.setRange(0, 0)
         self.progress.show()
@@ -800,9 +907,10 @@ class MainWindow(QMainWindow):
             self._sync_worker.finished.connect(self._sync_finished_ui)
         self._update_empty_text()
 
-    def _sync_done(self, count: int) -> None:
+    def _sync_done(self, outcome: tuple[int, bool]) -> None:
+        count, incomplete = outcome
         self.refresh_library()
-        self.notify(tr("msg.sync_done", n=f"{count:,}"))
+        self.notify(tr("msg.sync_partial" if incomplete else "msg.sync_done", n=f"{count:,}"), 10000 if incomplete else 5000)
 
     def _sync_failed(self, message: str) -> None:
         self.notify(tr("msg.airsonic_error", error=message), 8000)
@@ -843,6 +951,7 @@ class MainWindow(QMainWindow):
         translator.set_language(self.config.get("language"))
         if dialog.wants_integration != integration.is_installed():
             self._set_integration(dialog.wants_integration)
+        self.theme.apply(self.config.get("theme"))
         self._configure_airsonic()
         self._update_activity()
         if self.config.get("music_dirs") != old_dirs:

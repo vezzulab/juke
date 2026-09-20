@@ -35,6 +35,7 @@ DEFAULTS: dict[str, Any] = {
     "language": "auto",  # auto | en | es
     "music_dirs": [str(Path.home() / "Music")],
     "scan_on_start": True,
+    "theme": "auto",  # auto (follow the desktop) | dark | light
     "meter": "auto",  # level-meter animation: auto (mains power only) | on | off
     "volume": 80,
     "muted": False,
@@ -45,6 +46,7 @@ DEFAULTS: dict[str, Any] = {
     "airsonic": {"enabled": False, "url": "", "username": "", "password": "", "auth": "auto"},  # auth: auto | token | password
     "window": {"geometry": "", "splitter": [240, 960]},
     "desktop_integration": {"asked": False, "enabled": False},
+    "update": {"enabled": True, "last_check": 0.0, "skipped": ""},
 }
 
 

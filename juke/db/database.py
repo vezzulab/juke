@@ -65,6 +65,20 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
     PRIMARY KEY (playlist_id, position)
 );
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks_track ON playlist_tracks (track_id);
+CREATE TABLE IF NOT EXISTS stations (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL,
+    stream_url  TEXT    NOT NULL UNIQUE,
+    homepage    TEXT    NOT NULL DEFAULT '',
+    favicon     TEXT    NOT NULL DEFAULT '',
+    tags        TEXT    NOT NULL DEFAULT '',
+    country     TEXT    NOT NULL DEFAULT '',
+    codec       TEXT    NOT NULL DEFAULT '',
+    bitrate     INTEGER NOT NULL DEFAULT 0,
+    uuid        TEXT    NOT NULL DEFAULT '',
+    added_at    REAL    NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_stations_name ON stations (name COLLATE NOCASE);
 """
 
 _COLUMNS = (
@@ -128,6 +142,26 @@ class Track:
     @property
     def is_local(self) -> bool:
         return self.source_type == SOURCE_LOCAL
+
+
+@dataclass(slots=True)
+class Station:
+    """An internet radio station. ``id`` is 0 for one that is not saved (e.g. a search result)."""
+
+    id: int
+    name: str
+    stream_url: str
+    homepage: str = ""
+    favicon: str = ""
+    tags: str = ""
+    country: str = ""
+    codec: str = ""
+    bitrate: int = 0
+    uuid: str = ""
+
+    @property
+    def saved(self) -> bool:
+        return self.id > 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,6 +264,13 @@ class Database:
         stale = [loc for loc in self.locations(source_type) if loc not in keep]
         self.upsert_many(rows)
         self.delete_locations(source_type, stale)
+
+    def apply_sync(self, source_type: str, rows: list[dict], complete: bool) -> None:
+        """Store a sync result. An incomplete one only adds/updates: songs it did not reach are kept."""
+        if complete:
+            self.replace_source(source_type, rows)
+        else:
+            self.upsert_many(rows)
 
     def update_tags(self, track_id: int, **fields) -> None:
         allowed = {"title", "artist", "album", "genre", "year", "track_no"}
@@ -350,6 +391,37 @@ class Database:
         where, args = self._where(scope, text)
         row = self.connect().execute(f"SELECT COUNT(*), COALESCE(SUM(duration), 0) FROM tracks{where}", args).fetchone()
         return row[0], row[1]
+
+    # -- radio stations ----------------------------------------------------------------------
+    _STATION_COLS = "id, name, stream_url, homepage, favicon, tags, country, codec, bitrate, uuid"
+
+    def stations(self) -> list[Station]:
+        cur = self.connect().execute(f"SELECT {self._STATION_COLS} FROM stations ORDER BY name COLLATE NOCASE")
+        return [Station(*row) for row in cur]
+
+    def add_station(self, station: Station) -> int:
+        """Save (or refresh, matched by stream address) a station and return its id."""
+        conn = self.connect()
+        with conn:
+            conn.execute(
+                "INSERT INTO stations (name, stream_url, homepage, favicon, tags, country, codec, bitrate, uuid, added_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(stream_url) DO UPDATE SET name=excluded.name, "
+                "homepage=excluded.homepage, favicon=excluded.favicon, tags=excluded.tags, country=excluded.country, "
+                "codec=excluded.codec, bitrate=excluded.bitrate, uuid=excluded.uuid",
+                (station.name.strip(), station.stream_url, station.homepage, station.favicon, station.tags,
+                 station.country, station.codec, station.bitrate, station.uuid, time.time()))
+            return conn.execute("SELECT id FROM stations WHERE stream_url=?", (station.stream_url,)).fetchone()[0]
+
+    def remove_station(self, station_id: int) -> None:
+        conn = self.connect()
+        with conn:
+            conn.execute("DELETE FROM stations WHERE id=?", (station_id,))
+
+    def station_urls(self) -> set[str]:
+        return {r[0] for r in self.connect().execute("SELECT stream_url FROM stations")}
+
+    def count_stations(self) -> int:
+        return self.connect().execute("SELECT COUNT(*) FROM stations").fetchone()[0]
 
     # -- playlists ------------------------------------------------------------------------
     def playlists(self) -> list[tuple[int, str, int]]:

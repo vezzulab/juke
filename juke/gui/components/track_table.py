@@ -43,6 +43,10 @@ class TrackModel(QAbstractTableModel):
         self._accent = QColor(styles.ACCENT)
         self._muted = QColor(styles.SUBTEXT)
 
+    def apply_theme(self) -> None:
+        self._accent, self._muted = QColor(styles.ACCENT), QColor(styles.SUBTEXT)
+        self.invalidate_rows()
+
     # -- view definition --------------------------------------------------------------------
     def set_view(self, scope: Scope = Scope(), fixed_ids: list[int] | None = None,
                  sort: str | None = None, descending: bool = False) -> None:

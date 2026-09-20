@@ -103,20 +103,21 @@ def icon(name: str, color: str = styles.SUBTEXT, active: str | None = None,
     return result
 
 
-_PLACEHOLDER = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">'
-    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
-    '<stop offset="0" stop-color="#34344f"/><stop offset="1" stop-color="#232336"/></linearGradient></defs>'
-    '<rect width="96" height="96" rx="14" fill="url(#g)"/>'
-    '<g transform="translate(28 28) scale(1.7)" fill="none" stroke="#6c7086" stroke-width="1.8" '
-    'stroke-linecap="round" stroke-linejoin="round">'
-    '<path d="M9 18V5.5l11-2V16"/><circle cx="6" cy="18" r="3" fill="#6c7086"/><circle cx="17" cy="16" r="3" fill="#6c7086"/></g>'
-    '</svg>'
-)
+def _placeholder_svg() -> str:
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">'
+        '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+        f'<stop offset="0" stop-color="{styles.SURFACE}"/><stop offset="1" stop-color="{styles.PANEL}"/></linearGradient></defs>'
+        '<rect width="96" height="96" rx="14" fill="url(#g)"/>'
+        f'<g transform="translate(28 28) scale(1.7)" fill="none" stroke="{styles.MUTED}" stroke-width="1.8" '
+        'stroke-linecap="round" stroke-linejoin="round">'
+        f'<path d="M9 18V5.5l11-2V16"/><circle cx="6" cy="18" r="3" fill="{styles.MUTED}"/><circle cx="17" cy="16" r="3" fill="{styles.MUTED}"/></g>'
+        '</svg>'
+    )
 
 
 def placeholder_cover(size: int) -> QPixmap:
-    return render_svg(_PLACEHOLDER, size)
+    return render_svg(_placeholder_svg(), size)
 
 
 def app_icon() -> QIcon:

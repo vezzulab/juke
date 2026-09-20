@@ -14,6 +14,7 @@ KIND_ROLE = Qt.UserRole + 1     # header | item | group | child
 KEY_ROLE = Qt.UserRole + 2      # (key, value)
 COUNT_ROLE = Qt.UserRole + 3    # int | None
 ACTION_ROLE = Qt.UserRole + 4   # "plus": header row with a "+" button on the right
+ICON_ROLE = Qt.UserRole + 5     # (glyph, size): lets the icons be rebuilt when the theme changes
 PLUS = 26                       # size of that button, px
 
 GROUPS = {"artists": "artist", "albums": "album", "genres": "genre"}
@@ -43,7 +44,7 @@ class SidebarDelegate(QStyledItemDelegate):
                 box = QRectF(rect.right() - PLUS - 10, rect.top() + 6, PLUS, PLUS)
                 if hover:
                     painter.setPen(Qt.NoPen)
-                    painter.setBrush(QColor(58, 58, 85, 230))
+                    painter.setBrush(styles.qcolor(styles.OVERLAY, 230))
                     painter.drawRoundedRect(box, 8, 8)
                 painter.setPen(QPen(QColor(styles.TEXT if hover else styles.SUBTEXT), 1.9, Qt.SolidLine, Qt.RoundCap))
                 c = box.center()
@@ -57,13 +58,13 @@ class SidebarDelegate(QStyledItemDelegate):
         pill = rect.adjusted(0, 1, 0, -1)
         if selected:
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(122, 162, 247, 46))
+            painter.setBrush(styles.qcolor(styles.ACCENT, 46))
             painter.drawRoundedRect(pill, 9, 9)
             painter.setBrush(QColor(styles.ACCENT))
             painter.drawRoundedRect(QRectF(pill.left(), pill.center().y() - 8, 3, 16), 1.5, 1.5)
         elif hovered:
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor(47, 47, 69, 150))
+            painter.setBrush(styles.qcolor(styles.SURFACE, 150))
             painter.drawRoundedRect(pill, 9, 9)
 
         depth, parent = 0, index.parent()
@@ -152,6 +153,7 @@ class Sidebar(QTreeWidget):
             item.setData(0, KEY_ROLE, (key, None))
             item.setData(0, COUNT_ROLE, None)
             item.setIcon(0, icons.icon(glyph, styles.SUBTEXT, active=styles.ACCENT, size=18))
+            item.setData(0, ICON_ROLE, (glyph, 18))
             self._items[(key, None)] = item
             return item
 
@@ -220,6 +222,7 @@ class Sidebar(QTreeWidget):
             item.setData(0, KIND_ROLE, "folder" if subtree[name] else "folderleaf")
             item.setData(0, KEY_ROLE, ("folder", path))
             item.setIcon(0, folder_icon)
+            item.setData(0, ICON_ROLE, ("folder", 16))
             self._items[("folder", path)] = item
 
     def _subtree_for(self, path: str) -> dict:
@@ -334,6 +337,7 @@ class Sidebar(QTreeWidget):
             item.setData(0, KEY_ROLE, ("playlist", playlist_id))
             item.setData(0, COUNT_ROLE, count)
             item.setIcon(0, icon)
+            item.setData(0, ICON_ROLE, ("playlist", 18))
             self._items[("playlist", playlist_id)] = item
         self.blockSignals(False)
         if current in self._items:
@@ -357,6 +361,14 @@ class Sidebar(QTreeWidget):
             self._fill_folders()
         elif key[0] == "folder" and item.childCount() == 0:
             self._add_folder_items(item, self._subtree_for(key[1]), key[1] + "/")
+
+    def apply_theme(self) -> None:
+        for item in self._items.values():
+            spec = item.data(0, ICON_ROLE)
+            if spec:
+                item.setIcon(0, icons.icon(spec[0], styles.SUBTEXT if spec[0] != "folder" else styles.MUTED,
+                                           active=styles.ACCENT, size=spec[1]))
+        self.viewport().update()
 
     def retranslate(self) -> None:
         titles = {"library": "sidebar.library", "servers": "sidebar.servers", "lists": "sidebar.lists"}

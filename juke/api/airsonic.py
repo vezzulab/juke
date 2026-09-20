@@ -31,6 +31,9 @@ class _LazyHttpx:
 
 httpx = _LazyHttpx()
 
+SEARCH_PAGE = 500          # songs per search3 request (what servers reliably allow)
+RETRY_DELAY = 0.6          # seconds, multiplied by the attempt number
+MAX_ATTEMPTS = 3           # per request, for timeouts / dropped connections / 502-504 / 429
 API_VERSION = "1.15.0"  # oldest widely-supported level; raised/lowered to the server's own on demand
 CLIENT_NAME = "juke"
 
@@ -86,7 +89,7 @@ def song_to_row(song: dict, folder: str | None = None) -> dict:
 
 
 class AirsonicClient:
-    def __init__(self, base_url: str, username: str, password: str, *, timeout: float = 20.0,
+    def __init__(self, base_url: str, username: str, password: str, *, timeout: float = 30.0,
                  transport: httpx.AsyncBaseTransport | None = None, auth: str = "auto") -> None:
         """``auth``: "auto" (token, falling back to the password if the server asks), "token" or "password"."""
         self.base_url = normalize_base_url(base_url)
@@ -94,6 +97,7 @@ class AirsonicClient:
         self.auth_mode = "password" if auth == "password" else "token"   # what requests use right now
         self._may_fall_back = auth == "auto"
         self.api_version = API_VERSION
+        self.incomplete = False        # set by sync_library when some part of the server could not be read
         self._password = password
         self._http_options = {"timeout": timeout, "transport": transport}
         self._http_client = None       # created on the first request, inside the task's own event loop
@@ -137,16 +141,28 @@ class AirsonicClient:
 
     async def _request_once(self, name: str, **params: Any) -> dict:
         query = {**self._auth_params(), "f": "json", **{k: v for k, v in params.items() if v is not None}}
-        try:
-            response = await self._http.get(self._endpoint(name), params=query)
-            response.raise_for_status()
-            payload = response.json()
-        except httpx.HTTPStatusError as exc:
-            raise AirsonicError(f"HTTP {exc.response.status_code}") from exc
-        except httpx.HTTPError as exc:
-            raise AirsonicError(str(exc) or exc.__class__.__name__) from exc
-        except ValueError as exc:
-            raise AirsonicError("The server did not answer with Subsonic JSON") from exc
+        payload = None
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                response = await self._http.get(self._endpoint(name), params=query)
+                response.raise_for_status()
+                payload = response.json()
+                break
+            except httpx.HTTPStatusError as exc:
+                code = exc.response.status_code
+                if code in (429, 502, 503, 504) and attempt < MAX_ATTEMPTS:      # busy server: wait and retry
+                    await asyncio.sleep(RETRY_DELAY * attempt)
+                    continue
+                raise AirsonicError(f"HTTP {code}") from exc
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:            # slow server / dropped connection
+                if attempt < MAX_ATTEMPTS:
+                    await asyncio.sleep(RETRY_DELAY * attempt)
+                    continue
+                raise AirsonicError(str(exc) or exc.__class__.__name__) from exc
+            except httpx.HTTPError as exc:
+                raise AirsonicError(str(exc) or exc.__class__.__name__) from exc
+            except ValueError as exc:
+                raise AirsonicError("The server did not answer with Subsonic JSON") from exc
         body = payload.get("subsonic-response") if isinstance(payload, dict) else None
         if not isinstance(body, dict):
             raise AirsonicError("Unexpected server response")
@@ -174,31 +190,79 @@ class AirsonicClient:
         return (await self._request("getMusicDirectory.view", id=directory_id)).get("directory", {})
 
     async def sync_library(self, progress: Callable[[int], None] | None = None,
-                           concurrency: int = 8) -> list[dict]:
-        """Walk the server's folders (getIndexes -> getMusicDirectory) and return every song as a
-        track row whose ``folder`` is the trail of folder names, exactly as the server shows it.
+                           concurrency: int = 3) -> list[dict]:
+        """Every song of the server as a track row whose ``folder`` is the path the server shows.
 
-        When the server has several music folders (e.g. Bachata, Salsa, Merengue configured
-        separately) each becomes the first level of that trail.
+        Fast path: ``search3`` with an empty query pages through all songs (500 per request) and each
+        song carries its folder path. Servers without it are crawled folder by folder instead
+        (getIndexes -> getMusicDirectory), gently, with retries. If any part could not be read,
+        ``self.incomplete`` is set so the caller does not delete what it could not see.
+
+        With several music folders (e.g. Music, Podcasts) each becomes the first level of the path.
         """
+        self.incomplete = False
         try:
             folders = await self.get_music_folders()
         except AirsonicError:
             folders = []
         if len(folders) > 1:
-            roots = [(str(f["id"]), [str(f.get("name") or "")]) for f in folders]
+            targets = [(str(f["id"]), str(f.get("name") or "")) for f in folders]
         else:
-            roots = [(None, [])]
+            targets = [(None, "")]
+        rows = await self._sync_bulk(targets, progress)
+        if rows is None:
+            self.incomplete = False
+            rows = await self._sync_crawl(targets, progress, concurrency)
+        return rows
+
+    async def _sync_bulk(self, targets: list[tuple[str | None, str]], progress) -> list[dict] | None:
+        """search3 paging. None when the server does not support it (the caller then crawls)."""
         songs: dict[str, tuple[dict, str]] = {}
-        gate = asyncio.Semaphore(concurrency)
+        for index, (folder_id, prefix) in enumerate(targets):
+            offset = 0
+            while True:
+                try:
+                    body = await self._request("search3.view", query="", songCount=SEARCH_PAGE, songOffset=offset,
+                                               artistCount=0, albumCount=0, musicFolderId=folder_id)
+                except AirsonicError:
+                    if index == 0 and offset == 0:
+                        return None                    # not supported here
+                    self.incomplete = True             # died half way: keep what we have, delete nothing
+                    break
+                page = _as_list((body.get("searchResult3") or {}).get("song"))
+                new = 0
+                for song in page:
+                    if not song.get("isVideo") and str(song["id"]) not in songs:
+                        songs[str(song["id"])] = (song, prefix)
+                        new += 1
+                if progress:
+                    progress(len(songs))
+                if len(page) < SEARCH_PAGE or new == 0 or offset > 2_000_000:
+                    break
+                offset += len(page)
+        if not songs:
+            return None                                # an empty answer may just mean "not implemented": crawl to be sure
+        rows = []
+        for song, prefix in songs.values():
+            directory = posixpath.dirname(str(song.get("path") or "").replace("\\", "/")).strip("/")
+            rows.append(song_to_row(song, "/".join(part for part in (prefix, directory) if part)))
+        return rows
+
+    async def _sync_crawl(self, targets: list[tuple[str | None, str]], progress, concurrency: int) -> list[dict]:
+        songs: dict[str, tuple[dict, str]] = {}
+        gate = asyncio.Semaphore(max(1, concurrency))
         visited: set[str] = set()
 
         async def visit(directory_id: str, trail: list[str]) -> None:
             if directory_id in visited:
                 return
             visited.add(directory_id)
-            async with gate:
-                directory = await self.get_music_directory(directory_id)
+            try:
+                async with gate:
+                    directory = await self.get_music_directory(directory_id)
+            except AirsonicError:
+                self.incomplete = True                 # skip this folder, carry on with the rest
+                return
             here = "/".join(trail)
             children = []
             for child in _as_list(directory.get("child")):
@@ -225,7 +289,7 @@ class AirsonicClient:
                     songs[str(child["id"])] = (child, "/".join(base))
             await asyncio.gather(*top)
 
-        await asyncio.gather(*(crawl(fid, base) for fid, base in roots))
+        await asyncio.gather(*(crawl(fid, ([name] if name else [])) for fid, name in targets))
         return [song_to_row(song, folder) for song, folder in songs.values()]
 
     def stream_url(self, song_id: str) -> str:
