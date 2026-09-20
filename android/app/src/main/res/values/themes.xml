@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Juke.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/juke_window</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Juke</item>
+    </style>
+
+    <style name="Theme.Juke" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/juke_window</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

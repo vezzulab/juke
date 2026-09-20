@@ -121,6 +121,14 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 30px; align-items: cent
 footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: var(--text); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .btn { transition: none; } }
+
+/* Android */
+.phones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px; margin-top: 34px; }
+.phone { text-align: center; }
+.phone img { width: 100%; max-width: 300px; border-radius: 22px; border: 1px solid var(--border); background: #06070a; box-shadow: 0 24px 60px rgba(0,0,0,.42); }
+.phone span { display: block; margin-top: 12px; font-size: 13.5px; color: var(--muted); }
+.two-up { display: grid; grid-template-columns: 1.1fr 1fr; gap: 34px; align-items: center; }
+@media (max-width: 860px) { .phones { grid-template-columns: 1fr; } .two-up { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -131,6 +139,7 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
     <div class="links">
       <a class="hide-sm" href="#features" data-i18n="nav_features">Features</a>
       <a class="hide-sm" href="#screens" data-i18n="nav_screens">Screenshots</a>
+      <a class="hide-sm" href="#android" data-i18n="nav_android">Android</a>
       <a href="#install" data-i18n="nav_install">Install</a>
       <a class="hide-sm" href="https://github.com/vezzulab/juke">GitHub</a>
       <button class="tool" id="lang" type="button" aria-label="Language">ES</button>
@@ -149,6 +158,10 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
       <a class="btn primary" href="https://github.com/vezzulab/juke/releases/latest">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg>
         <span data-i18n="cta_download">Download AppImage</span>
+      </a>
+      <a class="btn" href="#android">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.6"/><path d="M10.5 18.6h3"/></svg>
+        <span data-i18n="cta_android">Also on Android</span>
       </a>
       <a class="btn" href="https://github.com/vezzulab/juke">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.77.11 3.06.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5z"/></svg>
@@ -214,6 +227,41 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
   </div>
 </section>
 
+
+<section class="alt" id="android">
+  <div class="wrap">
+    <p class="eyebrow" data-i18n="a_eyebrow">Android</p>
+    <div class="two-up">
+      <div>
+        <h2 data-i18n="a_title">The same player, in your pocket.</h2>
+        <p class="intro" data-i18n="a_intro">Juke for Android carries the music on your card or phone, your Airsonic server and your radio stations, in a full-screen player built for phones and tablets alike.</p>
+        <ul class="reqs">
+          <li data-i18n="a_r1">Your card and your storage, browsed by folders — exactly as you filed them</li>
+          <li data-i18n="a_r2">Airsonic / Subsonic on its own tab, by folders too</li>
+          <li data-i18n="a_r3">Internet radio: the directory, or any page you paste — a page that lists several stations offers them all</li>
+          <li data-i18n="a_r4">Plays in the background, with the notification and lock-screen controls</li>
+          <li data-i18n="a_r5">10-band equalizer with the same presets, English and Español, dark and light</li>
+        </ul>
+        <div class="cta" style="justify-content:flex-start">
+          <a class="btn primary" href="https://github.com/vezzulab/juke/releases/latest">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg>
+            <span data-i18n="cta_apk">Download the APK</span>
+          </a>
+        </div>
+        <p class="fine" data-i18n="a_fine">Android 8 and newer · phones and tablets · about 3 MB</p>
+      </div>
+      <div class="phones" style="grid-template-columns:1fr">
+        <div class="phone"><img src="assets/android-player.png" alt="Juke playing a live station on Android" loading="lazy"></div>
+      </div>
+    </div>
+    <div class="phones">
+      <div class="phone"><img src="assets/android-library.png" alt="Music folders on the card" loading="lazy"><span data-i18n="a_c1">Your folders, as you filed them</span></div>
+      <div class="phone"><img src="assets/android-radio.png" alt="Radio directory on Android" loading="lazy"><span data-i18n="a_c2">Stations from the directory or from any page</span></div>
+      <div class="phone"><img src="assets/android-player.png" alt="Juke player on Android" loading="lazy"><span data-i18n="a_c3">A full-screen player, phone or tablet</span></div>
+    </div>
+  </div>
+</section>
+
 <section id="install">
   <div class="wrap">
     <p class="eyebrow" data-i18n="i_eyebrow">Install</p>
@@ -269,7 +317,19 @@ juke</code><button class="copy" type="button" data-copy="git clone https://githu
 const T = {
   en: {},
   es: {
-    nav_features: "Características", nav_screens: "Capturas", nav_install: "Instalar",
+    nav_features: "Características", nav_screens: "Capturas", nav_install: "Instalar", nav_android: "Android",
+    cta_android: "También en Android", cta_apk: "Descargar el APK",
+    a_eyebrow: "Android", a_title: "El mismo reproductor, en tu bolsillo.",
+    a_intro: "Juke para Android lleva la música de tu tarjeta o tu teléfono, tu servidor Airsonic y tus emisoras, en un reproductor a pantalla completa hecho igual para teléfonos y tabletas.",
+    a_r1: "Tu tarjeta y tu almacenamiento, por carpetas — tal como las guardaste",
+    a_r2: "Airsonic / Subsonic en su propia pestaña, también por carpetas",
+    a_r3: "Radio por Internet: el directorio, o cualquier página que pegues — si la página lista varias emisoras, te las ofrece todas",
+    a_r4: "Suena en segundo plano, con los controles en la notificación y en la pantalla de bloqueo",
+    a_r5: "Ecualizador de 10 bandas con los mismos presets, English y Español, oscuro y claro",
+    a_fine: "Android 8 o superior · teléfonos y tabletas · unos 3 MB",
+    a_c1: "Tus carpetas, tal como las guardaste",
+    a_c2: "Emisoras del directorio o de cualquier página",
+    a_c3: "Un reproductor a pantalla completa, en teléfono o tableta",
     lead: "Un reproductor de música moderno para Linux",
     sublead: "Tres paneles, un ecualizador de 10 bandas, streaming Airsonic y radio por Internet — instantáneo con más de 50.000 pistas y amable con la batería.",
     cta_download: "Descargar AppImage", cta_github: "Ver en GitHub",

@@ -125,6 +125,38 @@ Inglés y español, con cambio en vivo. Escalado HiDPI de Qt 6 (también fraccio
 
 > Salvo la principal, las capturas están en inglés; toda la interfaz cambia de idioma en vivo desde *Ajustes*.
 
+## Juke para Android
+
+<div align="center">
+<img src="assets/android-player.png" alt="Juke reproduciendo una emisora en vivo en Android" width="30%">
+<img src="assets/android-library.png" alt="Carpetas de música en la tarjeta" width="30%">
+<img src="assets/android-radio.png" alt="El directorio de radios en Android" width="30%">
+</div>
+
+El mismo reproductor en un teléfono o una tableta: un cuerpo a pantalla completa con la carátula, la
+placa del formato y las teclas de transporte, hecho con Jetpack Compose y Media3.
+
+- **Tu tarjeta y tu almacenamiento, por carpetas** — tal como las guardaste; no hace falta tarjeta, el
+  almacenamiento del propio aparato aparece igual.
+- **Airsonic / Subsonic en su propia pestaña**, también por carpetas.
+- **Radio por Internet** — el directorio comunitario o cualquier dirección que pegues. Si la página
+  lista varias emisoras, te las ofrece todas, y una emisora guardada encuentra su nueva dirección
+  cuando se muda.
+- **Suena en segundo plano**, con los controles en la notificación, la pantalla de bloqueo, Bluetooth
+  y los auriculares.
+- **Ecualizador de 10 bandas** con los mismos presets, English y Español, oscuro y claro.
+
+Instala `Juke-<versión>.apk` desde la [última versión](https://github.com/vezzulab/juke/releases/latest)
+(Android 8 o superior, unos 3 MB). La primera vez, Android te pedirá permitir la instalación desde tu
+navegador o tu explorador de archivos.
+
+Constrúyelo tú con el SDK de Android (API 35) y JDK 17:
+
+```sh
+cd android
+./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+```
+
 ## Instalación
 
 ### AppImage (recomendado)
@@ -250,6 +282,7 @@ juke/
 ├── api/                cliente Airsonic, cliente Radio-Browser, resolutor de transmisiones
 ├── db/                 biblioteca SQLite (pistas, listas, emisoras) e indexador en segundo plano
 └── gui/                ventana principal, barra superior, panel lateral, tabla, vista de radio, diálogos, temas, iconos SVG
+android/                Juke para Android (Kotlin, Jetpack Compose, Media3)
 packaging/              construcción del AppImage (AppRun, entrada .desktop, scripts)
 docs/                   el sitio web del proyecto (GitHub Pages)
 tests/                  pruebas unitarias y de interfaz sin pantalla (incluye reproducción real con libVLC)

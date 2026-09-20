@@ -123,6 +123,36 @@ English and Spanish, switchable live. Qt 6 HiDPI scaling (fractional too), Wayla
 </tr>
 </table>
 
+## Juke for Android
+
+<div align="center">
+<img src="assets/android-player.png" alt="Juke playing a live station on Android" width="30%">
+<img src="assets/android-library.png" alt="Music folders on the card" width="30%">
+<img src="assets/android-radio.png" alt="The radio directory on Android" width="30%">
+</div>
+
+The same player on a phone or a tablet: a full-screen body with the art, the format plate and the
+transport keys, built with Jetpack Compose and Media3.
+
+- **Your card and your storage, by folders** — exactly as you filed them; no card is needed, the
+  device's own storage shows up the same way.
+- **Airsonic / Subsonic on its own tab**, browsed by folders too.
+- **Internet radio** — the community directory, or any address you paste. A page whose player lists
+  several stations offers them all, and a saved station finds its new address when it moves.
+- **Background playback** with the notification and lock-screen controls, Bluetooth and headsets.
+- **10-band equalizer** with the same presets, English and Español, dark and light.
+
+Install `Juke-<version>.apk` from the [latest release](https://github.com/vezzulab/juke/releases/latest)
+(Android 8 or newer, about 3 MB). Android asks you to allow installing from your browser or file
+manager the first time.
+
+Build it yourself with the Android SDK (API 35) and JDK 17:
+
+```sh
+cd android
+./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+```
+
 ## Install
 
 ### AppImage (recommended)
@@ -248,6 +278,7 @@ juke/
 ├── api/                Airsonic client, Radio-Browser client, stream resolver
 ├── db/                 SQLite library (tracks, playlists, stations) and the background indexer
 └── gui/                main window, top bar, sidebar, song table, radio view, dialogs, themes, SVG icons
+android/                Juke for Android (Kotlin, Jetpack Compose, Media3)
 packaging/              AppImage build (AppRun, desktop entry, scripts)
 docs/                   the project website (GitHub Pages)
 tests/                  unit tests and offscreen GUI tests (incl. real playback through libVLC)
