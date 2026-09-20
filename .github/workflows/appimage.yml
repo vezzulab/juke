@@ -21,7 +21,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libvlc5 libvlccore9 vlc-plugin-base rsync squashfs-tools desktop-file-utils \
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
-            libxcb-shape0 libxcb-xkb1 libxkbcommon-x11-0 libxcb-xinerama0
+            libxcb-shape0 libxcb-xkb1 libxkbcommon-x11-0 libxcb-xinerama0 \
+            libegl1 libgl1 libopengl0 libxkbcommon0 libfontconfig1 libdbus-1-3 libglib2.0-0
           # the PulseAudio output lives in its own package on some releases
           if apt-cache show vlc-plugin-pulse >/dev/null 2>&1; then sudo apt-get install -y vlc-plugin-pulse; fi
 
