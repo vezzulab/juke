@@ -35,13 +35,14 @@ DEFAULTS: dict[str, Any] = {
     "language": "auto",  # auto | en | es
     "music_dirs": [str(Path.home() / "Music")],
     "scan_on_start": True,
+    "meter": "auto",  # level-meter animation: auto (mains power only) | on | off
     "volume": 80,
     "muted": False,
     "shuffle": False,
     "repeat": "off",  # off | all | one
     "equalizer": {"enabled": False, "preamp": 0.0, "gains": [0.0] * 10, "preset": "Flat"},
     "custom_presets": {},  # name -> {"preamp": float, "gains": [10 floats]}
-    "airsonic": {"enabled": False, "url": "", "username": "", "password": ""},
+    "airsonic": {"enabled": False, "url": "", "username": "", "password": "", "auth": "auto"},  # auth: auto | token | password
     "window": {"geometry": "", "splitter": [240, 960]},
     "desktop_integration": {"asked": False, "enabled": False},
 }

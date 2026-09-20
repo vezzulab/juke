@@ -1,7 +1,10 @@
 """Asynchronous Subsonic / Airsonic REST client (API 1.16.1) built on httpx.
 
-Authentication uses the token scheme: every request carries a fresh random salt
-``s`` and ``t = md5(password + salt)``, so the password is never sent.
+Authentication prefers the token scheme: every request carries a fresh random salt ``s`` and
+``t = md5(password + salt)``, so the password is not sent. Some servers (Airsonic-Advanced with
+hashed passwords) cannot verify tokens and answer error 41 "try authenticating via non-hashed
+password"; only then does the client switch to the ``p=enc:<hex>`` password parameter. That is
+obfuscation, not encryption, so it should only be used over https.
 """
 
 from __future__ import annotations
@@ -13,9 +16,20 @@ import secrets
 from typing import Any, Callable
 from urllib.parse import urlencode
 
-import httpx
-
 from .. import __version__
+
+
+class _LazyHttpx:
+    """``httpx`` (plus anyio, h11, ssl...) costs ~13 MB: import it the first time it is really used."""
+
+    def __getattr__(self, name: str):
+        import httpx as real
+
+        globals()["httpx"] = real
+        return getattr(real, name)
+
+
+httpx = _LazyHttpx()
 
 API_VERSION = "1.15.0"  # oldest widely-supported level; raised/lowered to the server's own on demand
 CLIENT_NAME = "juke"
@@ -73,21 +87,32 @@ def song_to_row(song: dict, folder: str | None = None) -> dict:
 
 class AirsonicClient:
     def __init__(self, base_url: str, username: str, password: str, *, timeout: float = 20.0,
-                 transport: httpx.AsyncBaseTransport | None = None) -> None:
+                 transport: httpx.AsyncBaseTransport | None = None, auth: str = "auto") -> None:
+        """``auth``: "auto" (token, falling back to the password if the server asks), "token" or "password"."""
         self.base_url = normalize_base_url(base_url)
         self.username = username
+        self.auth_mode = "password" if auth == "password" else "token"   # what requests use right now
+        self._may_fall_back = auth == "auto"
         self.api_version = API_VERSION
         self._password = password
-        self._http = httpx.AsyncClient(
-            timeout=timeout, transport=transport, follow_redirects=True,
-            headers={"User-Agent": f"Juke/{__version__}"},
-        )
+        self._http_options = {"timeout": timeout, "transport": transport}
+        self._http_client = None       # created on the first request, inside the task's own event loop
+
+    @property
+    def _http(self):
+        if self._http_client is None:
+            self._http_client = httpx.AsyncClient(follow_redirects=True, headers={"User-Agent": f"Juke/{__version__}"},
+                                                  **self._http_options)
+        return self._http_client
 
     # -- request plumbing ------------------------------------------------------
     def _auth_params(self) -> dict[str, str]:
+        base = {"u": self.username, "v": self.api_version, "c": CLIENT_NAME}
+        if self.auth_mode == "password":
+            return {**base, "p": "enc:" + self._password.encode("utf-8").hex()}
         salt = secrets.token_hex(8)
         token = hashlib.md5((self._password + salt).encode("utf-8")).hexdigest()  # noqa: S324 - protocol mandated
-        return {"u": self.username, "t": token, "s": salt, "v": self.api_version, "c": CLIENT_NAME}
+        return {**base, "t": token, "s": salt}
 
     def _endpoint(self, name: str) -> str:
         return f"{self.base_url}/rest/{name}"
@@ -103,6 +128,10 @@ class AirsonicClient:
             # 20 = client too old, 30 = server too old: speak the server's own protocol level
             if exc.code in (20, 30) and exc.server_version and exc.server_version != self.api_version:
                 self.api_version = exc.server_version
+                return await self._request_once(name, **params)
+            # 41 = the server cannot check tokens for this user: ask again with the password itself
+            if exc.code == 41 and self._may_fall_back and self.auth_mode == "token":
+                self.auth_mode = "password"
                 return await self._request_once(name, **params)
             raise
 
@@ -218,4 +247,5 @@ class AirsonicClient:
         await self._request("scrobble.view", id=song_id, submission=str(submission).lower(), time=when_ms)
 
     async def aclose(self) -> None:
-        await self._http.aclose()
+        if self._http_client is not None:
+            await self._http_client.aclose()

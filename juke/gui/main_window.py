@@ -5,8 +5,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QSize, QTimer, Qt, QUrl
-from PySide6.QtGui import QAction, QKeySequence, QPixmap, QShortcut
+from PySide6.QtCore import QEvent, QSize, QThread, QTimer, Qt, QUrl
+from PySide6.QtGui import QAction, QGuiApplication, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QProgressBar, QSizePolicy, QSplitter, QToolButton, QVBoxLayout, QWidget)
 
@@ -20,15 +20,13 @@ from ..config import AUDIO_EXTENSIONS, Config
 from ..db.database import SOURCE_AIRSONIC, SOURCE_LOCAL, Database, Scope, Track
 from ..db.indexer import LibraryScanner, cover_key_for, cover_path, extract_cover, read_tags, save_cover
 from ..i18n import tr, translator, trn
+from ..power import on_battery
 from ..workers import AsyncWorker
 from . import icons, styles
-from .components.eq_dialog import EqualizerDialog
 from .components.sidebar import Sidebar
 from .components.top_bar import TopBar
 from .components.track_table import TrackTable
 from .dialogs import ask_text, confirm, notice
-from .meta_dialog import MetadataDialog
-from .settings_dialog import SettingsDialog
 
 MAX_CONSECUTIVE_ERRORS = 4
 
@@ -148,6 +146,10 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.status_label)
         self.statusBar().addPermanentWidget(self.progress)
 
+        self._power_timer = QTimer(self)
+        self._power_timer.setTimerType(Qt.VeryCoarseTimer)
+        self._power_timer.setInterval(30_000)
+        self._power_timer.timeout.connect(self._update_activity)
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(140)
@@ -161,7 +163,7 @@ class MainWindow(QMainWindow):
         self.refresh_library()
         self.sidebar.select("all")
         self._show_view("all", None)
-        QTimer.singleShot(400, self._startup_tasks)
+        QTimer.singleShot(2500, self._startup_tasks)   # let the window appear before any disk work
 
     # ------------------------------------------------------------------------------ wiring
     def _wire(self) -> None:
@@ -177,6 +179,7 @@ class MainWindow(QMainWindow):
         tb.shuffle_toggled.connect(self._set_shuffle)
         tb.repeat_changed.connect(self._set_repeat)
         eng.state_changed.connect(tb.set_state)
+        eng.state_changed.connect(lambda _s: self._update_activity())
         eng.position_changed.connect(tb.set_position)
         eng.track_finished.connect(self._track_finished)
         eng.error.connect(self._engine_error)
@@ -196,6 +199,7 @@ class MainWindow(QMainWindow):
         self.sidebar.rename_playlist_requested.connect(self._rename_playlist)
         self.sidebar.delete_playlist_requested.connect(self._delete_playlist)
         translator.changed.connect(self.retranslate)
+        QGuiApplication.instance().applicationStateChanged.connect(lambda _state: self._update_activity())
 
         for keys, slot in (("Space", self._play_pressed), ("Ctrl+F", lambda: (self.search.setFocus(), self.search.selectAll())),
                            ("Ctrl+E", self.toggle_equalizer), ("Ctrl+,", self.open_settings),
@@ -226,6 +230,36 @@ class MainWindow(QMainWindow):
         self.config.set("shuffle", self.queue.shuffle)
         self.config.set("repeat", self.queue.repeat)
         self.config.save()
+
+    # ------------------------------------------------------------------------------ power
+    def _meter_allowed(self) -> bool:
+        mode = self.config.get("meter")
+        return mode == "on" or (mode != "off" and not on_battery())
+
+    def _update_activity(self) -> None:
+        """Nobody watches a hidden window: slow the poll and freeze the level meter (and always
+        freeze it on battery unless the user asked for it)."""
+        active = self.isVisible() and not self.isMinimized() and \
+            QGuiApplication.applicationState() == Qt.ApplicationActive
+        self.engine.set_ui_active(active)
+        self.top_bar.set_animating(active and self._meter_allowed())
+        if active and self.config.get("meter") == "auto" and self.engine.state == "playing":
+            self._power_timer.start()     # the charger may be plugged in or out while we play
+        else:
+            self._power_timer.stop()
+
+    def changeEvent(self, event) -> None:  # noqa: N802
+        if event.type() == QEvent.WindowStateChange:
+            self._update_activity()
+        super().changeEvent(event)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        self._update_activity()
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        super().hideEvent(event)
+        self._update_activity()
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self.save_state()
@@ -613,6 +647,8 @@ class MainWindow(QMainWindow):
         track = self.db.get_track(track_id)
         if track is None or not track.is_local:
             return
+        from .meta_dialog import MetadataDialog
+
         if MetadataDialog(track, self.db, self).exec():
             self.refresh_library()
 
@@ -666,7 +702,7 @@ class MainWindow(QMainWindow):
         self.progress.setRange(0, 0)
         self.progress.show()
         self.status_label.setText(tr("status.scanning"))
-        self._scanner.start()
+        self._scanner.start(QThread.LowPriority)       # never compete with playback or the UI
 
     def _scan_progress(self, done: int, total: int) -> None:
         if total:
@@ -691,7 +727,7 @@ class MainWindow(QMainWindow):
     def _configure_airsonic(self) -> None:
         cfg = self.config.get("airsonic")
         if cfg["enabled"] and normalize_base_url(cfg["url"]) and cfg["username"]:
-            self.airsonic = AirsonicClient(cfg["url"], cfg["username"], cfg["password"])
+            self.airsonic = AirsonicClient(cfg["url"], cfg["username"], cfg["password"], auth=cfg.get("auth", "auto"))
         else:
             self.airsonic = None
         if hasattr(self, "sync_action"):
@@ -703,15 +739,19 @@ class MainWindow(QMainWindow):
         if self.airsonic is None:
             return None
 
+        detected: dict[str, str] = {}
+
         async def factory(progress):
-            client = AirsonicClient(cfg["url"], cfg["username"], cfg["password"])
+            client = AirsonicClient(cfg["url"], cfg["username"], cfg["password"], auth=cfg.get("auth", "auto"))
             try:
                 return await operation(client, progress)
             finally:
+                detected["auth"] = client.auth_mode
                 await client.aclose()
 
         worker = AsyncWorker(factory, self)
         self._workers.add(worker)
+        worker.finished.connect(lambda: self._remember_auth(detected.get("auth")))
         if on_result:
             worker.result.connect(on_result)
         if on_progress:
@@ -723,6 +763,13 @@ class MainWindow(QMainWindow):
         worker.finished.connect(lambda w=worker: (self._workers.discard(w), w.deleteLater()))
         worker.start()
         return worker
+
+    def _remember_auth(self, mode: str | None) -> None:
+        """The server may only accept the password (not tokens): keep that so stream URLs match."""
+        if mode and self.airsonic is not None and self.config.get("airsonic.auth") != mode:
+            self.config.set("airsonic.auth", mode)
+            self.config.save()
+            self.airsonic.auth_mode = mode
 
     def sync_airsonic(self) -> None:
         if self.airsonic is None:
@@ -770,6 +817,8 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------------------ dialogs
     def toggle_equalizer(self) -> None:
+        from .components.eq_dialog import EqualizerDialog
+
         if self._eq_dialog is None:
             self._eq_dialog = EqualizerDialog(self.equalizer, self.engine, self)
             self._eq_dialog.closed.connect(lambda: self.top_bar.set_eq_open(False))
@@ -782,6 +831,8 @@ class MainWindow(QMainWindow):
             self.top_bar.set_eq_open(True)
 
     def open_settings(self, tab: int = 0) -> None:
+        from .settings_dialog import SettingsDialog
+
         dialog = SettingsDialog(self.config, integration.is_installed(), self, int(tab))
         if not dialog.exec():
             return
@@ -793,6 +844,7 @@ class MainWindow(QMainWindow):
         if dialog.wants_integration != integration.is_installed():
             self._set_integration(dialog.wants_integration)
         self._configure_airsonic()
+        self._update_activity()
         if self.config.get("music_dirs") != old_dirs:
             self.start_scan()
         if self.config.get("airsonic") != old_airsonic and self.airsonic is not None:

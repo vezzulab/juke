@@ -6,6 +6,8 @@ export PYTHONHOME="$HERE/usr/python"
 export PYTHONPATH="$HERE/usr/python/site-packages"
 export PYTHONNOUSERSITE=1
 export PYTHONDONTWRITEBYTECODE=1
+# keep the heap tight: fewer glibc arenas and eager trimming (RSS matters more than raw speed here)
+export MALLOC_ARENA_MAX=2 MALLOC_TRIM_THRESHOLD_=131072 MALLOC_MMAP_THRESHOLD_=131072
 export PATH="$HERE/usr/python/bin:$PATH"
 export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/python/lib:$HERE/usr/python/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export VLC_PLUGIN_PATH="$HERE/usr/lib/vlc/plugins"

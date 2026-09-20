@@ -12,9 +12,6 @@ import os
 import re
 from pathlib import Path
 
-import mutagen
-from mutagen.flac import FLAC, Picture
-from mutagen.id3 import ID3
 from PySide6.QtCore import QThread, Qt, Signal
 from PySide6.QtGui import QImage
 
@@ -35,6 +32,7 @@ def _first(tags, key: str) -> str:
     """First value of ``key`` for EasyID3/Vorbis/EasyMP4 tags or raw ID3 frames."""
     if tags is None:
         return ""
+    from mutagen.id3 import ID3   # mutagen is only imported once a file is actually read
     try:
         value = tags.get(key)
         if value is None and isinstance(tags, ID3):
@@ -57,6 +55,8 @@ def _leading_int(text: str) -> int:
 
 def read_tags(path: str | os.PathLike) -> dict | None:
     """Unified metadata for one audio file, or None if mutagen cannot parse it."""
+    import mutagen
+
     try:
         audio = mutagen.File(path, easy=True)
     except Exception:  # corrupt files raise assorted mutagen/OS errors
@@ -82,6 +82,9 @@ def read_tags(path: str | os.PathLike) -> dict | None:
 
 def write_tags(path: str | os.PathLike, fields: dict) -> None:
     """Write title/artist/album/genre/year/track_no back into the file."""
+    import mutagen
+    from mutagen.id3 import ID3
+
     audio = mutagen.File(path, easy=True)
     if audio is None:
         raise ValueError("unsupported file")
@@ -120,6 +123,10 @@ def cover_path(key: str) -> Path:
 
 def extract_cover(path: str) -> bytes | None:
     """Embedded artwork bytes (ID3, FLAC, MP4, Vorbis) or a cover image next to the file."""
+    import mutagen
+    from mutagen.flac import FLAC, Picture
+    from mutagen.id3 import ID3
+
     try:
         audio = mutagen.File(path)
     except Exception:

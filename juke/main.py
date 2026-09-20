@@ -71,8 +71,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.files:
         QTimer.singleShot(600, lambda: window.open_paths(args.files))
 
-    signal.signal(signal.SIGINT, lambda *_: app.quit())
-    pump = QTimer()  # lets Python deliver Ctrl+C while Qt's loop runs
-    pump.start(500)
-    pump.timeout.connect(lambda: None)
+    if sys.stdin is not None and sys.stdin.isatty():
+        # Ctrl+C in a terminal: Python only sees signals while it runs, so give Qt's loop a slow
+        # heartbeat. Launched from a menu (no terminal) there is no timer and no idle wake-up.
+        signal.signal(signal.SIGINT, lambda *_: app.quit())
+        pump = QTimer()
+        pump.setTimerType(Qt.VeryCoarseTimer)
+        pump.start(1000)
+        pump.timeout.connect(lambda: None)
     return app.exec()

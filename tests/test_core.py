@@ -370,6 +370,51 @@ class AirsonicTests(unittest.TestCase):
         self.assertEqual(self.run_async(go()), ("1.15.0", "1.15.0"))
         self.assertEqual(seen, ["1.16.1", "1.15.0"])
 
+    def test_password_fallback_when_the_server_cannot_check_tokens(self):
+        """Airsonic-Advanced with hashed passwords answers 41 to tokens and wants p=enc:<hex>."""
+        seen = []
+
+        def handler(request):
+            q = {k: v[0] for k, v in parse_qs(request.url.query.decode()).items()}
+            seen.append(q)
+            if "t" in q:
+                return httpx.Response(200, json={"subsonic-response": {"status": "failed", "version": "1.15.0", "error": {
+                    "code": 41, "message": "Wrong username or password, but try authenticating via non-hashed password."}}})
+            if q.get("p") == "enc:" + "s3cret-pass!".encode().hex():
+                return httpx.Response(200, json={"subsonic-response": {"status": "ok", "version": "1.15.0"}})
+            return httpx.Response(200, json={"subsonic-response": {"status": "failed", "error": {"code": 40, "message": "Wrong username or password"}}})
+
+        async def go(password, **kw):
+            client = AirsonicClient("https://x.example", "alice", password, transport=httpx.MockTransport(handler), **kw)
+            try:
+                await client.ping()
+                return client
+            finally:
+                await client.aclose()
+
+        client = self.run_async(go("s3cret-pass!"))
+        self.assertEqual(client.auth_mode, "password")
+        self.assertIn("t", seen[0])                       # tried the token first
+        self.assertNotIn("t", seen[-1])                   # then switched
+        self.assertNotIn("s", seen[-1])
+        self.assertNotIn("s3cret-pass!", str(seen[-1]))       # never the bare password in the URL
+        url = client.stream_url("9")                      # stream URLs must use the same mode
+        self.assertIn("p=enc%3A", url)
+        self.assertNotIn("&t=", url)
+        # a remembered mode skips the failing token round trip
+        seen.clear()
+        again = self.run_async(go("s3cret-pass!", auth="password"))
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(again.auth_mode, "password")
+        # a genuinely wrong password still fails with the server's own answer
+        with self.assertRaises(AirsonicError) as ctx:
+            self.run_async(go("nope"))
+        self.assertEqual(ctx.exception.code, 40)
+        # forcing token mode never falls back
+        with self.assertRaises(AirsonicError) as ctx:
+            self.run_async(go("s3cret-pass!", auth="token"))
+        self.assertEqual(ctx.exception.code, 41)
+
     def test_songs_carry_their_server_folder(self):
         self.assertEqual(song_to_row({"id": 1, "path": "Rock/Band One/Album A/01 Song.mp3"})["folder"], "Rock/Band One/Album A")
         self.assertEqual(song_to_row({"id": 2, "path": "Loose.mp3"})["folder"], "")

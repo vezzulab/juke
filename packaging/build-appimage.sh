@@ -59,6 +59,10 @@ rm -f "$QT"/Qt{Quick,Qml,Pdf,Designer,3D,Test,ShaderTools,Labs,QuickControls2}*.
 find "$SITE" -name '*.pyi' -delete
 find "$SITE" -name '__pycache__' -type d -prune -exec rm -rf {} +
 
+echo "==> Precompiling bytecode (the image is read-only, so it could never be cached at run time)"
+"$PYBIN" -m compileall -q -j 0 "$SITE" || true
+if [ -z "${PYTHON_PREFIX:-}" ]; then "$PYBIN" -m compileall -q -j 0 "$APPDIR/usr/python/$PLATLIB/python$PYVER" || true; fi
+
 echo "==> libVLC + plugins"
 python3 "$ROOT/packaging/bundle_libs.py" "$APPDIR"
 
@@ -81,7 +85,8 @@ QT_QPA_PLATFORM=offscreen PYTHONPATH="$SITE" LD_LIBRARY_PATH="$APPDIR/usr/lib${L
 ln -sf juke.png "$APPDIR/.DirIcon"
 desktop-file-validate "$APPDIR/juke.desktop" 2>/dev/null || echo "   (desktop-file-validate unavailable or reported hints)"
 
-OUT="$OUT_DIR/Juke-$ARCH.AppImage"
+FINAL="$OUT_DIR/Juke-$ARCH.AppImage"
+OUT="$FINAL.part"      # pack to a temporary name, then swap atomically: a launcher never finds it missing
 rm -f "$OUT"
 echo "==> Packing $OUT"
 if [ -n "${APPIMAGETOOL:-}" ] && [ -x "${APPIMAGETOOL}" ]; then
@@ -107,4 +112,5 @@ PY
     cat "$BUILD/runtime" "$BUILD/juke.squashfs" > "$OUT"
     chmod +x "$OUT"
 fi
-ls -lh "$OUT"
+mv -f "$OUT" "$FINAL"
+ls -lh "$FINAL"

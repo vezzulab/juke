@@ -232,6 +232,105 @@ class GuiTests(unittest.TestCase):
             self.assertFalse(icons.glyph(name, "#ffffff", 20).isNull(), name)
 
 
+class LightweightTests(unittest.TestCase):
+    """Guard the low-memory / low-battery behaviour."""
+
+    def test_heavy_libraries_are_not_imported_at_start_up(self):
+        import subprocess
+        import sys as _sys
+        code = ("import sys; import juke.gui.main_window, juke.audio.engine, juke.api.airsonic, juke.db.indexer; "
+                "bad = [m for m in ('httpx', 'mutagen', 'vlc', 'yt_dlp', 'anyio') if m in sys.modules]; "
+                "print('LOADED:' + ','.join(bad))")
+        env = dict(__import__("os").environ, QT_QPA_PLATFORM="offscreen")
+        out = subprocess.run([_sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=60)
+        self.assertEqual(out.stdout.strip().splitlines()[-1], "LOADED:", out.stderr[-400:])
+
+    def test_idle_engine_has_no_timer_and_has_not_loaded_libvlc(self):
+        engine = AudioEngine()
+        self.assertFalse(engine._backend_tried)
+        self.assertIsNone(engine._player)
+        self.assertFalse(engine._timer.isActive())            # an idle Juke never wakes the CPU
+        engine.set_volume(30)                                  # settings before the first Play are just remembered
+        engine.set_muted(True)
+        engine.set_rate(1.25)
+        self.assertFalse(engine._backend_tried)
+        self.assertEqual((engine.volume, engine.muted, engine.rate), (30, True, 1.25))
+
+    def test_level_meter_is_still_unless_allowed_and_visible(self):
+        from juke.gui.components.top_bar import SpectrumWidget
+        meter = SpectrumWidget()
+        meter.show()
+        meter.set_active(True)
+        self.assertTrue(meter._timer.isActive())               # playing, in front, allowed: animates
+        meter.set_animation_allowed(False)
+        for _ in range(60):
+            meter._tick()
+        self.assertFalse(meter._timer.isActive())              # on battery / window hidden: a still picture
+        meter.set_animation_allowed(True)
+        self.assertTrue(meter._timer.isActive())
+        meter.set_active(False)
+        for _ in range(80):
+            meter._tick()
+        self.assertFalse(meter._timer.isActive())              # stopped: fully at rest
+        meter.hide()
+        meter.set_active(True)
+        self.assertFalse(meter._timer.isActive())              # hidden windows never animate
+
+    def test_battery_detection_from_sysfs(self):
+        import tempfile
+        from pathlib import Path as P
+        import juke.power as power
+
+        def supply(root, name, **files):
+            d = P(root) / name
+            d.mkdir()
+            for k, v in files.items():
+                (d / k).write_text(v + "\n")
+
+        original = power._SUPPLIES
+        try:
+            with tempfile.TemporaryDirectory() as root:
+                supply(root, "BAT0", type="Battery", status="Discharging")
+                supply(root, "ADP1", type="Mains", online="0")
+                supply(root, "mouse", type="Battery", status="Discharging", scope="Device")
+                power._SUPPLIES = P(root)
+                self.assertTrue(power.on_battery())
+                (P(root) / "ADP1" / "online").write_text("1\n")           # charger plugged in
+                self.assertFalse(power.on_battery())
+            with tempfile.TemporaryDirectory() as root:                    # desktop: no battery at all
+                supply(root, "AC", type="Mains", online="1")
+                power._SUPPLIES = P(root)
+                self.assertFalse(power.on_battery())
+            power._SUPPLIES = P("/nonexistent/power_supply")
+            self.assertFalse(power.on_battery())
+        finally:
+            power._SUPPLIES = original
+
+    def test_window_freezes_meter_and_slows_polling_when_hidden_or_on_battery(self):
+        import juke.gui.main_window as mw
+        window, cfg, db, engine, eq = make_window("gui10", n=3)
+        original = mw.on_battery
+        try:
+            mw.on_battery = lambda: True
+            cfg.set("meter", "auto")
+            self.assertFalse(window._meter_allowed())          # battery + auto -> still
+            cfg.set("meter", "on")
+            self.assertTrue(window._meter_allowed())           # the user can insist
+            cfg.set("meter", "off")
+            mw.on_battery = lambda: False
+            self.assertFalse(window._meter_allowed())
+            cfg.set("meter", "auto")
+            self.assertTrue(window._meter_allowed())           # mains power
+            window.hide()
+            self.assertFalse(engine._ui_active)                # hidden: engine polls lazily
+            self.assertEqual(engine._timer.interval(), 2000)
+            window.show()
+            pump(50)
+        finally:
+            mw.on_battery = original
+            window.close()
+
+
 @unittest.skipUnless(AudioEngine().available, "libVLC not available")
 class PlaybackTests(unittest.TestCase):
     def test_local_file_plays_seeks_and_finishes_with_eq_applied(self):
@@ -248,12 +347,13 @@ class PlaybackTests(unittest.TestCase):
         eq.set_enabled(True)
         eq.load_preset("Bass Boost")
         engine.attach_equalizer(eq)
-        self.assertIsNotNone(engine._vlc_eq)
+        self.assertIsNone(engine._vlc_eq)                    # libVLC is not even loaded before the first Play
         states, finished = [], []
         engine.state_changed.connect(states.append)
         engine.track_finished.connect(lambda: finished.append(True))
-        player_before = engine._player
         self.assertTrue(engine.play_url(wav.resolve().as_uri()))
+        player_before = engine._player
+        self.assertIsNotNone(engine._vlc_eq)                 # ...and the equalizer is applied by it
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline and engine.position_ms() < 400:
             pump(50)

@@ -17,6 +17,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self._config = config
         self._worker: AsyncWorker | None = None
+        self._detected_auth: str | None = None
         self.setWindowTitle(tr("settings.title"))
         self.setMinimumSize(560, 470)
 
@@ -50,6 +51,15 @@ class SettingsDialog(QDialog):
             self.language.addItem(label, code)
         self.language.setCurrentIndex(max(0, self.language.findData(self._config.get("language"))))
         form.addRow(tr("settings.language"), self.language)
+        self.meter = QComboBox()
+        for value, label in (("auto", "settings.meter_auto"), ("on", "settings.meter_on"), ("off", "settings.meter_off")):
+            self.meter.addItem(tr(label), value)
+        self.meter.setCurrentIndex(max(0, self.meter.findData(self._config.get("meter"))))
+        form.addRow(tr("settings.meter"), self.meter)
+        meter_hint = QLabel(tr("settings.meter_hint"))
+        meter_hint.setObjectName("muted")
+        meter_hint.setWordWrap(True)
+        form.addRow("", meter_hint)
         self.integration = QCheckBox(tr("settings.integration"))
         self.integration.setChecked(integration_installed)
         form.addRow("", self.integration)
@@ -132,12 +142,22 @@ class SettingsDialog(QDialog):
         async def probe(_progress):
             client = AirsonicClient(url, user, password, timeout=10)
             try:
-                return await client.ping()
+                return await client.ping(), client.auth_mode
             finally:
                 await client.aclose()
 
+        def connected(outcome):
+            version, mode = outcome
+            self._detected_auth = mode
+            secure = normalize_base_url(url).startswith("https://")
+            if mode == "password":
+                key = "settings.as_ok_password_https" if secure else "settings.as_ok_password_http"
+                self._status(tr(key, version=version), ok=secure, error=not secure)
+            else:
+                self._status(tr("settings.as_ok", version=version), ok=True)
+
         self._worker = AsyncWorker(probe, self)
-        self._worker.result.connect(lambda version: self._status(tr("settings.as_ok", version=version), ok=True))
+        self._worker.result.connect(connected)
         self._worker.failed.connect(lambda message: self._status(tr("settings.as_failed", error=message), error=True))
         self._worker.finished.connect(lambda: self.as_test.setEnabled(True))
         self._worker.start()
@@ -158,9 +178,11 @@ class SettingsDialog(QDialog):
         config.set("language", self.language.currentData())
         config.set("music_dirs", self.folder_list())
         config.set("scan_on_start", self.scan_on_start.isChecked())
+        config.set("meter", self.meter.currentData())
         config.set("airsonic", {
             "enabled": self.as_enabled.isChecked(), "url": normalize_base_url(self.as_url.text()),
             "username": self.as_user.text().strip(), "password": self.as_password.text(),
+            "auth": self._detected_auth or "auto",   # unknown until a connection worked: negotiate again
         })
 
     @property
