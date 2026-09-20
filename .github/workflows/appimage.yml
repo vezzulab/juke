@@ -1,0 +1,65 @@
+name: AppImage
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # Build on the oldest supported distribution: the AppImage needs at least this glibc (2.35).
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System packages (libVLC, Qt xcb helpers, squashfs)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libvlc5 libvlccore9 vlc-plugin-base rsync squashfs-tools desktop-file-utils \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-shape0 libxcb-xkb1 libxkbcommon-x11-0 libxcb-xinerama0
+          # the PulseAudio output lives in its own package on some releases
+          if apt-cache show vlc-plugin-pulse >/dev/null 2>&1; then sudo apt-get install -y vlc-plugin-pulse; fi
+
+      - name: Portable Python 3.12 (python-build-standalone)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url="$(gh api repos/astral-sh/python-build-standalone/releases/tags/20260901 \
+            --jq '.assets[].browser_download_url' | grep 'cpython-3\.12.*x86_64-unknown-linux-gnu-install_only\.tar\.gz$' | head -n1)"
+          test -n "$url"
+          curl -fsSL "$url" | tar -xz -C "$RUNNER_TEMP"
+          echo "PYTHON_PREFIX=$RUNNER_TEMP/python" >> "$GITHUB_ENV"
+
+      - name: appimagetool
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool"
+          echo "APPIMAGETOOL=$RUNNER_TEMP/appimagetool" >> "$GITHUB_ENV"
+
+      - name: Build AppImage
+        run: bash packaging/build-appimage.sh
+
+      - name: Sanity checks
+        run: |
+          test -f build/AppDir/usr/lib/libvlc.so.5
+          test -f build/AppDir/usr/lib/vlc/plugins/audio_output/libpulse_plugin.so
+          ./dist/Juke-x86_64.AppImage --appimage-extract-and-run --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Juke-x86_64.AppImage
+          path: dist/Juke-x86_64.AppImage
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "Juke ${GITHUB_REF_NAME#v}" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/Juke-x86_64.AppImage --clobber

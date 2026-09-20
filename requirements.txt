@@ -1,0 +1,4 @@
+PySide6-Essentials>=6.6
+httpx>=0.25
+mutagen>=1.47
+python-vlc>=3.0.18

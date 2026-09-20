@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Juke — a modern music player for Linux</title>
+<meta name="description" content="Juke is a modern 3-pane music player for Linux with a 10-band equalizer, Airsonic / Subsonic streaming and a library that stays instant with 50,000+ tracks. Ships as an AppImage.">
+<meta name="theme-color" content="#181825">
+<link rel="icon" type="image/svg+xml" href="assets/juke.svg">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Juke — a modern music player for Linux">
+<meta property="og:description" content="Three panes, a 10-band equalizer, Airsonic streaming by folders. Instant with 50,000+ tracks.">
+<meta property="og:image" content="https://vezzulab.github.io/juke/assets/hero.png">
+<meta property="og:url" content="https://vezzulab.github.io/juke/">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root {
+  --base: #1e1e2e; --mantle: #181825; --crust: #11111b; --panel: #252538; --surface: #2f2f45; --border: #313147;
+  --text: #cdd6f4; --sub: #9399b2; --muted: #6c7086; --accent: #7aa2f7; --accent2: #cba6f7;
+  --grad: linear-gradient(120deg, #7aa2f7, #cba6f7);
+  --radius: 18px;
+}
+:root[data-theme="light"] {
+  --base: #f4f5fb; --mantle: #ffffff; --crust: #eceefa; --panel: #ffffff; --surface: #eceefa; --border: #dcdff0;
+  --text: #24273a; --sub: #5b6078; --muted: #8a8fa8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--mantle); color: var(--text);
+  font: 16px/1.6 "Inter", system-ui, -apple-system, "Segoe UI", "Cantarell", "Roboto", "Noto Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+img { max-width: 100%; height: auto; display: block; }
+.wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+code, pre { font-family: "JetBrains Mono", ui-monospace, "DejaVu Sans Mono", monospace; }
+
+/* nav */
+nav { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(14px); background: color-mix(in srgb, var(--mantle) 78%, transparent); border-bottom: 1px solid var(--border); }
+nav .wrap { display: flex; align-items: center; gap: 18px; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 19px; text-decoration: none; letter-spacing: -.01em; }
+.brand img { width: 30px; height: 30px; }
+nav .links { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+nav .links a { text-decoration: none; color: var(--sub); padding: 8px 12px; border-radius: 10px; font-size: 14.5px; font-weight: 500; }
+nav .links a:hover { color: var(--text); background: var(--surface); }
+.tool { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 10px; height: 36px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.tool:hover { background: var(--surface); }
+@media (max-width: 720px) { nav .links a.hide-sm { display: none; } }
+
+/* hero */
+.hero { position: relative; overflow: hidden; text-align: center; padding: 76px 0 40px; background: var(--crust); }
+.hero::before, .hero::after { content: ""; position: absolute; width: 760px; height: 760px; border-radius: 50%; filter: blur(110px); opacity: .34; pointer-events: none; }
+.hero::before { background: var(--accent); left: calc(50% - 780px); top: -420px; }
+.hero::after { background: var(--accent2); left: calc(50% + 20px); top: -440px; }
+.hero > .wrap { position: relative; }
+.hero .logo { width: 104px; height: 104px; margin: 0 auto 22px; filter: drop-shadow(0 18px 34px rgba(122,162,247,.35)); }
+h1 { font-size: clamp(44px, 8vw, 84px); line-height: 1; letter-spacing: -.035em; margin: 0 0 14px; font-weight: 800; }
+h1 span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lead { font-size: clamp(18px, 2.4vw, 24px); color: var(--text); margin: 0 auto 8px; max-width: 30ch; font-weight: 500; }
+.sublead { color: var(--sub); max-width: 62ch; margin: 0 auto 30px; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.btn { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 650; padding: 13px 24px; border-radius: 13px; border: 1px solid var(--border); background: var(--panel); transition: transform .15s, background .15s; }
+.btn:hover { transform: translateY(-1px); background: var(--surface); }
+.btn.primary { border: 0; color: #181825; background: var(--grad); box-shadow: 0 10px 30px rgba(122,162,247,.28); }
+.btn.primary:hover { background: linear-gradient(120deg, #8fb1f9, #d6b8fa); }
+.btn svg { width: 19px; height: 19px; }
+.fine { margin: 16px 0 0; font-size: 13.5px; color: var(--muted); }
+.shot { margin: 46px auto 0; border-radius: 16px; border: 1px solid rgba(255,255,255,.09); overflow: hidden; box-shadow: 0 40px 90px -20px rgba(0,0,0,.65), 0 0 0 1px rgba(0,0,0,.4); background: var(--base); }
+.hero .shot { max-width: 1040px; mask-image: linear-gradient(#000 78%, transparent); -webkit-mask-image: linear-gradient(#000 78%, transparent); border-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+
+/* sections */
+section { padding: 88px 0; }
+.eyebrow { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; margin: 0 0 10px; }
+h2 { font-size: clamp(30px, 4.4vw, 46px); line-height: 1.1; letter-spacing: -.025em; margin: 0 0 14px; font-weight: 750; }
+.intro { color: var(--sub); max-width: 62ch; margin: 0 0 44px; font-size: 18px; }
+.center { text-align: center; } .center .intro { margin-inline: auto; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px 24px 24px; }
+.card .ico { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 16px; background: linear-gradient(135deg, rgba(122,162,247,.20), rgba(203,166,247,.20)); }
+.card .ico svg { width: 22px; height: 22px; stroke: var(--accent); fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.card h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: -.01em; }
+.card p { margin: 0; color: var(--sub); font-size: 15px; }
+.alt { background: var(--base); }
+
+/* gallery */
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 26px; }
+.tab { border: 1px solid var(--border); background: var(--panel); color: var(--sub); border-radius: 999px; padding: 8px 18px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: #181825; border-color: transparent; background: var(--grad); }
+.gallery .shot { max-width: 1040px; margin-top: 0; }
+.gallery .shot.small { max-width: 780px; }
+.caption { text-align: center; color: var(--sub); margin: 18px auto 0; max-width: 60ch; min-height: 3.2em; }
+
+/* install */
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; counter-reset: s; }
+.step { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; position: relative; }
+.step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--grad); color: #181825; font-weight: 800; font-size: 14px; margin-bottom: 14px; }
+.step h3 { margin: 0 0 6px; font-size: 18px; } .step p { margin: 0 0 12px; color: var(--sub); font-size: 15px; }
+pre { margin: 0; padding: 14px 16px; background: var(--crust); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; font-size: 13.5px; line-height: 1.6; position: relative; color: var(--text); }
+.copy { position: absolute; top: 8px; right: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--sub); border-radius: 8px; font: inherit; font-size: 12px; padding: 3px 9px; cursor: pointer; }
+.copy:hover { color: var(--text); }
+.reqs { margin: 34px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 26px; color: var(--sub); font-size: 15px; }
+.reqs li { padding-left: 26px; position: relative; }
+.reqs li::before { content: ""; position: absolute; left: 0; top: 9px; width: 12px; height: 7px; border-left: 2px solid var(--accent); border-bottom: 2px solid var(--accent); transform: rotate(-45deg) translateY(-3px); }
+.src { margin-top: 44px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.src h3 { margin: 0 0 8px; font-size: 20px; } .src p { color: var(--sub); margin: 0 0 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+td, th { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+td code { background: var(--crust); padding: 2px 7px; border-radius: 6px; font-size: 13px; }
+
+/* grid items must be allowed to shrink below their content, or long commands push the page wider than the phone */
+.grid > *, .steps > *, .src > *, .reqs > * { min-width: 0; }
+td code { white-space: normal; overflow-wrap: anywhere; }
+pre { max-width: 100%; }
+html, body { overflow-x: clip; }
+
+footer { border-top: 1px solid var(--border); padding: 38px 0 50px; color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 30px; align-items: center; justify-content: space-between; }
+footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: var(--text); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .btn { transition: none; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/juke.svg" alt="" width="30" height="30"> Juke</a>
+    <div class="links">
+      <a class="hide-sm" href="#features" data-i18n="nav_features">Features</a>
+      <a class="hide-sm" href="#screens" data-i18n="nav_screens">Screenshots</a>
+      <a href="#install" data-i18n="nav_install">Install</a>
+      <a class="hide-sm" href="https://github.com/vezzulab/juke">GitHub</a>
+      <button class="tool" id="lang" type="button" aria-label="Language">ES</button>
+      <button class="tool" id="theme" type="button" aria-label="Theme">☾</button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <img class="logo" src="assets/juke.svg" alt="Juke icon" width="104" height="104">
+    <h1><span>Juke</span></h1>
+    <p class="lead" data-i18n="lead">A modern music player for Linux</p>
+    <p class="sublead" data-i18n="sublead">Three panes, a 10-band equalizer and Airsonic streaming — and a library that stays instant with 50,000+ tracks.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/vezzulab/juke/releases/latest">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg>
+        <span data-i18n="cta_download">Download AppImage</span>
+      </a>
+      <a class="btn" href="https://github.com/vezzulab/juke">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.77.11 3.06.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5z"/></svg>
+        <span data-i18n="cta_github">View on GitHub</span>
+      </a>
+    </div>
+    <p class="fine" data-i18n="fine">Linux x86_64 · glibc 2.35+ · everything included in one file</p>
+    <div class="shot"><img id="hero-shot" src="assets/screenshot-main.png" alt="Juke library view" width="2640" height="1640"></div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <p class="eyebrow" data-i18n="f_eyebrow">Features</p>
+    <h2 data-i18n="f_title">Everything a music player should do — fast.</h2>
+    <p class="intro" data-i18n="f_intro">The classic iTunes 4 layout, rebuilt with a dark, rounded, Libadwaita-flavoured interface and an audio engine you can tune.</p>
+    <div class="grid">
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16M9 9h12"/></svg></div>
+        <h3 data-i18n="c1_t">Classic three panes</h3><p data-i18n="c1_p">Sources on the left, songs in the middle, an LCD display with cover art, seek bar and level meter on top.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></div>
+        <h3 data-i18n="c2_t">Instant with 50,000+ tracks</h3><p data-i18n="c2_p">A virtual, lazy table and an indexed SQLite database: search, sort and filter never wait for your whole library.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M6 4v16M12 4v16M18 4v16"/><circle cx="6" cy="15" r="2" fill="currentColor"/><circle cx="12" cy="8" r="2" fill="currentColor"/><circle cx="18" cy="13" r="2" fill="currentColor"/></svg></div>
+        <h3 data-i18n="c3_t">10-band equalizer</h3><p data-i18n="c3_p">60 Hz to 16 kHz, ±20 dB preamp, ten presets and your own — through libVLC's native equalizer, never reset between songs.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="2.5" y="3" width="19" height="7.5" rx="2"/><rect x="2.5" y="13.5" width="19" height="7.5" rx="2"/><path d="M6.5 6.8h.01M6.5 17.3h.01"/></svg></div>
+        <h3 data-i18n="c4_t">Airsonic by folders</h3><p data-i18n="c4_p">Browse your Subsonic server the way you organised it — folder by folder — or by artist, album and genre. Direct streaming, salted-token login.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h12M4 12h12M4 18h7"/><path d="M17.5 14.5v6l4.5-3z" fill="currentColor"/></svg></div>
+        <h3 data-i18n="c5_t">A real queue</h3><p data-i18n="c5_p">Play next drops a song right after the current one; Add to queue goes to the end. The list you started from resumes afterwards.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c3 3 3 16 0 19M12 2.5c-3 3-3 16 0 19"/></svg></div>
+        <h3 data-i18n="c6_t">English & Español</h3><p data-i18n="c6_p">The whole interface switches language live. This page too.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
+        <h3 data-i18n="c7_t">Wayland & HiDPI</h3><p data-i18n="c7_p">Qt 6 scaling, fractional included. Every icon is an SVG drawn at your screen's exact scale — no blurry pixels.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg></div>
+        <h3 data-i18n="c8_t">One file, in your menu</h3><p data-i18n="c8_p">An AppImage with Python, Qt and libVLC inside. On first launch it can add itself to your applications menu, icon included.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="screens">
+  <div class="wrap gallery">
+    <div class="center">
+      <p class="eyebrow" data-i18n="s_eyebrow">Screenshots</p>
+      <h2 data-i18n="s_title">See it in action</h2>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-shot="screenshot-main" data-cap="cap_main" data-i18n="tab_main">Library</button>
+      <button class="tab" role="tab" aria-selected="false" data-shot="screenshot-folders" data-cap="cap_folders" data-i18n="tab_folders">Airsonic folders</button>
+      <button class="tab" role="tab" aria-selected="false" data-shot="screenshot-queue" data-cap="cap_queue" data-i18n="tab_queue">Queue</button>
+      <button class="tab" role="tab" aria-selected="false" data-shot="screenshot-equalizer" data-cap="cap_eq" data-small="1" data-i18n="tab_eq">Equalizer</button>
+      <button class="tab" role="tab" aria-selected="false" data-shot="screenshot-settings" data-cap="cap_settings" data-small="1" data-i18n="tab_settings">Settings</button>
+    </div>
+    <div class="shot" id="gallery-frame"><img id="gallery-img" src="assets/screenshot-main.png" alt="" loading="lazy"></div>
+    <p class="caption" id="gallery-cap"></p>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <p class="eyebrow" data-i18n="i_eyebrow">Install</p>
+    <h2 data-i18n="i_title">Download, make executable, run.</h2>
+    <p class="intro" data-i18n="i_intro">No package manager, no dependencies to hunt down — and Juke can add itself to your applications menu on first launch.</p>
+    <div class="steps">
+      <div class="step"><h3 data-i18n="st1_t">Download</h3><p data-i18n="st1_p">Get Juke-x86_64.AppImage from the latest release.</p>
+        <a class="btn primary" href="https://github.com/vezzulab/juke/releases/latest" data-i18n="cta_download">Download AppImage</a></div>
+      <div class="step"><h3 data-i18n="st2_t">Make it executable and run</h3><p data-i18n="st2_p">From a terminal, or right-click ▸ Properties ▸ Allow executing.</p>
+<pre><code>chmod +x Juke-x86_64.AppImage
+./Juke-x86_64.AppImage</code><button class="copy" type="button" data-copy="chmod +x Juke-x86_64.AppImage&#10;./Juke-x86_64.AppImage">Copy</button></pre></div>
+      <div class="step"><h3 data-i18n="st3_t">Add it to your menu</h3><p data-i18n="st3_p">Juke asks once. Say yes and it appears in your applications menu with its icon; undo it any time in Settings.</p>
+<pre><code>~/.local/share/applications/juke.desktop
+~/.local/share/icons/hicolor/…/juke.png</code></pre></div>
+    </div>
+    <ul class="reqs">
+      <li data-i18n="r1">x86_64 Linux with glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36 or newer)</li>
+      <li data-i18n="r2">PulseAudio or PipeWire for sound</li>
+      <li data-i18n="r3">FUSE 2 (libfuse2) — or run with --appimage-extract-and-run</li>
+    </ul>
+
+    <div class="src">
+      <div>
+        <h3 data-i18n="src_t">Prefer the source?</h3>
+        <p data-i18n="src_p">Juke needs libVLC on the system. Then:</p>
+<pre><code>git clone https://github.com/vezzulab/juke.git
+cd juke
+python -m venv .venv &amp;&amp; . .venv/bin/activate
+pip install -e .
+juke</code><button class="copy" type="button" data-copy="git clone https://github.com/vezzulab/juke.git&#10;cd juke&#10;python -m venv .venv &amp;&amp; . .venv/bin/activate&#10;pip install -e .&#10;juke">Copy</button></pre>
+      </div>
+      <div>
+        <h3 data-i18n="vlc_t">Installing libVLC</h3>
+        <table>
+          <tr><th data-i18n="th_distro">Distribution</th><th>libVLC</th></tr>
+          <tr><td>Fedora</td><td><code>sudo dnf install vlc-libs</code></td></tr>
+          <tr><td>Debian / Ubuntu</td><td><code>sudo apt install libvlc5 vlc-plugin-base</code></td></tr>
+          <tr><td>Arch</td><td><code>sudo pacman -S vlc</code></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Juke · <span data-i18n="foot">A modern music player for Linux</span></span>
+    <span><a href="https://github.com/vezzulab/juke">GitHub</a> · <a href="https://github.com/vezzulab/juke/releases">Releases</a> · <a href="https://github.com/vezzulab/juke/issues" data-i18n="foot_issues">Report a problem</a></span>
+  </div>
+</footer>
+
+<script>
+const T = {
+  en: {},
+  es: {
+    nav_features: "Características", nav_screens: "Capturas", nav_install: "Instalar",
+    lead: "Un reproductor de música moderno para Linux",
+    sublead: "Tres paneles, un ecualizador de 10 bandas y streaming Airsonic — y una biblioteca que sigue siendo instantánea con más de 50.000 pistas.",
+    cta_download: "Descargar AppImage", cta_github: "Ver en GitHub",
+    fine: "Linux x86_64 · glibc 2.35+ · todo incluido en un solo archivo",
+    f_eyebrow: "Características", f_title: "Todo lo que un reproductor debe hacer — rápido.",
+    f_intro: "El clásico diseño de iTunes 4, reconstruido con una interfaz oscura, redondeada y con aire Libadwaita, y un motor de audio que puedes ajustar.",
+    c1_t: "Tres paneles clásicos", c1_p: "Fuentes a la izquierda, canciones en el centro y, arriba, una pantalla LCD con carátula, barra de progreso y medidor de niveles.",
+    c2_t: "Instantáneo con más de 50.000 pistas", c2_p: "Una tabla virtual y perezosa sobre una base SQLite indexada: buscar, ordenar y filtrar nunca esperan a toda tu biblioteca.",
+    c3_t: "Ecualizador de 10 bandas", c3_p: "De 60 Hz a 16 kHz, preamp de ±20 dB, diez presets y los tuyos — con el ecualizador nativo de libVLC, sin reiniciarse entre canciones.",
+    c4_t: "Airsonic por carpetas", c4_p: "Recorre tu servidor Subsonic como lo organizaste — carpeta por carpeta — o por artista, álbum y género. Streaming directo, acceso con token con sal.",
+    c5_t: "Una cola de verdad", c5_p: "Reproducir a continuación pone una canción justo después de la actual; Añadir a la cola va al final. Después continúa la lista de origen.",
+    c6_t: "English y Español", c6_p: "Toda la interfaz cambia de idioma en vivo. Esta página también.",
+    c7_t: "Wayland y HiDPI", c7_p: "Escalado de Qt 6, incluido el fraccionario. Cada icono es un SVG dibujado a la escala exacta de tu pantalla: nada de píxeles borrosos.",
+    c8_t: "Un archivo, en tu menú", c8_p: "Un AppImage con Python, Qt y libVLC dentro. En el primer arranque puede añadirse a tu menú de aplicaciones, con su icono.",
+    s_eyebrow: "Capturas", s_title: "Míralo en acción",
+    tab_main: "Biblioteca", tab_folders: "Carpetas Airsonic", tab_queue: "Cola", tab_eq: "Ecualizador", tab_settings: "Ajustes",
+    cap_main: "Biblioteca con la pantalla LCD, el panel lateral y la tabla de canciones.",
+    cap_folders: "La jerarquía de carpetas de tu servidor, desplegable en el panel lateral.",
+    cap_queue: "La cola actual: a continuación, añadidas a la cola y luego la lista de origen.",
+    cap_eq: "Ecualizador con curva de respuesta en vivo, presets, velocidad y balance estéreo.",
+    cap_settings: "Idioma, carpetas de música y tu servidor Airsonic / Subsonic.",
+    i_eyebrow: "Instalar", i_title: "Descarga, hazlo ejecutable, ábrelo.",
+    i_intro: "Sin gestor de paquetes ni dependencias que buscar — y Juke puede añadirse a tu menú de aplicaciones en el primer arranque.",
+    st1_t: "Descarga", st1_p: "Obtén Juke-x86_64.AppImage de la última versión.",
+    st2_t: "Hazlo ejecutable y ábrelo", st2_p: "Desde una terminal, o clic derecho ▸ Propiedades ▸ Permitir ejecutar.",
+    st3_t: "Añádelo a tu menú", st3_p: "Juke pregunta una sola vez. Di que sí y aparece en tu menú de aplicaciones con su icono; deshazlo cuando quieras en Ajustes.",
+    r1: "Linux x86_64 con glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36 o más reciente)",
+    r2: "PulseAudio o PipeWire para el sonido",
+    r3: "FUSE 2 (libfuse2) — o ejecútalo con --appimage-extract-and-run",
+    src_t: "¿Prefieres el código fuente?", src_p: "Juke necesita libVLC en el sistema. Después:",
+    vlc_t: "Instalar libVLC", th_distro: "Distribución",
+    foot: "Un reproductor de música moderno para Linux", foot_issues: "Reportar un problema"
+  }
+};
+const EN = {};
+document.querySelectorAll("[data-i18n]").forEach(el => { EN[el.dataset.i18n] = el.textContent; });
+Object.assign(T.en, EN, {
+  cap_main: "Library view with the LCD display, sidebar and song table.",
+  cap_folders: "Your server's folder hierarchy, expandable in the sidebar.",
+  cap_queue: "The current queue: play next, added to the queue, then the list you started from.",
+  cap_eq: "Equalizer with a live response curve, presets, playback speed and stereo balance.",
+  cap_settings: "Language, music folders and your Airsonic / Subsonic server."
+});
+
+const safe = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const asked = new URLSearchParams(location.search).get("lang");
+let lang = (asked === "es" || asked === "en") ? asked : (safe.get("juke-lang") || ((navigator.language || "en").toLowerCase().startsWith("es") ? "es" : "en"));
+let current = document.querySelector(".tab[aria-selected=true]");
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(el => { const v = T[lang][el.dataset.i18n]; if (v !== undefined) el.textContent = v; });
+  document.getElementById("lang").textContent = lang === "en" ? "ES" : "EN";
+  document.title = lang === "es" ? "Juke — un reproductor de música moderno para Linux" : "Juke — a modern music player for Linux";
+  document.querySelectorAll(".copy").forEach(b => { b.textContent = lang === "es" ? "Copiar" : "Copy"; });
+  showShot(current);
+}
+function showShot(tab) {
+  current = tab;
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t === tab));
+  let name = tab.dataset.shot;
+  if (name === "screenshot-main" && lang === "es") name += "-es";
+  const img = document.getElementById("gallery-img");
+  img.src = `assets/${name}.png`;
+  img.alt = tab.textContent;
+  document.getElementById("gallery-frame").classList.toggle("small", !!tab.dataset.small);
+  document.getElementById("gallery-frame").style.maxWidth = tab.dataset.small ? "780px" : "";
+  document.getElementById("gallery-cap").textContent = T[lang][tab.dataset.cap];
+  document.getElementById("hero-shot").src = lang === "es" ? "assets/screenshot-main-es.png" : "assets/screenshot-main.png";
+}
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => showShot(t)));
+document.getElementById("lang").addEventListener("click", () => { lang = lang === "en" ? "es" : "en"; safe.set("juke-lang", lang); applyLang(); });
+
+const root = document.documentElement;
+let theme = safe.get("juke-theme") || "dark";   // Juke itself is a dark app; the toggle is there for daytime reading
+function applyTheme() { root.dataset.theme = theme; document.getElementById("theme").textContent = theme === "dark" ? "☾" : "☀"; }
+document.getElementById("theme").addEventListener("click", () => { theme = theme === "dark" ? "light" : "dark"; safe.set("juke-theme", theme); applyTheme(); });
+
+document.querySelectorAll(".copy").forEach(btn => btn.addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(btn.dataset.copy); btn.textContent = "✓"; } catch { btn.textContent = "—"; }
+  setTimeout(() => (btn.textContent = lang === "es" ? "Copiar" : "Copy"), 1400);
+}));
+
+applyTheme();
+applyLang();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=Juke
+GenericName=Music Player
+GenericName[es]=Reproductor de música
+Comment=A modern music player with a 10-band equalizer and Airsonic streaming
+Comment[es]=Un reproductor de música moderno con ecualizador de 10 bandas y streaming Airsonic
+Exec=juke %U
+Icon=juke
+Terminal=false
+Categories=AudioVideo;Audio;Player;Music;Qt;
+MimeType=audio/mpeg;audio/flac;audio/x-flac;audio/ogg;audio/x-vorbis+ogg;audio/opus;audio/mp4;audio/x-m4a;audio/aac;audio/wav;audio/x-wav;audio/x-ms-wma;audio/x-aiff;audio/x-ape;audio/x-wavpack;audio/x-musepack;
+Keywords=music;audio;player;equalizer;airsonic;subsonic;flac;mp3;
+Keywords[es]=música;audio;reproductor;ecualizador;airsonic;subsonic;flac;mp3;
+StartupWMClass=juke
+StartupNotify=false

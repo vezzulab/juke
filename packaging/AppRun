@@ -1,0 +1,14 @@
+#!/bin/sh
+# Entry point of the Juke AppImage: point Python, libVLC and the loader at the bundled copies.
+HERE="$(dirname "$(readlink -f "$0")")"
+export APPDIR="$HERE"
+export PYTHONHOME="$HERE/usr/python"
+export PYTHONPATH="$HERE/usr/python/site-packages"
+export PYTHONNOUSERSITE=1
+export PYTHONDONTWRITEBYTECODE=1
+export PATH="$HERE/usr/python/bin:$PATH"
+export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/python/lib:$HERE/usr/python/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export VLC_PLUGIN_PATH="$HERE/usr/lib/vlc/plugins"
+export PYTHON_VLC_LIB_PATH="$HERE/usr/lib/libvlc.so.5"
+export XDG_DATA_DIRS="$HERE/usr/share${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
+exec "$HERE/usr/python/bin/python3" -m juke "$@"

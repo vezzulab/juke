@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "juke"
+dynamic = ["version"]
+description = "A modern 3-pane music player for Linux with a 10-band equalizer and Airsonic/Subsonic streaming."
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["music", "player", "equalizer", "airsonic", "subsonic", "pyside6", "linux"]
+classifiers = [
+    "Environment :: X11 Applications :: Qt",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Multimedia :: Sound/Audio :: Players",
+]
+dependencies = [
+    "PySide6-Essentials>=6.6",
+    "httpx>=0.25",
+    "mutagen>=1.47",
+    "python-vlc>=3.0.18",
+]
+
+[project.urls]
+Homepage = "https://vezzulab.github.io/juke/"
+Repository = "https://github.com/vezzulab/juke"
+
+[project.scripts]
+juke = "juke.main:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "juke.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["juke*"]
+
+[tool.setuptools.package-data]
+juke = ["assets/*.svg", "assets/fonts/*"]
