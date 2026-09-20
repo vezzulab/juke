@@ -13,17 +13,18 @@ from ..workers import AsyncWorker
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, config: Config, integration_installed: bool, parent=None) -> None:
+    def __init__(self, config: Config, integration_installed: bool, parent=None, tab: int = 0) -> None:
         super().__init__(parent)
         self._config = config
         self._worker: AsyncWorker | None = None
         self.setWindowTitle(tr("settings.title"))
         self.setMinimumSize(560, 470)
 
-        tabs = QTabWidget()
+        self.tabs = tabs = QTabWidget()
         tabs.addTab(self._general_tab(integration_installed), tr("settings.general"))
         tabs.addTab(self._library_tab(), tr("settings.library"))
         tabs.addTab(self._airsonic_tab(), tr("settings.airsonic"))
+        tabs.setCurrentIndex(max(0, min(int(tab), tabs.count() - 1)))
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         buttons.button(QDialogButtonBox.Save).setObjectName("primary")

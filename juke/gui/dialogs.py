@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QMessageBox, QWidget
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QLineEdit, QMessageBox, QVBoxLayout, QWidget
 
 from ..assets import ICON_SVG
 from ..i18n import tr
@@ -32,3 +32,31 @@ def confirm(parent: QWidget | None, title: str, text: str) -> bool:
     box.setDefaultButton(yes)
     box.exec()
     return box.clickedButton() is yes
+
+
+def ask_text(parent: QWidget | None, title: str, label: str, text: str = "") -> str | None:
+    """Single-line text prompt; returns the trimmed text, or None if cancelled/empty."""
+    dialog = QDialog(parent)
+    dialog.setWindowTitle(title)
+    dialog.setMinimumWidth(380)
+    prompt = QLabel(label)
+    field = QLineEdit(text)
+    field.selectAll()
+    buttons = QDialogButtonBox()
+    ok = buttons.addButton(tr("dialog.ok"), QDialogButtonBox.AcceptRole)
+    ok.setObjectName("primary")
+    buttons.addButton(tr("dialog.cancel"), QDialogButtonBox.RejectRole)
+    buttons.accepted.connect(dialog.accept)
+    buttons.rejected.connect(dialog.reject)
+    field.returnPressed.connect(dialog.accept)
+    layout = QVBoxLayout(dialog)
+    layout.setContentsMargins(22, 20, 22, 18)
+    layout.setSpacing(12)
+    layout.addWidget(prompt)
+    layout.addWidget(field)
+    layout.addSpacing(4)
+    layout.addWidget(buttons)
+    field.setFocus()
+    if not dialog.exec():
+        return None
+    return field.text().strip() or None

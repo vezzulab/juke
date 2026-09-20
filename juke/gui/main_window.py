@@ -5,10 +5,10 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Qt, QUrl
+from PySide6.QtCore import QSize, QTimer, Qt, QUrl
 from PySide6.QtGui import QAction, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
-                               QProgressBar, QSplitter, QToolButton, QVBoxLayout, QWidget)
+                               QProgressBar, QSizePolicy, QSplitter, QToolButton, QVBoxLayout, QWidget)
 
 from .. import REPO_URL, __version__, integration
 from ..api.airsonic import AirsonicClient, normalize_base_url
@@ -26,7 +26,7 @@ from .components.eq_dialog import EqualizerDialog
 from .components.sidebar import Sidebar
 from .components.top_bar import TopBar
 from .components.track_table import TrackTable
-from .dialogs import confirm, notice
+from .dialogs import ask_text, confirm, notice
 from .meta_dialog import MetadataDialog
 from .settings_dialog import SettingsDialog
 
@@ -59,6 +59,8 @@ class MainWindow(QMainWindow):
         self._sync_worker: AsyncWorker | None = None
         self._workers: set[AsyncWorker] = set()
         self._eq_dialog: EqualizerDialog | None = None
+        self._playlists: list[tuple[int, str, int]] = []
+        self._empty_action = ""
         self._errors_in_a_row = 0
         self._warned_no_vlc = False
         self._live_refresh = False
@@ -82,7 +84,7 @@ class MainWindow(QMainWindow):
         self.search.addAction(icons.icon("search", styles.MUTED, size=18), QLineEdit.LeadingPosition)
         self.menu_button = QToolButton()
         self.menu_button.setObjectName("menuButton")
-        self.menu_button.setIcon(icons.icon("sliders", styles.TEXT))
+        self.menu_button.setIcon(icons.icon("more", styles.TEXT))
         self.menu_button.setFixedSize(38, 38)
         self.menu_button.setPopupMode(QToolButton.InstantPopup)
         self.menu_button.setCursor(Qt.PointingHandCursor)
@@ -107,7 +109,25 @@ class MainWindow(QMainWindow):
 
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.setChildrenCollapsible(False)
-        self.splitter.addWidget(self.sidebar)
+        self.settings_button = QToolButton()
+        self.settings_button.setObjectName("sidebarSettings")
+        self.settings_button.setIcon(icons.icon("gear", styles.SUBTEXT, active=styles.TEXT, size=18))
+        self.settings_button.setIconSize(QSize(18, 18))
+        self.settings_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.settings_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.settings_button.setCursor(Qt.PointingHandCursor)
+        self.settings_button.clicked.connect(lambda: self.open_settings())
+        footer = QHBoxLayout()
+        footer.setContentsMargins(8, 4, 8, 12)
+        footer.addWidget(self.settings_button)
+        side = QWidget()
+        side.setObjectName("sidebarPanel")
+        side_layout = QVBoxLayout(side)
+        side_layout.setContentsMargins(0, 0, 0, 0)
+        side_layout.setSpacing(0)
+        side_layout.addWidget(self.sidebar, 1)
+        side_layout.addLayout(footer)
+        self.splitter.addWidget(side)
         self.splitter.addWidget(main_view)
         self.splitter.setStretchFactor(1, 1)
         central = QWidget()
@@ -168,12 +188,19 @@ class MainWindow(QMainWindow):
         t.remove_from_queue_requested.connect(self._remove_from_queue)
         t.favorite_requested.connect(self._set_favorite)
         t.edit_requested.connect(self._edit_metadata)
+        t.add_to_playlist_requested.connect(self._add_to_playlist)
+        t.new_playlist_requested.connect(self._new_playlist)
+        t.remove_from_playlist_requested.connect(self._remove_from_playlist)
+        t.action_requested.connect(self._run_empty_action)
+        self.sidebar.new_playlist_requested.connect(lambda: self._new_playlist())
+        self.sidebar.rename_playlist_requested.connect(self._rename_playlist)
+        self.sidebar.delete_playlist_requested.connect(self._delete_playlist)
         translator.changed.connect(self.retranslate)
 
         for keys, slot in (("Space", self._play_pressed), ("Ctrl+F", lambda: (self.search.setFocus(), self.search.selectAll())),
                            ("Ctrl+E", self.toggle_equalizer), ("Ctrl+,", self.open_settings),
                            ("Ctrl+Right", lambda: self._advance(auto=False)), ("Ctrl+Left", self._previous),
-                           ("Ctrl+Q", self.close)):
+                           ("Ctrl+Q", self.close), ("Ctrl+N", lambda: self._new_playlist())):
             QShortcut(QKeySequence(keys), self).activated.connect(slot)
 
     def _restore_state(self) -> None:
@@ -215,6 +242,7 @@ class MainWindow(QMainWindow):
     def retranslate(self) -> None:
         self.search.setPlaceholderText(tr("search.placeholder"))
         self.menu_button.setToolTip(tr("menu.more"))
+        self.settings_button.setText("\u2002\u2002" + tr("sidebar.settings"))  # en-spaces: air between icon and label
         self.sidebar.retranslate()
         self.top_bar.retranslate()
         self.table.track_model.refresh_headers()
@@ -232,6 +260,7 @@ class MainWindow(QMainWindow):
             action.triggered.connect(slot)
             return action
 
+        add(tr("menu.new_playlist"), lambda: self._new_playlist(), "Ctrl+N")
         add(tr("menu.equalizer"), self.toggle_equalizer, "Ctrl+E")
         menu.addSeparator()
         add(tr("menu.rescan"), self.start_scan)
@@ -259,8 +288,19 @@ class MainWindow(QMainWindow):
         self.sidebar.set_groups(db.distinct("artist"), db.distinct("album"), db.distinct("genre"))
         self.sidebar.set_folders(db.folders(SOURCE_AIRSONIC))
         self._update_counts()
-        self.table.track_model.reload()
+        self.refresh_playlists()
+        self._reload_view()
         self._update_heading()
+
+    def _reload_view(self) -> None:
+        """Re-run the current view (playlists and the queue hold explicit id lists)."""
+        key, value = self._view
+        if key == "playlist":
+            self.table.track_model.set_fixed_ids(self.db.playlist_track_ids(value))
+        elif key == "queue":
+            self.table.track_model.set_fixed_ids(self.queue.view())
+        else:
+            self.table.track_model.reload()
 
     def _update_counts(self) -> None:
         db = self.db
@@ -278,6 +318,8 @@ class MainWindow(QMainWindow):
             return Scope(genre=value), None, None
         if key == "folder":
             return Scope(source_type=SOURCE_AIRSONIC, folder=str(value)), None, None
+        if key == "playlist":
+            return Scope(), self.db.playlist_track_ids(int(value)), None
         return {
             "albums": (Scope(), None, "album"),
             "genres": (Scope(), None, "genre"),
@@ -291,6 +333,7 @@ class MainWindow(QMainWindow):
         self._view = (key, value)
         scope, fixed, sort = self._scope_for(key, value)
         self.table.queue_mode = key == "queue"
+        self.table.playlist_mode = key == "playlist"
         self.table.show_view(scope, fixed, sort)
         self.table.track_model.set_current(self.current_track.id if self.current_track else None)
         self._update_heading()
@@ -307,6 +350,8 @@ class MainWindow(QMainWindow):
             return str(value) or tr("unknown_" + key)
         if key == "folder":
             return str(value).rsplit("/", 1)[-1]
+        if key == "playlist":
+            return next((name for pid, name, _ in self._playlists if pid == value), "")
         return tr({"all": "sidebar.all", "artists": "sidebar.artists", "albums": "sidebar.albums",
                    "genres": "sidebar.genres", "airsonic": "sidebar.airsonic", "favorites": "sidebar.favorites",
                    "recent": "sidebar.recent", "queue": "sidebar.queue"}.get(key, "sidebar.all"))
@@ -317,8 +362,8 @@ class MainWindow(QMainWindow):
         count = model.rowCount()
         text = trn("summary.songs", count)
         key = self._view[0]
-        if count and key != "queue":
-            scope, fixed, _ = self._scope_for(*self._view)
+        if count and key not in ("queue", "playlist"):
+            scope, _fixed, _ = self._scope_for(*self._view)
             _, seconds = self.db.summary(scope, self.search.text())
             if seconds:
                 text += " · " + format_total(seconds)
@@ -329,25 +374,39 @@ class MainWindow(QMainWindow):
 
     def _update_empty_text(self) -> None:
         key = self._view[0]
+        action, kind = "", ""
         if self.search.text().strip():
-            self.table.set_empty_text(tr("empty.search.title"), tr("empty.search.hint"))
+            title, hint = tr("empty.search.title"), tr("empty.search.hint")
         elif key == "airsonic":
             if self.airsonic is None:
-                self.table.set_empty_text(tr("empty.airsonic.title"), tr("empty.airsonic.hint"))
+                title, hint = tr("empty.airsonic.title"), tr("empty.airsonic.hint")
+                action, kind = tr("empty.airsonic.action"), "settings:2"
             elif self._sync_worker is not None:
-                self.table.set_empty_text(tr("empty.syncing"), "")
+                title, hint = tr("empty.syncing"), ""
             else:
-                self.table.set_empty_text(tr("empty.airsonic_none.title"), tr("empty.airsonic_none.hint"))
+                title, hint = tr("empty.airsonic_none.title"), tr("empty.airsonic_none.hint")
+                action, kind = tr("menu.sync_airsonic"), "sync"
         elif key == "favorites":
-            self.table.set_empty_text(tr("empty.favorites.title"), tr("empty.favorites.hint"))
+            title, hint = tr("empty.favorites.title"), tr("empty.favorites.hint")
         elif key == "recent":
-            self.table.set_empty_text(tr("empty.recent.title"), tr("empty.recent.hint"))
+            title, hint = tr("empty.recent.title"), tr("empty.recent.hint")
         elif key == "queue":
-            self.table.set_empty_text(tr("empty.queue.title"), tr("empty.queue.hint"))
+            title, hint = tr("empty.queue.title"), tr("empty.queue.hint")
+        elif key == "playlist":
+            title, hint = tr("empty.playlist.title"), tr("empty.playlist.hint")
         elif self.db.count() == 0:
-            self.table.set_empty_text(tr("empty.library.title"), tr("empty.library.hint"))
+            title, hint = tr("empty.library.title"), tr("empty.library.hint")
+            action, kind = tr("empty.library.action"), "settings:1"
         else:
-            self.table.set_empty_text("", "")
+            title, hint = "", ""
+        self._empty_action = kind
+        self.table.set_empty_text(title, hint, action)
+
+    def _run_empty_action(self) -> None:
+        if self._empty_action.startswith("settings:"):
+            self.open_settings(int(self._empty_action.split(":")[1]))
+        elif self._empty_action == "sync":
+            self.sync_airsonic()
 
     # ------------------------------------------------------------------------------ playback
     def _play_from_table(self, track_id: int) -> None:
@@ -476,6 +535,69 @@ class MainWindow(QMainWindow):
         if self._view[0] == "queue":
             self.table.track_model.set_fixed_ids(self.queue.view())
             self._update_heading()
+
+    # ------------------------------------------------------------------------------ playlists
+    def refresh_playlists(self) -> None:
+        self._playlists = self.db.playlists()
+        self.sidebar.set_playlists(self._playlists)
+        self.table.set_playlists([(pid, name) for pid, name, _ in self._playlists])
+
+    def _unique_playlist_name(self, name: str, ignore: int | None = None) -> str:
+        taken = {n.casefold() for pid, n, _ in self._playlists if pid != ignore}
+        candidate, n = name, 2
+        while candidate.casefold() in taken:
+            candidate, n = f"{name} ({n})", n + 1
+        return candidate
+
+    def _new_playlist(self, ids: list[int] | None = None) -> None:
+        name = ask_text(self, tr("playlist.new_title"), tr("playlist.name_prompt"), tr("playlist.default_name"))
+        if not name:
+            return
+        name = self._unique_playlist_name(name)
+        playlist_id = self.db.create_playlist(name)
+        if ids:
+            self.db.add_to_playlist(playlist_id, ids)
+        self.refresh_playlists()
+        self.sidebar.select("playlist", playlist_id)
+        self._show_view("playlist", playlist_id)
+        if ids:
+            self.notify(trn("msg.added_playlist", len(ids), name=name), 3500)
+
+    def _rename_playlist(self, playlist_id: int) -> None:
+        current = next((n for pid, n, _ in self._playlists if pid == playlist_id), "")
+        name = ask_text(self, tr("playlist.rename_title"), tr("playlist.name_prompt"), current)
+        if not name or name == current:
+            return
+        self.db.rename_playlist(playlist_id, self._unique_playlist_name(name, ignore=playlist_id))
+        self.refresh_playlists()
+        self._update_heading()
+
+    def _delete_playlist(self, playlist_id: int) -> None:
+        name = next((n for pid, n, _ in self._playlists if pid == playlist_id), "")
+        if not confirm(self, tr("playlist.delete_title"), tr("playlist.delete_text", name=name)):
+            return
+        self.db.delete_playlist(playlist_id)
+        self.refresh_playlists()
+        if self._view == ("playlist", playlist_id):
+            self.sidebar.select("all")
+            self._show_view("all", None)
+
+    def _add_to_playlist(self, playlist_id: int, ids: list[int]) -> None:
+        self.db.add_to_playlist(playlist_id, ids)
+        name = next((n for pid, n, _ in self._playlists if pid == playlist_id), "")
+        self.refresh_playlists()
+        if self._view == ("playlist", playlist_id):
+            self._reload_view()
+            self._update_heading()
+        self.notify(trn("msg.added_playlist", len(ids), name=name), 3500)
+
+    def _remove_from_playlist(self, ids: list[int]) -> None:
+        if self._view[0] != "playlist":
+            return
+        self.db.remove_from_playlist(self._view[1], ids)
+        self.refresh_playlists()
+        self._reload_view()
+        self._update_heading()
 
     # ------------------------------------------------------------------------------ favourites / metadata
     def _set_favorite(self, ids: list[int], value: bool) -> None:
@@ -659,8 +781,8 @@ class MainWindow(QMainWindow):
             self._eq_dialog.raise_()
             self.top_bar.set_eq_open(True)
 
-    def open_settings(self) -> None:
-        dialog = SettingsDialog(self.config, integration.is_installed(), self)
+    def open_settings(self, tab: int = 0) -> None:
+        dialog = SettingsDialog(self.config, integration.is_installed(), self, int(tab))
         if not dialog.exec():
             return
         old_dirs = list(self.config.get("music_dirs", []))

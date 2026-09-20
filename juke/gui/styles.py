@@ -88,7 +88,12 @@ QLineEdit {{
 QLineEdit:focus {{ border: 1px solid {ACCENT}; background: {SURFACE}; }}
 
 /* Sidebar ------------------------------------------------------------------------- */
-QTreeWidget#sidebar {{ background: {MANTLE}; border: none; border-right: 1px solid {BORDER}; padding: 8px 8px; }}
+QWidget#sidebarPanel {{ background: {MANTLE}; border-right: 1px solid {BORDER}; }}
+QTreeWidget#sidebar {{ background: transparent; border: none; padding: 8px 8px 0 8px; }}
+QToolButton#sidebarSettings {{
+    text-align: left; padding: 9px 12px; border-radius: 9px; color: {SUBTEXT}; font-weight: 500;
+}}
+QToolButton#sidebarSettings:hover {{ background: {SURFACE}; color: {TEXT}; }}
 
 /* Track table ---------------------------------------------------------------------- */
 QWidget#mainView {{ background: {BASE}; }}

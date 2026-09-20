@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QModelIndex, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QModelIndex, QPointF, QRect, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen
-from PySide6.QtWidgets import (QAbstractItemView, QStyle, QStyledItemDelegate, QTreeWidget, QTreeWidgetItem)
+from PySide6.QtWidgets import (QAbstractItemView, QMenu, QStyle, QStyledItemDelegate, QToolTip, QTreeWidget,
+                               QTreeWidgetItem)
 
 from ...i18n import tr
 from .. import icons, styles
@@ -12,6 +13,8 @@ from .. import icons, styles
 KIND_ROLE = Qt.UserRole + 1     # header | item | group | child
 KEY_ROLE = Qt.UserRole + 2      # (key, value)
 COUNT_ROLE = Qt.UserRole + 3    # int | None
+ACTION_ROLE = Qt.UserRole + 4   # "plus": header row with a "+" button on the right
+PLUS = 26                       # size of that button, px
 
 GROUPS = {"artists": "artist", "albums": "album", "genres": "genre"}
 
@@ -35,6 +38,17 @@ class SidebarDelegate(QStyledItemDelegate):
             painter.setFont(font)
             painter.setPen(QColor(styles.MUTED))
             painter.drawText(rect.adjusted(12, 8, 0, 0), Qt.AlignLeft | Qt.AlignVCenter, index.data(Qt.DisplayRole))
+            if index.data(ACTION_ROLE) == "plus":
+                hover = bool(getattr(option.widget, "plus_hover", False))
+                box = QRectF(rect.right() - PLUS - 10, rect.top() + 6, PLUS, PLUS)
+                if hover:
+                    painter.setPen(Qt.NoPen)
+                    painter.setBrush(QColor(58, 58, 85, 230))
+                    painter.drawRoundedRect(box, 8, 8)
+                painter.setPen(QPen(QColor(styles.TEXT if hover else styles.SUBTEXT), 1.9, Qt.SolidLine, Qt.RoundCap))
+                c = box.center()
+                painter.drawLine(QPointF(c.x() - 5, c.y()), QPointF(c.x() + 5, c.y()))
+                painter.drawLine(QPointF(c.x(), c.y() - 5), QPointF(c.x(), c.y() + 5))
             painter.restore()
             return
 
@@ -101,6 +115,9 @@ class Sidebar(QTreeWidget):
     """Emits ``selected(key, value)``: ("all", None), ("artist", "Name"), ("list", "queue")..."""
 
     selected = Signal(str, object)
+    new_playlist_requested = Signal()
+    rename_playlist_requested = Signal(int)
+    delete_playlist_requested = Signal(int)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -119,6 +136,7 @@ class Sidebar(QTreeWidget):
         self._headers: dict[str, QTreeWidgetItem] = {}
         self._items: dict[tuple[str, object], QTreeWidgetItem] = {}
         self._before_click: QTreeWidgetItem | None = None
+        self.plus_hover = False
         self._folder_tree: dict = {}   # nested {name: {subname: {...}}} of the server's folders
 
         def header(name: str) -> QTreeWidgetItem:
@@ -144,6 +162,7 @@ class Sidebar(QTreeWidget):
         servers = header("servers")
         entry(servers, "airsonic", "server", "group")
         lists = header("lists")
+        lists.setData(0, ACTION_ROLE, "plus")
         for key, glyph in (("favorites", "heart"), ("recent", "clock"), ("queue", "queue")):
             entry(lists, key, glyph)
         self.expandItem(library)
@@ -256,9 +275,70 @@ class Sidebar(QTreeWidget):
         if current:
             self.selected.emit(*current)
 
+    # -- the "+" next to PLAYLISTS -----------------------------------------------------------
+    def _plus_rect(self) -> QRect:
+        header = self.visualItemRect(self._headers["lists"])
+        return QRect(header.right() - PLUS - 10, header.top() + 6, PLUS, PLUS)
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        hover = self._plus_rect().contains(event.position().toPoint())
+        if hover != self.plus_hover:
+            self.plus_hover = hover
+            self.viewport().update()
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        if self.plus_hover:
+            self.plus_hover = False
+            self.viewport().update()
+        super().leaveEvent(event)
+
+    def viewportEvent(self, event) -> bool:  # noqa: N802
+        if event.type() == QEvent.ToolTip and self._plus_rect().contains(event.pos()):
+            QToolTip.showText(event.globalPos(), tr("playlist.new"), self.viewport())
+            return True
+        return super().viewportEvent(event)
+
     def mousePressEvent(self, event) -> None:  # noqa: N802
+        if event.button() == Qt.LeftButton and self._plus_rect().contains(event.position().toPoint()):
+            self.new_playlist_requested.emit()
+            event.accept()
+            return
         self._before_click = self.currentItem()
         super().mousePressEvent(event)
+
+    def contextMenuEvent(self, event) -> None:  # noqa: N802
+        item = self.itemAt(event.pos())
+        key = item.data(0, KEY_ROLE) if item else None
+        menu = QMenu(self)
+        if key and key[0] == "playlist":
+            menu.addAction(tr("menu.rename"), lambda _c=False, pid=key[1]: self.rename_playlist_requested.emit(pid))
+            menu.addAction(tr("menu.delete"), lambda _c=False, pid=key[1]: self.delete_playlist_requested.emit(pid))
+        elif item is self._headers["lists"] or (key and key[0] in ("favorites", "recent", "queue")):
+            menu.addAction(tr("menu.new_playlist"), self.new_playlist_requested.emit)
+        else:
+            return
+        menu.exec(event.globalPos())
+
+    def set_playlists(self, playlists: list[tuple[int, str, int]]) -> None:
+        """(id, name, count) of the user's playlists, shown under PLAYLISTS after Current Queue."""
+        lists = self._headers["lists"]
+        current = self.current_key()
+        self.blockSignals(True)
+        for key in [k for k in self._items if k[0] == "playlist"]:
+            lists.removeChild(self._items.pop(key))
+        icon = icons.icon("playlist", styles.SUBTEXT, active=styles.ACCENT, size=18)
+        for playlist_id, name, count in playlists:
+            item = QTreeWidgetItem(lists, [name])
+            item.setData(0, KIND_ROLE, "item")
+            item.setData(0, KEY_ROLE, ("playlist", playlist_id))
+            item.setData(0, COUNT_ROLE, count)
+            item.setIcon(0, icon)
+            self._items[("playlist", playlist_id)] = item
+        self.blockSignals(False)
+        if current in self._items:
+            self.select(*current)
+        self.viewport().update()
 
     def _clicked(self, item: QTreeWidgetItem) -> None:
         if item.data(0, KIND_ROLE) not in ("group", "folder"):

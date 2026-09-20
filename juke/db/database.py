@@ -53,6 +53,18 @@ CREATE INDEX IF NOT EXISTS idx_tracks_source_type ON tracks (source_type);
 CREATE INDEX IF NOT EXISTS idx_tracks_natural     ON tracks (artist COLLATE NOCASE, album COLLATE NOCASE, track_no, title COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_tracks_favorite    ON tracks (favorite) WHERE favorite = 1;
 CREATE INDEX IF NOT EXISTS idx_tracks_last_played ON tracks (last_played) WHERE last_played > 0;
+CREATE TABLE IF NOT EXISTS playlists (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL,
+    created_at  REAL    NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+    playlist_id INTEGER NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
+    track_id    INTEGER NOT NULL REFERENCES tracks (id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    PRIMARY KEY (playlist_id, position)
+);
+CREATE INDEX IF NOT EXISTS idx_playlist_tracks_track ON playlist_tracks (track_id);
 """
 
 _COLUMNS = (
@@ -159,6 +171,7 @@ class Database:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
             conn.execute("PRAGMA temp_store=MEMORY")
+            conn.execute("PRAGMA foreign_keys=ON")  # songs removed from the library leave their playlists
             self._local.conn = conn
         return conn
 
@@ -337,6 +350,48 @@ class Database:
         where, args = self._where(scope, text)
         row = self.connect().execute(f"SELECT COUNT(*), COALESCE(SUM(duration), 0) FROM tracks{where}", args).fetchone()
         return row[0], row[1]
+
+    # -- playlists ------------------------------------------------------------------------
+    def playlists(self) -> list[tuple[int, str, int]]:
+        """(id, name, song count), alphabetically."""
+        cur = self.connect().execute(
+            "SELECT p.id, p.name, COUNT(t.track_id) FROM playlists p "
+            "LEFT JOIN playlist_tracks t ON t.playlist_id = p.id GROUP BY p.id ORDER BY p.name COLLATE NOCASE")
+        return [(r[0], r[1], r[2]) for r in cur]
+
+    def create_playlist(self, name: str) -> int:
+        conn = self.connect()
+        with conn:
+            return conn.execute("INSERT INTO playlists (name, created_at) VALUES (?, ?)", (name.strip(), time.time())).lastrowid
+
+    def rename_playlist(self, playlist_id: int, name: str) -> None:
+        conn = self.connect()
+        with conn:
+            conn.execute("UPDATE playlists SET name=? WHERE id=?", (name.strip(), playlist_id))
+
+    def delete_playlist(self, playlist_id: int) -> None:
+        conn = self.connect()
+        with conn:
+            conn.execute("DELETE FROM playlists WHERE id=?", (playlist_id,))
+
+    def playlist_track_ids(self, playlist_id: int) -> list[int]:
+        cur = self.connect().execute(
+            "SELECT track_id FROM playlist_tracks WHERE playlist_id=? ORDER BY position", (playlist_id,))
+        return [r[0] for r in cur]
+
+    def add_to_playlist(self, playlist_id: int, track_ids: Sequence[int]) -> None:
+        conn = self.connect()
+        with conn:
+            start = conn.execute(
+                "SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_tracks WHERE playlist_id=?", (playlist_id,)).fetchone()[0]
+            conn.executemany("INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)",
+                             [(playlist_id, tid, start + i) for i, tid in enumerate(track_ids)])
+
+    def remove_from_playlist(self, playlist_id: int, track_ids: Sequence[int]) -> None:
+        conn = self.connect()
+        with conn:
+            conn.executemany("DELETE FROM playlist_tracks WHERE playlist_id=? AND track_id=?",
+                             [(playlist_id, tid) for tid in track_ids])
 
     def folders(self, source_type: str) -> list[str]:
         """Every distinct folder path of a source ("Artist/Album", ...)."""

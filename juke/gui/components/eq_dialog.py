@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QGridLayout, QGroupBox, QHBoxLayout, QInputDialog,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QGridLayout, QGroupBox, QHBoxLayout,
                                QLabel, QPushButton, QSlider, QVBoxLayout, QWidget)
 
 from ...audio.engine import AudioEngine
 from ...audio.equalizer import BAND_LABELS, MAX_DB, MIN_DB, Equalizer
 from ...i18n import tr
 from .. import styles
-from ..dialogs import notice
+from ..dialogs import ask_text, notice
 from .widgets import JumpSlider
 
 SCALE = 10  # slider units per dB
@@ -225,8 +225,8 @@ class EqualizerDialog(QDialog):
             self._eq.load_preset(name)
 
     def _save_preset(self) -> None:
-        name, ok = QInputDialog.getText(self, tr("eq.save_title"), tr("eq.save_prompt"))
-        if not ok or not name.strip():
+        name = ask_text(self, tr("eq.save_title"), tr("eq.save_prompt"))
+        if not name:
             return
         if not self._eq.save_custom(name):
             notice(self, tr("eq.save_title"), tr("eq.name_reserved"))

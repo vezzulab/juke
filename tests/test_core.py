@@ -142,6 +142,38 @@ class DatabaseTests(unittest.TestCase):
         db.upsert_many([row(2, folder="X/Y")])
         self.assertEqual(db.folders(SOURCE_LOCAL), ["X/Y"])
 
+    def test_playlists_crud_order_and_cascade(self):
+        db = make_db("pl.db")
+        db.upsert_many([row(i) for i in range(6)])
+        ids = db.query_ids()
+        pid = db.create_playlist("  Fiesta ")
+        db.add_to_playlist(pid, [ids[3], ids[1]])
+        db.add_to_playlist(pid, [ids[5]])
+        self.assertEqual(db.playlist_track_ids(pid), [ids[3], ids[1], ids[5]])   # insertion order, not library order
+        self.assertEqual(db.playlists(), [(pid, "Fiesta", 3)])
+        db.remove_from_playlist(pid, [ids[1]])
+        self.assertEqual(db.playlist_track_ids(pid), [ids[3], ids[5]])
+        db.rename_playlist(pid, "Domingo")
+        self.assertEqual(db.playlists()[0][1], "Domingo")
+        gone = db.get_track(ids[3])                   # a song leaving the library leaves its playlists
+        db.delete_locations(SOURCE_LOCAL, [gone.location])
+        self.assertEqual(db.playlist_track_ids(pid), [ids[5]])
+        empty = db.create_playlist("Empty")
+        self.assertIn((empty, "Empty", 0), db.playlists())
+        db.delete_playlist(pid)
+        self.assertEqual([p[1] for p in db.playlists()], ["Empty"])
+        left = db.connect().execute("SELECT COUNT(*) FROM playlist_tracks").fetchone()[0]
+        self.assertEqual(left, 0)
+
+    def test_playlists_survive_an_airsonic_resync(self):
+        db = make_db("plsync.db")
+        db.replace_source(SOURCE_AIRSONIC, [row(1, source_type=SOURCE_AIRSONIC, location="a"), row(2, source_type=SOURCE_AIRSONIC, location="b")])
+        ids = db.query_ids()
+        pid = db.create_playlist("Server picks")
+        db.add_to_playlist(pid, ids)
+        db.replace_source(SOURCE_AIRSONIC, [row(1, source_type=SOURCE_AIRSONIC, location="a", title="Renamed on server")])
+        self.assertEqual(len(db.playlist_track_ids(pid)), 1)   # kept the survivor, dropped the vanished song
+
     def test_normalize(self):
         self.assertEqual(normalize("Canción ÑANDÚ"), "cancion nandu")
 
@@ -261,36 +293,82 @@ class AirsonicTests(unittest.TestCase):
             self.run_async(go())
         self.assertEqual(ctx.exception.code, 40)
 
-    def test_sync_walks_indexes_and_directories(self):
-        tree = {
-            "ar1": {"child": [{"id": "al1", "isDir": True}, {"id": "s3", "title": "Loose", "artist": "A1"}]},
-            "al1": {"child": [{"id": "s1", "title": "One", "artist": "A1", "album": "Al", "duration": 61, "bitRate": 256,
-                               "coverArt": "al1", "track": 1, "year": 1999, "genre": "Pop"},
-                              {"id": "s2", "title": "Two", "artist": "A1", "album": "Al"}]},
-            "ar2": {"child": {"id": "s4", "title": "Single dict child"}},
-        }
-
+    def _server(self, tree, indexes, folders=None):
+        """A tiny fake Subsonic server: getMusicFolders / getIndexes / getMusicDirectory."""
         def handler(request):
             params = parse_qs(request.url.query.decode())
             path = request.url.path
-            if path.endswith("getIndexes.view"):
-                body = {"indexes": {"index": [{"name": "A", "artist": [{"id": "ar1"}, {"id": "ar2"}]}], "child": [{"id": "s0", "title": "Root song"}]}}
+            if path.endswith("getMusicFolders.view"):
+                body = {"musicFolders": {"musicFolder": folders or []}}
+            elif path.endswith("getIndexes.view"):
+                body = {"indexes": indexes(params.get("musicFolderId", [None])[0])}
             else:
                 body = {"directory": tree[params["id"][0]]}
             return httpx.Response(200, json={"subsonic-response": {"status": "ok", **body}})
+        return handler
 
+    def sync(self, handler):
         async def go():
             client = self.make_client(handler)
             try:
                 return await client.sync_library()
             finally:
                 await client.aclose()
+        return {r["location"]: r for r in self.run_async(go())}
 
-        rows = self.run_async(go())
-        self.assertEqual(sorted(r["location"] for r in rows), ["s0", "s1", "s2", "s3", "s4"])
-        one = next(r for r in rows if r["location"] == "s1")
+    def test_sync_builds_folder_trail_from_the_directories_walked(self):
+        tree = {
+            "ba": {"child": [{"id": "ba1", "isDir": True, "title": "Romeo Santos"}, {"id": "s3", "title": "Loose"}]},
+            "ba1": {"child": [{"id": "ba2", "isDir": True, "title": "Formula Vol. 1"}]},
+            "ba2": {"child": [{"id": "s1", "title": "One", "artist": "Romeo", "album": "Al", "duration": 61, "bitRate": 256,
+                               "coverArt": "ba2", "track": 1, "year": 1999, "genre": "Bachata"},
+                              {"id": "s2", "title": "Two", "path": "ignored/because/trail/wins.mp3"}]},
+            "me": {"child": {"id": "s4", "title": "Single dict child"}},
+        }
+        indexes = lambda folder: {"index": [{"name": "B", "artist": [{"id": "ba", "name": "Bachata"}, {"id": "me", "name": "Merengue"}]}],
+                                  "child": [{"id": "s0", "title": "Root song"}]}
+        rows = self.sync(self._server(tree, indexes))
+        self.assertEqual(sorted(rows), ["s0", "s1", "s2", "s3", "s4"])
+        self.assertEqual(rows["s1"]["folder"], "Bachata/Romeo Santos/Formula Vol. 1")
+        self.assertEqual(rows["s2"]["folder"], "Bachata/Romeo Santos/Formula Vol. 1")
+        self.assertEqual(rows["s3"]["folder"], "Bachata")
+        self.assertEqual(rows["s4"]["folder"], "Merengue")
+        self.assertEqual(rows["s0"]["folder"], "")
+        one = rows["s1"]
         self.assertEqual((one["title"], one["duration"], one["bitrate"], one["cover_key"], one["source_type"]),
-                         ("One", 61.0, 256, "as_al1", "airsonic"))
+                         ("One", 61.0, 256, "as_ba2", "airsonic"))
+
+    def test_separate_music_folders_become_the_first_level(self):
+        tree = {"a1": {"child": [{"id": "x1", "title": "Song A"}]}, "b1": {"child": [{"id": "x2", "title": "Song B"}]}}
+        by_folder = {"1": {"index": [{"artist": [{"id": "a1", "name": "Aventura"}]}]},
+                     "2": {"index": [{"artist": [{"id": "b1", "name": "Marc Anthony"}]}]}}
+        handler = self._server(tree, lambda fid: by_folder[fid],
+                               folders=[{"id": 1, "name": "Bachata"}, {"id": 2, "name": "Salsa"}])
+        rows = self.sync(handler)
+        self.assertEqual(rows["x1"]["folder"], "Bachata/Aventura")
+        self.assertEqual(rows["x2"]["folder"], "Salsa/Marc Anthony")
+
+    def test_client_adapts_to_an_older_server_protocol(self):
+        seen = []
+
+        def handler(request):
+            version = parse_qs(request.url.query.decode())["v"][0]
+            seen.append(version)
+            if version != "1.15.0":
+                return httpx.Response(200, json={"subsonic-response": {"status": "failed", "version": "1.15.0",
+                                                                          "error": {"code": 30, "message": "Server must upgrade"}}})
+            return httpx.Response(200, json={"subsonic-response": {"status": "ok", "version": "1.15.0"}})
+
+        async def go():
+            client = self.make_client(handler)
+            client.api_version = "1.16.1"          # what a newer default would send
+            try:
+                return await client.ping(), client.api_version
+            finally:
+                await client.aclose()
+
+        self.assertEqual(self.run_async(go()), ("1.15.0", "1.15.0"))
+        self.assertEqual(seen, ["1.16.1", "1.15.0"])
 
     def test_songs_carry_their_server_folder(self):
         self.assertEqual(song_to_row({"id": 1, "path": "Rock/Band One/Album A/01 Song.mp3"})["folder"], "Rock/Band One/Album A")

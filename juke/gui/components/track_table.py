@@ -11,8 +11,8 @@ from __future__ import annotations
 from collections import OrderedDict
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QRect, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QPainter
-from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QMenu, QTableView
+from PySide6.QtGui import QAction, QColor, QFont, QFontMetrics, QPainter
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QMenu, QPushButton, QTableView
 
 from ...db.database import SOURCE_AIRSONIC, Database, Scope, Track
 from ...i18n import tr
@@ -186,14 +186,27 @@ class TrackTable(QTableView):
     favorite_requested = Signal(list, bool)
     edit_requested = Signal(int)
     remove_from_queue_requested = Signal(list)
+    add_to_playlist_requested = Signal(int, list)   # playlist id, track ids
+    new_playlist_requested = Signal(list)           # create a playlist holding these tracks
+    remove_from_playlist_requested = Signal(list)
+    action_requested = Signal()                     # the button of an empty-state message
 
     def __init__(self, db: Database, parent=None) -> None:
         super().__init__(parent)
         self.track_model = TrackModel(db, self)
         self.setModel(self.track_model)
         self.queue_mode = False
+        self.playlist_mode = False
+        self.playlists: list[tuple[int, str]] = []
         self.empty_title = ""
         self.empty_hint = ""
+        self.empty_action = ""
+        self.empty_button = QPushButton(self.viewport())
+        self.empty_button.setObjectName("primary")
+        self.empty_button.setCursor(Qt.PointingHandCursor)
+        self.empty_button.clicked.connect(self.action_requested)
+        self.empty_button.hide()
+        self.track_model.modelReset.connect(self._place_empty_button)
         self._sort_column = -1
         self._sort_desc = False
 
@@ -280,6 +293,14 @@ class TrackTable(QTableView):
         menu.addAction(tr("menu.add_to_queue"), lambda: self.queue_requested.emit(ids))
         if self.queue_mode:
             menu.addAction(tr("menu.remove_from_queue"), lambda: self.remove_from_queue_requested.emit(ids))
+        playlists = menu.addMenu(tr("menu.add_to_playlist"))
+        for playlist_id, name in self.playlists:
+            playlists.addAction(name, lambda _c=False, pid=playlist_id: self.add_to_playlist_requested.emit(pid, ids))
+        if self.playlists:
+            playlists.addSeparator()
+        playlists.addAction(tr("menu.new_playlist"), lambda: self.new_playlist_requested.emit(ids))
+        if self.playlist_mode:
+            menu.addAction(tr("menu.remove_from_playlist"), lambda: self.remove_from_playlist_requested.emit(ids))
         menu.addSeparator()
         all_favorites = bool(tracks) and all(t.favorite for t in tracks)
         label = tr("menu.unfavorite") if all_favorites else tr("menu.favorite")
@@ -291,9 +312,34 @@ class TrackTable(QTableView):
         menu.exec(event.globalPos())
 
     # -- empty state ---------------------------------------------------------------------------------------
-    def set_empty_text(self, title: str, hint: str = "") -> None:
-        self.empty_title, self.empty_hint = title, hint
+    def set_playlists(self, playlists: list[tuple[int, str]]) -> None:
+        self.playlists = playlists
+
+    def set_empty_text(self, title: str, hint: str = "", action: str = "") -> None:
+        """Message shown over an empty table, with an optional button (``action_requested``)."""
+        self.empty_title, self.empty_hint, self.empty_action = title, hint, action
+        self.empty_button.setText(action)
+        self._place_empty_button()
         self.viewport().update()
+
+    def _place_empty_button(self) -> None:
+        show = bool(self.empty_action) and self.track_model.rowCount() == 0 and bool(self.empty_title)
+        self.empty_button.setVisible(show)
+        if not show:
+            return
+        rect = self.viewport().rect()
+        half = rect.height() // 2
+        font = QFont(self.font())
+        font.setPixelSize(13)
+        hint_height = QFontMetrics(font).boundingRect(0, 0, max(200, rect.width() - 48), 400, int(Qt.TextWordWrap), self.empty_hint).height() if self.empty_hint else 0
+        self.empty_button.adjustSize()
+        width = self.empty_button.sizeHint().width() + 24
+        self.empty_button.setFixedSize(width, 38)
+        self.empty_button.move((rect.width() - width) // 2, half + 6 + hint_height + 18)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._place_empty_button()
 
     def paintEvent(self, event) -> None:  # noqa: N802
         super().paintEvent(event)

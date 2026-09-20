@@ -7,13 +7,16 @@ from pathlib import Path
 from . import helpers
 
 from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from juke.audio.engine import AudioEngine
 from juke.audio.equalizer import BUILTIN_PRESETS, Equalizer
 from juke.config import Config
 from juke.db.database import SOURCE_AIRSONIC, SOURCE_LOCAL, Database, Scope
+import juke.gui.main_window as main_window_module
 from juke.gui import icons, styles
+from juke.gui.components.sidebar import COUNT_ROLE
 from juke.gui.main_window import MainWindow
 from juke.i18n import tr, translator
 
@@ -164,6 +167,61 @@ class GuiTests(unittest.TestCase):
         self.assertIn("Rock/Band One", window.subtitle_label.text())
         window._show_view("folder", "Rock")
         self.assertEqual(window.table.track_model.rowCount(), 4)
+        window.close()
+
+    def test_playlists_from_plus_button_to_delete(self):
+        translator.set_language("en")
+        window, cfg, db, engine, eq = make_window("gui8", n=12)
+        ids = db.query_ids()
+        sidebar = window.sidebar
+        fired = []
+        sidebar.new_playlist_requested.connect(lambda: fired.append(1))
+        names = iter([None, "Fiesta", "Fiesta"])           # first prompt is cancelled by the "user"
+        original = (main_window_module.ask_text, main_window_module.confirm)
+        main_window_module.ask_text = lambda *a, **k: next(names)
+        main_window_module.confirm = lambda *a, **k: True
+        try:
+            box = sidebar._plus_rect()
+            self.assertEqual((box.width(), box.height()), (26, 26))
+            QTest.mouseClick(sidebar.viewport(), Qt.LeftButton, pos=box.center())  # the visible "+"
+            self.assertEqual(fired, [1])
+            self.assertEqual(db.playlists(), [])                                  # cancelled: nothing created
+            window._new_playlist([ids[0], ids[1]])
+            pid = window._view[1]
+            self.assertEqual(window._view[0], "playlist")
+            self.assertEqual(window.title_label.text(), "Fiesta")
+            self.assertEqual(window.table.track_model.rowCount(), 2)
+            window._add_to_playlist(pid, [ids[2]])
+            self.assertEqual(window.table.track_model.rowCount(), 3)
+            self.assertEqual(sidebar._items[("playlist", pid)].data(0, COUNT_ROLE), 3)
+            window._remove_from_playlist([ids[0]])
+            self.assertEqual(window.table.track_model.ids(), [ids[1], ids[2]])
+            window._new_playlist()                                                   # same name again -> made unique
+            self.assertEqual(sorted(n for _, n, _c in db.playlists()), ["Fiesta", "Fiesta (2)"])
+            self.assertEqual(window.table.playlists[0][1], "Fiesta")                 # offered in "Add to playlist"
+            window._delete_playlist(window._view[1])
+            self.assertEqual(window._view, ("all", None))
+            self.assertEqual([n for _, n, _c in db.playlists()], ["Fiesta"])
+        finally:
+            main_window_module.ask_text, main_window_module.confirm = original
+            window.close()
+
+    def test_empty_states_offer_a_button_and_settings_is_always_visible(self):
+        translator.set_language("en")
+        window, cfg, db, engine, eq = make_window("gui9", n=0)
+        self.assertTrue(window.settings_button.isVisible())
+        self.assertEqual(window.settings_button.text().strip("\u2002"), tr("sidebar.settings"))
+        table = window.table
+        self.assertTrue(table.empty_button.isVisible())
+        self.assertEqual(table.empty_button.text(), tr("empty.library.action"))
+        opened = []
+        window.open_settings = lambda tab=0: opened.append(tab)
+        table.empty_button.click()
+        self.assertEqual(opened, [1])                                                # straight to the Library tab
+        window._show_view("airsonic", None)
+        self.assertEqual(table.empty_button.text(), tr("empty.airsonic.action"))
+        table.empty_button.click()
+        self.assertEqual(opened, [1, 2])                                             # straight to the Airsonic tab
         window.close()
 
     def test_icons_are_vector_and_hidpi_sharp(self):

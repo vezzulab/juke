@@ -96,6 +96,11 @@ def build_library(db: Database) -> None:
                 "cover_key": key,
             })
     db.upsert_many(rows)
+    ids = db.query_ids()
+    party = db.create_playlist("Fiesta")
+    db.add_to_playlist(party, [ids[i] for i in (3, 9, 14, 20, 27, 31)])
+    sunday = db.create_playlist("Domingo tranquilo")
+    db.add_to_playlist(sunday, [ids[i] for i in (5, 11, 16, 22)])
 
 
 def settle(ms: int) -> None:

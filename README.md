@@ -53,8 +53,8 @@ Ten bands (60 Hz – 16 kHz), ±20 dB preamp, ten built-in presets and your own 
 </td>
 <td valign="top">
 
-### A real queue
-**Play next** inserts right after the current song; **Add to queue** goes to the end. The queue is temporary and independent of the list you started from, which resumes when it is empty.
+### A real queue, and your own playlists
+**Play next** inserts right after the current song; **Add to queue** goes to the end. The queue is temporary and independent of the list you started from, which resumes when it is empty. Make playlists with the **+** next to *Playlists*.
 
 </td>
 </tr>
@@ -136,8 +136,9 @@ To add the launcher and icon of a source install to your menu: `juke --install-d
 | | |
 | --- | --- |
 | **Library** | Add your music folders in *Settings ▸ Library*. Juke indexes them in a background thread and only re-reads files that changed. |
-| **Airsonic** | *Settings ▸ Airsonic*: server address, user and password, then *Test connection*. *Sync Airsonic* imports the server once; browse it under **Servers**. Finished songs are scrobbled to the server. |
+| **Airsonic** | Click **Settings** at the bottom of the sidebar (or the *Set up Airsonic…* button on the empty Airsonic view) ▸ *Airsonic* tab: server address (e.g. `http://your-server:4040`), user and password, then *Test connection*. *Sync Airsonic* imports the server once; browse it under **Servers**. Finished songs are scrobbled to the server. |
 | **Queue** | Right-click ▸ **Play next** / **Add to queue**. The *Current Queue* list shows what is playing, what you queued, and what follows. |
+| **Playlists** | Click the **+** next to *Playlists* (or `Ctrl` + `N`) to create one. Right-click songs ▸ *Add to playlist*; right-click a playlist to rename or delete it. Playlists survive rescans and Airsonic re-syncs. |
 | **Favorites** | Right-click ▸ *Mark as favorite*. |
 | **Tags** | Right-click ▸ *Edit metadata…* writes to the file (local songs). |
 
@@ -147,6 +148,7 @@ To add the launcher and icon of a source install to your menu: `juke --install-d
 | `Enter` or double-click | Play the selected song |
 | `Ctrl` + `→` / `←` | Next / previous |
 | `Ctrl` + `F` | Search |
+| `Ctrl` + `N` | New playlist |
 | `Ctrl` + `E` | Equalizer |
 | `Ctrl` + `,` | Settings |
 | `Ctrl` + `Q` | Quit |
@@ -199,5 +201,5 @@ The tests include real playback through libVLC (skipped if libVLC is missing).
 
 - The spectrum in the LCD is an **animated meter, not an analyser** — libVLC does not expose FFT data.
 - Stereo **balance** needs PulseAudio or PipeWire (`pactl`) and a stereo stream; it is disabled otherwise.
-- No MPRIS / global media keys yet, no user-made playlists, no gapless playback, one Airsonic server at a time.
+- No MPRIS / global media keys yet, no gapless playback, no drag-and-drop reordering inside playlists, one Airsonic server at a time.
 - Folder browsing is available for Airsonic; the local library is browsed by artist, album and genre.

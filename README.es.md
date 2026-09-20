@@ -53,8 +53,8 @@ Diez bandas (60 Hz – 16 kHz), preamp de ±20 dB, diez presets incluidos y los 
 </td>
 <td valign="top">
 
-### Una cola de verdad
-**Reproducir a continuación** inserta justo después de la canción actual; **Añadir a la cola** va al final. La cola es temporal e independiente de la lista desde la que empezaste, que continúa cuando la cola se vacía.
+### Una cola de verdad, y tus propias listas
+**Reproducir a continuación** inserta justo después de la canción actual; **Añadir a la cola** va al final. La cola es temporal e independiente de la lista desde la que empezaste, que continúa cuando la cola se vacía. Crea listas con el **+** junto a *Listas*.
 
 </td>
 </tr>
@@ -138,8 +138,9 @@ Para añadir al menú el lanzador y el icono de una instalación desde fuente: `
 | | |
 | --- | --- |
 | **Biblioteca** | Añade tus carpetas de música en *Ajustes ▸ Biblioteca*. Juke las indexa en un hilo en segundo plano y solo relee los archivos que cambiaron. |
-| **Airsonic** | *Ajustes ▸ Airsonic*: dirección del servidor, usuario y contraseña, luego *Probar conexión*. *Sincronizar Airsonic* importa el servidor una vez; recórrelo en **Servidores**. Las canciones terminadas se registran (scrobble) en el servidor. |
+| **Airsonic** | Pulsa **Ajustes** al final del panel lateral (o el botón *Configurar Airsonic…* de la vista vacía de Airsonic) ▸ pestaña *Airsonic*: dirección del servidor (p. ej. `http://tu-servidor:4040`), usuario y contraseña, luego *Probar conexión*. *Sincronizar Airsonic* importa el servidor una vez; recórrelo en **Servidores**. Las canciones terminadas se registran (scrobble) en el servidor. |
 | **Cola** | Clic derecho ▸ **Reproducir a continuación** / **Añadir a la cola**. La lista *Cola actual* muestra lo que suena, lo que encolaste y lo que sigue. |
+| **Listas** | Pulsa el **+** junto a *Listas* (o `Ctrl` + `N`) para crear una. Clic derecho en canciones ▸ *Añadir a la lista*; clic derecho en una lista para renombrarla o eliminarla. Las listas sobreviven a los reescaneos y a las resincronizaciones de Airsonic. |
 | **Favoritos** | Clic derecho ▸ *Marcar como favorita*. |
 | **Etiquetas** | Clic derecho ▸ *Editar metadatos…* escribe en el archivo (canciones locales). |
 
@@ -149,6 +150,7 @@ Para añadir al menú el lanzador y el icono de una instalación desde fuente: `
 | `Enter` o doble clic | Reproducir la canción seleccionada |
 | `Ctrl` + `→` / `←` | Siguiente / anterior |
 | `Ctrl` + `F` | Buscar |
+| `Ctrl` + `N` | Nueva lista |
 | `Ctrl` + `E` | Ecualizador |
 | `Ctrl` + `,` | Ajustes |
 | `Ctrl` + `Q` | Salir |
@@ -201,5 +203,5 @@ Las pruebas incluyen reproducción real con libVLC (se omite si libVLC no está)
 
 - El espectro de la pantalla LCD es un **medidor animado, no un analizador** — libVLC no expone datos FFT.
 - El **balance** estéreo necesita PulseAudio o PipeWire (`pactl`) y un flujo estéreo; si no, se desactiva.
-- Aún no hay MPRIS / teclas multimedia globales, ni listas de reproducción propias, ni reproducción sin pausas (gapless), y solo un servidor Airsonic a la vez.
+- Aún no hay MPRIS / teclas multimedia globales, ni reproducción sin pausas (gapless), ni reordenar canciones arrastrando dentro de las listas, y solo un servidor Airsonic a la vez.
 - La navegación por carpetas está disponible para Airsonic; la biblioteca local se recorre por artista, álbum y género.

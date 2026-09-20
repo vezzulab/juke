@@ -38,10 +38,10 @@ class Translator(QObject):
         text = LANGUAGES[self.code][1].get(key) or en.STRINGS.get(key) or key
         return text.format(**values) if values else text
 
-    def count(self, key: str, n: int) -> str:
+    def count(self, key: str, n: int, **values) -> str:
         """Pluralised text: ``key_one`` for 1, ``key_other`` otherwise ({n} is localised)."""
         suffix = "_one" if n == 1 else "_other"
-        return self.tr(key + suffix, n=QLocale(self.code).toString(n))
+        return self.tr(key + suffix, n=QLocale(self.code).toString(n), **values)
 
 
 translator = Translator()
