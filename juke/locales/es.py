@@ -256,4 +256,11 @@ STRINGS = {
     "radio.refreshing": "La señal se cortó: buscando la dirección actual de la emisora…",
     "radio.new_signal": "«{name}» cambió de dirección: se pasó a la nueva",
     "radio.error": "No se pudo sintonizar esa emisora.",
+    "radio.stop_tip": "Detener",
+    "radio.found_many_one": "Se encontró 1 emisora en esta página.",
+    "radio.found_many_other": "Se encontraron {n} emisoras en esta página. Elige las que quieras añadir.",
+    "radio.add_n_one": "Añadir 1 emisora",
+    "radio.add_n_other": "Añadir {n} emisoras",
+    "radio.saved_n_one": "1 emisora guardada en Mis Emisoras",
+    "radio.saved_n_other": "{n} emisoras guardadas en Mis Emisoras",
 }

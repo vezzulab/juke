@@ -39,6 +39,7 @@ class StationRow(QFrame):
     def __init__(self, station: Station, mode: str, saved: bool, parent=None) -> None:
         super().__init__(parent)
         self.station, self.mode, self._saved = station, mode, saved
+        self._active = False                 # this station is on the air right now
         self.setObjectName("stationRow")
         self.setProperty("playing", False)
         self.setFixedHeight(ROW_HEIGHT - 6)
@@ -81,9 +82,10 @@ class StationRow(QFrame):
 
     def apply_theme(self) -> None:
         self.icon_label.setPixmap(station_pixmap(self.station))
-        self.play_button.setIcon(icons.icon("play", styles.TEXT, size=18))
-        self.play_button.setIconSize(QSize(18, 18))
-        self.play_button.setToolTip(tr("radio.play_tip"))
+        self.play_button.setIcon(icons.icon("stop" if self._active else "play",
+                                            styles.ACCENT if self._active else styles.TEXT, size=22 if self._active else 18))
+        self.play_button.setIconSize(QSize(22, 22) if self._active else QSize(18, 18))
+        self.play_button.setToolTip(tr("radio.stop_tip") if self._active else tr("radio.play_tip"))
         if self.mode == "stations":
             self.action_button.setIcon(icons.icon("trash", styles.SUBTEXT, size=18))
             self.action_button.setToolTip(tr("radio.remove_tip"))
@@ -98,6 +100,12 @@ class StationRow(QFrame):
     def set_saved(self, saved: bool) -> None:
         self._saved = saved
         self.apply_theme()
+
+    def set_active(self, on: bool) -> None:
+        """On the air right now (as opposed to merely being the current station): the button offers Stop."""
+        if on != self._active:
+            self._active = on
+            self.apply_theme()
 
     def set_playing(self, on: bool) -> None:
         self.setProperty("playing", on)
@@ -144,6 +152,7 @@ class MessagePane(QWidget):
 
 class RadioView(QWidget):
     play_requested = Signal(object)      # Station
+    stop_requested = Signal()
     save_requested = Signal(object)
     remove_requested = Signal(object)
     summary_changed = Signal()
@@ -159,6 +168,7 @@ class RadioView(QWidget):
         self._request = 0
         self._worker: AsyncWorker | None = None
         self._playing_url: str | None = None
+        self._active = False
         self._rows: list[StationRow] = []
         self._error = ""
 
@@ -233,10 +243,19 @@ class RadioView(QWidget):
             for row in self._rows:
                 row.set_saved(row.station.stream_url in saved)
 
-    def set_playing_url(self, url: str | None) -> None:
-        self._playing_url = url
+    def set_playing_url(self, url: str | None, active: bool = True) -> None:
+        """Mark the station on the air; ``active`` False (paused/stopped) shows Play again instead of Stop."""
+        self._playing_url, self._active = url, active
         for row in self._rows:
-            row.set_playing(bool(url) and row.station.stream_url == url)
+            current = bool(url) and row.station.stream_url == url
+            row.set_playing(current)
+            row.set_active(current and active)
+
+    def _row_play_clicked(self, station: Station) -> None:
+        if self._active and station.stream_url == self._playing_url:
+            self.stop_requested.emit()               # already on the air: the button is a Stop
+        else:
+            self.play_requested.emit(station)
 
     def refresh_icons(self) -> None:
         for row in self._rows:
@@ -343,8 +362,10 @@ class RadioView(QWidget):
         saved = self._db.station_urls()
         for station in stations:
             row = StationRow(station, self.mode, saved_all or station.stream_url in saved)
-            row.set_playing(self._playing_url == station.stream_url)
-            row.play_clicked.connect(lambda s=station: self.play_requested.emit(s))
+            current = self._playing_url == station.stream_url
+            row.set_playing(current)
+            row.set_active(current and self._active)
+            row.play_clicked.connect(lambda s=station: self._row_play_clicked(s))
             row.action_clicked.connect(lambda s=station: (self.remove_requested if self.mode == "stations" else self.save_requested).emit(s))
             item = QListWidgetItem(self._list)
             item.setSizeHint(QSize(0, ROW_HEIGHT))

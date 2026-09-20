@@ -244,6 +244,8 @@ QCheckBox::indicator:checked {{
 QListWidget {{ background: {PANEL}; border: 1px solid {BORDER}; border-radius: 10px; padding: 4px; }}
 QListWidget::item {{ padding: 6px 8px; border-radius: 6px; }}
 QListWidget::item:selected {{ background: {rgba(ACCENT, 0.24)}; }}
+QListWidget::indicator {{ width: 18px; height: 18px; border-radius: 6px; background: {OVERLAY}; border: 1px solid {BORDER}; }}
+QListWidget::indicator:checked {{ background: {ACCENT}; border: 1px solid {ACCENT}; }}
 QGroupBox {{ border: 1px solid {BORDER}; border-radius: 12px; margin-top: 12px; padding: 14px 12px 10px 12px; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 14px; padding: 0 6px; color: {SUBTEXT}; font-weight: 600; }}
 QTabWidget::pane {{ border: none; }}

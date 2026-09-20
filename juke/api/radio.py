@@ -97,6 +97,31 @@ class RadioBrowserClient:
             await self._http_client.aclose()
 
 
+def match_station(station: Station, offered: list[dict]) -> dict | None:
+    """Which of the stations a page offers is ``station``? (A page such as rdmusica.com lists four.)"""
+    from ..db.database import normalize
+
+    if len(offered) == 1:
+        return offered[0]
+    name = normalize(station.name).strip()
+    for entry in offered:                                       # same name
+        if normalize(entry.get("title", "")).strip() == name:
+            return entry
+    for entry in offered:                                       # one name contains the other ("Fuego 90.1" / "Fuego 90.1 FM")
+        other = normalize(entry.get("title", "")).strip()
+        if len(name) >= 4 and len(other) >= 4 and (name in other or other in name):
+            return entry
+    def folder(url: str) -> str:                                # ".../8390/stream" and ".../8390/;" share "/8390"
+        path = url.split("://", 1)[-1].partition("?")[0]
+        return path.partition("/")[2].rstrip("/;").rsplit("/", 1)[0] if "/" in path else ""
+
+    tail = folder(station.stream_url)
+    for entry in offered:
+        if tail and folder(entry["stream_url"]) == tail:
+            return entry
+    return None
+
+
 async def refresh_station(station: Station, *, transport=None) -> Station | None:
     """A saved station stopped working (they change their stream address all the time): find where it
     lives now. Radio-Browser stations are looked up by id; ones added from a page or playlist are
@@ -113,13 +138,14 @@ async def refresh_station(station: Station, *, transport=None) -> Station | None
             return replace(station, stream_url=fresh.stream_url, codec=fresh.codec or station.codec,
                            bitrate=fresh.bitrate or station.bitrate)
     if station.source_url:
-        from .radio_resolver import ResolveError, resolve_stream_url
+        from .radio_resolver import ResolveError, resolve_stations
 
         try:
-            found = await resolve_stream_url(station.source_url, transport=transport)
+            offered = await resolve_stations(station.source_url, transport=transport)
         except ResolveError:
             return None
-        if found["stream_url"] != station.stream_url:
+        found = match_station(station, offered)
+        if found and found["stream_url"] != station.stream_url:
             return replace(station, stream_url=found["stream_url"], codec=found.get("codec") or station.codec,
                            bitrate=int(found.get("bitrate") or 0) or station.bitrate, favicon=found.get("favicon") or station.favicon)
     return None

@@ -256,4 +256,11 @@ STRINGS = {
     "radio.refreshing": "The signal stopped — looking for the station's current address…",
     "radio.new_signal": "“{name}” moved: switched to its new address",
     "radio.error": "Could not tune in that station.",
+    "radio.stop_tip": "Stop",
+    "radio.found_many_one": "1 station found on this page.",
+    "radio.found_many_other": "{n} stations found on this page. Pick the ones to add.",
+    "radio.add_n_one": "Add 1 station",
+    "radio.add_n_other": "Add {n} stations",
+    "radio.saved_n_one": "1 station saved to My Stations",
+    "radio.saved_n_other": "{n} stations saved to My Stations",
 }

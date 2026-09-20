@@ -223,6 +223,8 @@ class MainWindow(QMainWindow):
         t.action_requested.connect(self._run_empty_action)
         rv = self.radio_view
         rv.play_requested.connect(lambda station: self._play_station(station))
+        rv.stop_requested.connect(self._stop)
+        eng.state_changed.connect(lambda _state: self._sync_radio_state())
         rv.save_requested.connect(self._save_station)
         rv.remove_requested.connect(self._remove_station)
         rv.summary_changed.connect(self._update_heading)
@@ -447,7 +449,7 @@ class MainWindow(QMainWindow):
             self.table.track_model.set_text("")
         if radio:
             self.radio_view.show_mode(key)
-            self.radio_view.set_playing_url(self.current_station.stream_url if self.current_station else None)
+            self._sync_radio_state()
             self._update_heading()
             return
         scope, fixed, sort = self._scope_for(key, value)
@@ -682,10 +684,16 @@ class MainWindow(QMainWindow):
             return None if pixmap.isNull() else pixmap
         return None
 
+    def _sync_radio_state(self) -> None:
+        """Rows show Stop for the station that is on the air, Play for the rest."""
+        station = self.current_station
+        self.radio_view.set_playing_url(station.stream_url if station else None,
+                                        self.engine.state == "playing")
+
     def _leave_station(self) -> None:
         self._station_token += 1
         self.current_station = None
-        self.radio_view.set_playing_url(None)
+        self._sync_radio_state()
 
     def _play_station(self, station: Station, refresh: bool = True) -> None:
         """Tune in. The saved address is used at once; meanwhile Juke checks (in the background) whether
@@ -702,7 +710,7 @@ class MainWindow(QMainWindow):
         self.current_station = station
         self._station_refreshed = not refresh
         self.top_bar.set_station(station, self._station_cover(station))
-        self.radio_view.set_playing_url(station.stream_url)
+        self._sync_radio_state()
         self.setWindowTitle(f"{station.name} · Juke")
         self._fetch_station_icon(station)
         if refresh and (station.uuid or station.source_url):
@@ -759,10 +767,11 @@ class MainWindow(QMainWindow):
             name = self.current_station.name
             self.setWindowTitle(f"{text} — {name} · Juke" if text else f"{name} · Juke")
 
-    def _save_station(self, station: Station) -> None:
+    def _save_station(self, station: Station, quiet: bool = False) -> None:
         saved_id = self.db.add_station(station)
         self._after_stations_changed()
-        self.notify(tr("radio.saved", name=station.name), 3500)
+        if not quiet:
+            self.notify(tr("radio.saved", name=station.name), 3500)
         self._fetch_station_icon(Station(**{**{f: getattr(station, f) for f in station.__slots__}, "id": saved_id}))
 
     def _remove_station(self, station: Station) -> None:
@@ -776,10 +785,13 @@ class MainWindow(QMainWindow):
         dialog = AddStationDialog(self)
         if not dialog.exec():
             return
-        station = dialog.station()
-        if station is None:
+        stations = dialog.stations()
+        if not stations:
             return
-        self._save_station(station)
+        for station in stations:
+            self._save_station(station, quiet=len(stations) > 1)
+        if len(stations) > 1:
+            self.notify(trn("radio.saved_n", len(stations)), 4000)
         self.sidebar.select("stations")
         self._show_view("stations", None)
 

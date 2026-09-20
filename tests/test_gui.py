@@ -687,6 +687,68 @@ class RadioFlowTests(unittest.TestCase):
         self.assertFalse(w.top_bar.lcd.live_badge.isVisible())
         self.assertEqual(w.windowTitle(), "Juke")
 
+    def test_station_on_the_air_offers_stop_instead_of_play(self):
+        w = self.window
+        w._save_station(self.cima())
+        w._save_station(self.cima(name="Fuego", stream_url="https://r.example/8390/stream", uuid="u-2", source_url=""))
+        w.sidebar.select("stations")
+        w._show_view("stations", None)
+        first, second = w.radio_view._rows
+        self.assertEqual(first.play_button.toolTip(), "Listen")
+        w._play_station(first.station, refresh=False)
+        self.engine._set_state("playing")                                                    # the fake sink never reports it
+        pump(30)
+        self.assertEqual((first.play_button.toolTip(), second.play_button.toolTip()), ("Stop", "Listen"))
+        first.play_button.click()                                                            # the same button now stops
+        pump(30)
+        self.assertEqual(self.engine.state, "stopped")
+        self.assertEqual(first.play_button.toolTip(), "Listen")
+        self.played.clear()
+        first.play_button.click()                                                            # and plays again
+        self.assertEqual(self.played, ["https://s.example:8146/stream"])
+        self.engine._set_state("paused")
+        pump(30)
+        self.assertEqual(first.play_button.toolTip(), "Listen")                                # paused: offers to resume
+        self.engine._set_state("playing")
+        w._play_station(second.station, refresh=False)                                       # another station takes over
+        pump(30)
+        self.assertEqual((first.play_button.toolTip(), second.play_button.toolTip()), ("Listen", "Stop"))
+        translator.set_language("es")
+        pump(50)
+        self.assertEqual(second.play_button.toolTip(), "Detener")
+
+    def test_add_by_url_offers_every_station_the_page_lists(self):
+        from juke.gui.radio_dialog import AddStationDialog
+
+        async def many(url):
+            return [{"stream_url": f"https://r.example/{n}/;", "title": f"Radio {n}", "favicon": "", "tags": "",
+                     "codec": "MP3", "bitrate": 128, "homepage": "", "source": "page", "live": True} for n in (1, 2, 3)]
+
+        dialog = AddStationDialog(self.window, resolver=many)
+        dialog.show()
+        dialog.url.setText("https://portal.example/")
+        dialog.find_button.click()
+        self.assertTrue(self.spin_until(lambda: dialog.many_panel.isVisible()))
+        self.assertFalse(dialog.found_panel.isVisible())
+        self.assertEqual(dialog.many_list.count(), 3)
+        self.assertEqual(dialog.add_button.text(), "Add 3 stations")
+        dialog.many_list.item(1).setCheckState(Qt.Unchecked)
+        self.assertEqual(dialog.add_button.text(), "Add 2 stations")
+        chosen = dialog.stations()
+        self.assertEqual([s.name for s in chosen], ["Radio 1", "Radio 3"])
+        self.assertTrue(all(s.source_url == "https://portal.example/" for s in chosen))     # each can be re-found on the page
+        for i in (0, 2):
+            dialog.many_list.item(i).setCheckState(Qt.Unchecked)
+        self.assertFalse(dialog.add_button.isEnabled())
+        dialog.reject()
+
+    def test_saving_several_stations_at_once(self):
+        w = self.window
+        for n in (1, 2, 3):
+            w._save_station(self.cima(name=f"Radio {n}", stream_url=f"https://r.example/{n}/;", uuid="", source_url="https://portal.example/"),
+                            quiet=True)
+        self.assertEqual(self.db.count_stations(), 3)
+
     def test_stopped_station_is_tuned_in_again_by_play(self):
         w = self.window
         w._play_station(self.cima(uuid="", source_url=""))

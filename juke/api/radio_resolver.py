@@ -40,6 +40,18 @@ BODY_LIMIT = 512 * 1024
 YTDLP_TIMEOUT = 45.0
 
 
+EMBED_ATTRS = ("data-tracks-url", "data-playlist-url", "data-json-url", "data-stations", "data-feed", "data-playlist",
+               "data-src", "data-url")
+_STRICT_EMBED_ATTRS = {"data-tracks-url", "data-playlist-url", "data-json-url", "data-stations", "data-feed"}
+_JSON_HINT = re.compile(r"playlist|tracks|stations?|radios?|streams?|json|feed|api", re.I)
+AUDIO_KEYS = ("audio", "stream", "stream_url", "streamUrl", "listen_url", "listenUrl", "source", "src", "mp3", "aac",
+              "file", "track_url", "url_resolved", "url")
+TITLE_KEYS = ("title", "name", "station", "station_name", "stationName", "label", "subtitle")
+COVER_KEYS = ("cover", "image", "logo", "thumbnail", "artwork", "icon", "favicon", "img")
+MEDIA_FILE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico") + VIDEO_EXTENSIONS
+MAX_LISTED = 30
+
+
 class ResolveError(Exception):
     """``code`` is one of bad_url, unreachable, no_audio (the GUI turns it into a translated message)."""
 
@@ -183,6 +195,63 @@ def page_meta(text: str, base_url: str) -> dict[str, str]:
     title = clean_title(meta.get("og:site_name") or meta.get("og:title") or page_title)
     icon = icons.get("icon") or icons.get("apple") or "/favicon.ico"
     return {"title": title, "favicon": urljoin(base_url, icon), "homepage": base_url}
+
+
+def find_embedded_playlists(text: str, base_url: str) -> list[str]:
+    """Addresses of the JSON lists a page's player loads by script (a station player often has no
+    audio tag in the HTML at all: it fetches its stations, e.g. WordPress AudioIgniter's data-tracks-url)."""
+    found: list[str] = []
+
+    def add(value: str) -> None:
+        url = urljoin(base_url, html.unescape(value.strip().replace("\\/", "/")))
+        if urlparse(url).scheme in ("http", "https") and url not in found:
+            found.append(url)
+
+    for tag in re.findall(r"<[a-zA-Z][^>]*>", text[:600_000]):
+        attrs = _attrs(tag)
+        for key in EMBED_ATTRS:
+            value = attrs.get(key, "")
+            if value.startswith(("http://", "https://", "/", "?")) and (key in _STRICT_EMBED_ATTRS or _JSON_HINT.search(value)):
+                add(value)
+    for match in re.finditer(r"""["'](?:tracks_?url|tracksUrl|playlist_?url|playlistUrl|stations_?url|stationsUrl)["']\s*:\s*["']([^"']+)["']""", text):
+        add(match.group(1))
+    return found[:5]
+
+
+def extract_json_stations(data, base_url: str = "") -> list[dict]:
+    """Every {title, url, cover} a JSON document offers (any layout: a list, or objects nested in objects)."""
+    found: list[dict] = []
+    seen: set[str] = set()
+
+    def first(node: dict, keys) -> str:
+        for key in keys:
+            value = node.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+
+    def walk(node, depth: int) -> None:
+        if depth > 6 or len(found) >= MAX_LISTED * 2:
+            return
+        if isinstance(node, list):
+            for item in node:
+                walk(item, depth + 1)
+        elif isinstance(node, dict):
+            raw = first(node, AUDIO_KEYS)
+            if raw:
+                url = urljoin(base_url, raw)
+                if urlparse(url).scheme in ("http", "https") and url not in seen \
+                        and not urlparse(url).path.lower().endswith(MEDIA_FILE_EXTENSIONS):
+                    seen.add(url)
+                    cover = first(node, COVER_KEYS)
+                    found.append({"title": clean_title(first(node, TITLE_KEYS)), "url": url,
+                                  "cover": urljoin(base_url, cover) if cover else ""})
+            for value in node.values():
+                if isinstance(value, (list, dict)):
+                    walk(value, depth + 1)
+
+    walk(data, 0)
+    return found
 
 
 def scan_page(text: str, base_url: str) -> list[str]:
@@ -360,14 +429,58 @@ async def _from_playlist_text(client, text: str, base_url: str, depth: int) -> d
     raise ResolveError("no_audio")
 
 
-async def _resolve(client, url: str, depth: int, ytdlp: Callable[[str], dict | None]) -> dict:
-    kind = classify_url(url)
+async def _stations_in_page(client, probe: Probe) -> list[dict]:
+    """The stations a page's embedded player lists (each one checked for a live signal)."""
+    text = probe.body.decode("utf-8", "replace")
+    meta = page_meta(text, probe.url)
+    listed: list[dict] = []
+    for list_url in find_embedded_playlists(text, probe.url):
+        try:
+            response = await client.get(list_url, headers={"Accept": "application/json"})
+            response.raise_for_status()
+            listed += extract_json_stations(response.json(), list_url)
+        except Exception:                        # not JSON, gone, blocked: that list simply does not count
+            continue
+    if not listed:
+        return []
+    gate = asyncio.Semaphore(4)
+
+    async def check(entry: dict) -> dict | None:
+        async with gate:
+            try:
+                info = await _resolve(client, entry["url"], 1, lambda _u: None)
+            except ResolveError:
+                return None
+        if not info.get("live", True):           # a jingle or an intro clip in the list is not a station
+            return None
+        info["title"] = entry["title"] or pick_title(info.get("icy_name", ""), meta["title"], "")
+        info["favicon"] = entry["cover"] or meta["favicon"]
+        info["homepage"], info["source"] = meta["homepage"], "page-list"
+        return info
+
+    results = await asyncio.gather(*(check(e) for e in listed[:MAX_LISTED]))
+    return [r for r in results if r]
+
+
+async def _resolve_all(client, url: str, ytdlp: Callable[[str], dict | None]) -> list[dict]:
+    if classify_url(url) != "unknown":
+        return [await _resolve(client, url, 0, ytdlp)]
+    probe = await _probe(client, url)
+    if classify_probe(probe) == "html":
+        several = await _stations_in_page(client, probe)
+        if several:
+            return several
+    return [await _resolve(client, url, 0, ytdlp, probe=probe)]
+
+
+async def _resolve(client, url: str, depth: int, ytdlp: Callable[[str], dict | None], probe: Probe | None = None) -> dict:
+    kind = classify_url(url) if probe is None else "unknown"
     if kind == "playlist":                                            # step A: .pls / .m3u
         probe = await _probe(client, url)
         return await _from_playlist_text(client, probe.body.decode("utf-8", "replace"), probe.url, depth)
     if kind == "direct":                                              # step A: .mp3/.aac/.m3u8, :8000/stream
         return await _direct(client, url)
-    probe = await _probe(client, url)                                 # no hint in the address: ask the server
+    probe = probe or await _probe(client, url)                        # no hint in the address: ask the server
     found = classify_probe(probe)
     if found in ("audio", "hls"):
         return _stream_info(probe.url, probe, source="direct")
@@ -423,14 +536,22 @@ async def _resolve(client, url: str, depth: int, ytdlp: Callable[[str], dict | N
     raise ResolveError("no_audio")
 
 
-async def resolve_stream_url(url: str, *, transport=None, timeout: float = 12.0,
-                             ytdlp: Callable[[str], dict | None] = _ytdlp_extract) -> dict:
-    """See the module docstring. Raises ResolveError(bad_url | unreachable | no_audio)."""
+async def resolve_stations(url: str, *, transport=None, timeout: float = 12.0,
+                           ytdlp: Callable[[str], dict | None] = _ytdlp_extract) -> list[dict]:
+    """Every station an address offers: one for a stream or playlist, one or several for a web page
+    (a page whose player lists its stations, like rdmusica.com's four). Raises ResolveError."""
     import httpx
 
     url = normalize_url(url)
     async with httpx.AsyncClient(follow_redirects=True, timeout=timeout, transport=transport,
                                  headers={"User-Agent": USER_AGENT}) as client:
-        result = await _resolve(client, url, 0, ytdlp)
-    result.setdefault("favicon", "")
-    return result
+        stations = await _resolve_all(client, url, ytdlp)
+    for station in stations:
+        station.setdefault("favicon", "")
+    return stations
+
+
+async def resolve_stream_url(url: str, *, transport=None, timeout: float = 12.0,
+                             ytdlp: Callable[[str], dict | None] = _ytdlp_extract) -> dict:
+    """See the module docstring: the (first) station at ``url``. Raises ResolveError(bad_url | unreachable | no_audio)."""
+    return (await resolve_stations(url, transport=transport, timeout=timeout, ytdlp=ytdlp))[0]

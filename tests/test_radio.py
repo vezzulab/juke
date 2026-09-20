@@ -8,7 +8,8 @@ import httpx
 
 from juke.api.radio import RadioBrowserClient, RadioBrowserError, fetch_icon, icon_path, station_from_api
 from juke.api.radio_resolver import (ResolveError, classify_probe, classify_url, normalize_url, page_meta, parse_playlist,
-                                     resolve_stream_url, scan_page, Probe)
+                                     resolve_stations, resolve_stream_url, scan_page, Probe,
+                                     extract_json_stations, find_embedded_playlists)
 from juke.db.database import Database, Station
 
 
@@ -250,6 +251,48 @@ class ResolverTests(unittest.TestCase):
         result = run(resolve_stream_url("https://radio.example/", transport=transport, ytdlp=lambda url: None))
         self.assertEqual((result["stream_url"], result["source"]), ("http://s.example:8000/live", "page"))
         self.assertEqual((result["title"], result["favicon"]), ("Nombre del stream", "https://radio.example/f.ico"))   # a real ICY name beats the page title
+
+    PORTAL = ('<html><title>Portal de noticias</title><div class="audioigniter-root" '
+              'data-tracks-url="https://portal.example/wp-json/audioigniter/v1/playlists/1?a=1&#038;b=2"></div></html>')
+    LIST = ('[{"title": "Fuego 90.1", "audio": "https://rs.example/8390/;", "cover": "https://portal.example/fuego.png"},'
+            ' {"title": "Disco 106.1", "audio": "https://rs.example/8300/stream"},'
+            ' {"title": "Sin señal", "audio": "https://rs.example/dead/stream"},'
+            ' {"title": "Solo un archivo", "audio": "https://portal.example/jingle.mp3"}]')
+
+    def portal_site(self):
+        return site({
+            "portal.example/": httpx.Response(200, headers={"content-type": "text/html"}, text=self.PORTAL),
+            "portal.example/wp-json/audioigniter/v1/playlists/1?a=1&b=2": httpx.Response(200, headers={"content-type": "application/json"}, text=self.LIST),
+            "rs.example/8390/;": audio(**{"icy-name": "Fuego"}),
+            "rs.example/8300/stream": audio(**{"icy-name": "Disco"}),
+            "portal.example/jingle.mp3": audio(),
+            "rs.example/dead/stream": httpx.Response(404),
+        })
+
+    def test_embedded_player_lists_are_found_and_read(self):
+        found = find_embedded_playlists(self.PORTAL, "https://portal.example/")
+        self.assertEqual(found, ["https://portal.example/wp-json/audioigniter/v1/playlists/1?a=1&b=2"])   # &#038; decoded
+        stations = extract_json_stations(__import__("json").loads(self.LIST), "https://portal.example/")
+        self.assertEqual([s["title"] for s in stations][:2], ["Fuego 90.1", "Disco 106.1"])
+        self.assertEqual(len(stations), 4)                                                              # finite files are filtered when probing
+
+    def test_a_page_that_lists_several_stations_gives_every_live_one(self):
+        result = run(resolve_stations("https://portal.example/", transport=self.portal_site(), ytdlp=lambda url: None))
+        self.assertEqual([r["stream_url"] for r in result], ["https://rs.example/8390/;", "https://rs.example/8300/stream"])   # dead one skipped
+        self.assertEqual(result[0]["favicon"], "https://portal.example/fuego.png")
+        self.assertTrue(all(r["live"] for r in result))
+        first = run(resolve_stream_url("https://portal.example/", transport=self.portal_site(), ytdlp=lambda url: None))
+        self.assertEqual(first["stream_url"], "https://rs.example/8390/;")
+
+    def test_a_saved_station_finds_itself_again_on_a_multi_station_page(self):
+        from juke.api.radio import match_station, refresh_station
+        offered = run(resolve_stations("https://portal.example/", transport=self.portal_site(), ytdlp=lambda url: None))
+        self.assertEqual(match_station(Station(1, "Disco 106.1", "https://old.example/x"), offered)["stream_url"], "https://rs.example/8300/stream")
+        self.assertEqual(match_station(Station(1, "Otra", "https://old.example/8390/stream"), offered)["stream_url"], "https://rs.example/8390/;")   # same id
+        self.assertIsNone(match_station(Station(1, "Nada que ver", "https://old.example/zzz/stream"), offered))
+        old = Station(7, "Disco 106.1", "https://rs.example/OLD/stream", source_url="https://portal.example/")
+        fresh = run(refresh_station(old, transport=self.portal_site()))
+        self.assertEqual((fresh.stream_url, fresh.id), ("https://rs.example/8300/stream", 7))
 
     def test_a_station_page_with_an_intro_video_resolves_to_the_live_stream_not_the_video(self):
         """Regression: cima100fm.com. yt-dlp's generic extractor picks up the page's intro <video>."""
