@@ -5,10 +5,10 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPixmap
-from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QStackedWidget, QToolButton, QVBoxLayout, QWidget)
 
-from ...db.database import Track
+from ...db.database import Station, Track
 from ...i18n import tr
 from .. import icons, styles
 from .widgets import ElidedLabel, JumpSlider, format_time
@@ -102,6 +102,36 @@ class SpectrumWidget(QWidget):
             painter.drawRoundedRect(QRectF(i * (bar + gap), height - bar_height, bar, bar_height), bar / 2, bar / 2)
 
 
+class LiveBadge(QWidget):
+    """The red "● LIVE" pill shown while a radio station plays."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setFixedSize(58, 20)
+        self.hide()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        red = QColor(styles.RED)
+        rect = QRectF(self.rect()).adjusted(0.6, 0.6, -0.6, -0.6)
+        fill = QColor(red)
+        fill.setAlpha(34)
+        painter.setPen(QPen(red, 1.2))
+        painter.setBrush(fill)
+        painter.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(red)
+        painter.drawEllipse(QRectF(9, rect.center().y() - 3, 6, 6))
+        font = QFont(self.font())
+        font.setPixelSize(10)
+        font.setBold(True)
+        font.setLetterSpacing(QFont.AbsoluteSpacing, 1.1)
+        painter.setFont(font)
+        painter.setPen(red)
+        painter.drawText(QRectF(19, 0, self.width() - 22, self.height()), Qt.AlignVCenter | Qt.AlignLeft, tr("radio.live"))
+
+
 class LcdDisplay(QFrame):
     """Retro-modern "LCD": cover, title, artist — album, spectrum and seek bar."""
 
@@ -116,6 +146,8 @@ class LcdDisplay(QFrame):
         self.setMinimumWidth(440)
         self._length_ms = 0
         self._track: Track | None = None
+        self._station: Station | None = None
+        self._connecting = False
         self._cover: QPixmap | None = None
 
         self.cover = QLabel()
@@ -137,16 +169,28 @@ class LcdDisplay(QFrame):
         self.remaining.setObjectName("lcdTime")
         self.remaining.setMinimumWidth(48)
         self.remaining.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.live_badge = LiveBadge()
+        self.live_info = QLabel()                       # what replaces the seek bar while a station plays
+        self.live_info.setObjectName("lcdLive")
+        self.live_info.setAlignment(Qt.AlignCenter)
         self.seek = JumpSlider(0, 1000)
         self.seek.setObjectName("seek")
         self.seek.setEnabled(False)
         self.seek.sliderMoved.connect(self._scrub)
         self.seek.released_at.connect(lambda v: self.seek_requested.emit(v / 1000))
 
+        title_row = QHBoxLayout()
+        title_row.setSpacing(8)
+        title_row.addWidget(self.live_badge, 0, Qt.AlignVCenter)
+        title_row.addWidget(self.title, 1)
         text = QVBoxLayout()
         text.setSpacing(1)
-        text.addWidget(self.title)
+        text.addLayout(title_row)
         text.addWidget(self.subtitle)
+        self.progress_stack = QStackedWidget()
+        self.progress_stack.setFixedHeight(20)
+        self.progress_stack.addWidget(self.seek)
+        self.progress_stack.addWidget(self.live_info)
         head = QHBoxLayout()
         head.setSpacing(16)
         head.addLayout(text, 1)
@@ -154,7 +198,7 @@ class LcdDisplay(QFrame):
         timing = QHBoxLayout()
         timing.setSpacing(10)
         timing.addWidget(self.elapsed)
-        timing.addWidget(self.seek, 1)
+        timing.addWidget(self.progress_stack, 1)
         timing.addWidget(self.remaining)
         column = QVBoxLayout()
         column.setSpacing(6)
@@ -173,7 +217,38 @@ class LcdDisplay(QFrame):
             self.elapsed.setText(format_time(ms))
             self.remaining.setText("-" + format_time(self._length_ms - ms))
 
+    def _live_mode(self, on: bool) -> None:
+        self.live_badge.setVisible(on)
+        self.progress_stack.setCurrentIndex(1 if on else 0)
+        if on:
+            self.remaining.setText("")
+
+    @staticmethod
+    def _station_line(station: Station) -> str:
+        quality = f"{station.codec} {station.bitrate} kbps" if station.codec and station.bitrate else station.codec
+        return " · ".join(part for part in (quality, station.tags.split(",")[0].strip(), station.country) if part)
+
+    def set_station(self, station: Station, cover: QPixmap | None) -> None:
+        """Radio: LIVE badge, the station's name, and (via set_now_playing) the song on air."""
+        self._track, self._station, self._cover = None, station, cover
+        self._length_ms = 0
+        self.title.setText(station.name)
+        self.subtitle.setText(tr("radio.connecting"))
+        self._connecting = True
+        self.live_info.setText(self._station_line(station) or tr("radio.streaming"))
+        self._show_cover(cover)
+        self.elapsed.setText("0:00")
+        self.seek.setEnabled(False)
+        self._live_mode(True)
+
+    def set_now_playing(self, text: str) -> None:
+        self._connecting = False
+        if self._station is not None:
+            self.subtitle.setText(text or self._station_line(self._station) or tr("radio.streaming"))
+
     def clear(self) -> None:
+        self._station = None
+        self._live_mode(False)
         self._track = None
         self._length_ms = 0
         self.title.setText("Juke")
@@ -186,6 +261,8 @@ class LcdDisplay(QFrame):
         self.spectrum.set_active(False)
 
     def set_track(self, track: Track, cover: QPixmap | None) -> None:
+        self._station = None
+        self._live_mode(False)
         self._track = track
         self._cover = cover
         self.title.setText(track.title or tr("unknown_title"))
@@ -204,7 +281,7 @@ class LcdDisplay(QFrame):
 
     def _show_cover(self, cover: QPixmap | None) -> None:
         if cover is None or cover.isNull():
-            self.cover.setPixmap(icons.placeholder_cover(self.COVER))
+            self.cover.setPixmap(icons.placeholder_cover(self.COVER, radio=self._station is not None))
             return
         dpr = self.devicePixelRatioF()
         side = int(self.COVER * dpr)
@@ -216,6 +293,12 @@ class LcdDisplay(QFrame):
     def set_position(self, elapsed_ms: int, length_ms: int) -> None:
         if length_ms > 0:
             self._length_ms = length_ms
+        if self._station is not None:               # live: only the time on air, no seek bar
+            self.elapsed.setText(format_time(elapsed_ms))
+            if self._connecting and elapsed_ms > 0:  # audio is flowing: show the station's info until a title arrives
+                self._connecting = False
+                self.subtitle.setText(self._station_line(self._station) or tr("radio.streaming"))
+            return
         if self.seek.dragging:
             return
         self.elapsed.setText(format_time(elapsed_ms))
@@ -227,7 +310,10 @@ class LcdDisplay(QFrame):
             self.seek.setValue(0)
 
     def retranslate(self) -> None:
-        if self._track is None:
+        if self._station is not None:
+            self.live_badge.update()
+            self.live_info.setText(self._station_line(self._station) or tr("radio.streaming"))
+        elif self._track is None:
             self.subtitle.setText(tr("lcd.idle"))
         else:
             self.set_track(self._track, self._cover)
@@ -337,6 +423,12 @@ class TopBar(QWidget):
 
     def set_position(self, elapsed_ms: int, length_ms: int) -> None:
         self.lcd.set_position(elapsed_ms, length_ms)
+
+    def set_station(self, station: Station, cover: QPixmap | None) -> None:
+        self.lcd.set_station(station, cover)
+
+    def set_now_playing(self, text: str) -> None:
+        self.lcd.set_now_playing(text)
 
     def set_volume(self, volume: int, muted: bool) -> None:
         self.volume.blockSignals(True)

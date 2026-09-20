@@ -5,7 +5,7 @@
 <br>
 
 **Un reproductor de música moderno de 3 paneles para Linux.**<br>
-Tu biblioteca local, tu servidor Airsonic / Subsonic y un ecualizador de 10 bandas — y sigue siendo instantáneo con más de 50.000 pistas.
+Tu biblioteca local, tu servidor Airsonic / Subsonic, radio por Internet y un ecualizador de 10 bandas — instantáneo con más de 50.000 pistas y amable con la batería.
 
 <br>
 
@@ -27,7 +27,7 @@ Tu biblioteca local, tu servidor Airsonic / Subsonic y un ecualizador de 10 band
 
 ## Por qué Juke
 
-El clásico diseño de iTunes 4 — fuentes a la izquierda, canciones en el centro, el reproductor arriba — reconstruido para hoy: una interfaz oscura, redondeada y con aire Libadwaita, una tubería de audio de verdad y una biblioteca que no se traba cuando crece.
+Un diseño clásico de tres paneles — fuentes a la izquierda, canciones en el centro, el reproductor arriba — reconstruido para hoy: una interfaz oscura *o* clara, redondeada y con aire Libadwaita, una tubería de audio de verdad y una biblioteca que no se traba cuando crece.
 
 <table>
 <tr>
@@ -40,7 +40,21 @@ La tabla de canciones nunca carga tu biblioteca en memoria. Guarda una lista ord
 <td width="50%" valign="top">
 
 ### Airsonic, como lo tienes organizado
-Recorre tu servidor **por carpetas**, tal como están en disco, o por artista / álbum / género. Las canciones se reproducen en streaming directo por HTTP(S); no se descarga nada antes. La autenticación usa el token con sal de Subsonic: tu contraseña nunca se envía.
+Recorre tu servidor **por carpetas**, tal como las muestra, o por artista / álbum / género. La sincronización usa la búsqueda masiva del servidor — una biblioteca de 6.000 canciones en unos 8 segundos —, reintenta las peticiones lentas y nunca borra canciones que no pudo alcanzar. Las canciones se reproducen en streaming directo; no se descarga nada antes.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### Radio por Internet
+**Mis Emisoras**, **Explorar Radio** (el directorio comunitario radio-browser.info) y **Añadir emisora por URL**: pega una página web, una transmisión o una lista `.pls` / `.m3u` y Juke encuentra el audio. El LCD muestra **EN VIVO**, la emisora y la canción que suena. Las emisoras cambian su dirección de transmisión todo el tiempo, así que Juke las sigue cuando se mueven.
+
+</td>
+<td valign="top">
+
+### Ligero con los recursos
+Un Juke inactivo **no genera ningún despertar**. Reproduciendo con batería usa alrededor del **1 %** de un núcleo. libVLC, la red y el lector de etiquetas se cargan solo cuando hacen falta, y el medidor de niveles se queda quieto con batería. Cifras medidas más abajo.
 
 </td>
 </tr>
@@ -48,13 +62,27 @@ Recorre tu servidor **por carpetas**, tal como están en disco, o por artista / 
 <td valign="top">
 
 ### Ecualizador de 10 bandas
-Diez bandas (60 Hz – 16 kHz), preamp de ±20 dB, diez presets incluidos y los tuyos guardados. Usa el ecualizador nativo de libVLC sobre un único reproductor de larga vida, así que cambiar de canción nunca lo reinicia.
+Diez bandas (60 Hz – 16 kHz), preamp de ±20 dB, diez presets incluidos y los tuyos. Usa el ecualizador nativo de libVLC sobre un único reproductor de larga vida, así que cambiar de canción — o sintonizar una emisora — nunca lo reinicia.
 
 </td>
 <td valign="top">
 
 ### Una cola de verdad, y tus propias listas
 **Reproducir a continuación** inserta justo después de la canción actual; **Añadir a la cola** va al final. La cola es temporal e independiente de la lista desde la que empezaste, que continúa cuando la cola se vacía. Crea listas con el **+** junto a *Listas*.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### Oscuro y claro
+Elige un tema, o deja que Juke siga a tu escritorio. Las dos paletas están comprobadas para que se lean bien (contraste WCAG) y el cambio es instantáneo — `Ctrl` + `T`.
+
+</td>
+<td valign="top">
+
+### Actualizaciones a tu manera
+Una vez al día (desactivable) Juke pregunta a GitHub si hay una versión más reciente. Si la hay, muestra qué cambió y **tú** eliges *Actualizar ahora*, *Más tarde* u *Omitir esta versión*. Las descargas se verifican con su SHA-256 antes de reemplazar nada.
 
 </td>
 </tr>
@@ -82,22 +110,26 @@ Inglés y español, con cambio en vivo. Escalado HiDPI de Qt 6 (también fraccio
 
 <table>
 <tr>
-<td width="50%"><img src="assets/screenshot-folders.png" alt="Airsonic recorrido por las carpetas del servidor"><br><sub><b>Airsonic por carpetas</b> — la jerarquía del servidor, desplegable en el panel lateral.</sub></td>
-<td width="50%"><img src="assets/screenshot-queue.png" alt="La cola actual con elementos de Reproducir a continuación y Añadir a la cola"><br><sub><b>Cola actual</b> — a continuación, añadidas a la cola y luego la lista de origen.</sub></td>
+<td width="50%"><img src="assets/screenshot-radio.png" alt="Radio por Internet: Mis Emisoras con una emisora en el aire"><br><sub><b>Radio por Internet</b> — emisoras guardadas, la insignia <b>LIVE</b> y la canción que suena.</sub></td>
+<td width="50%"><img src="assets/screenshot-light.png" alt="El tema claro"><br><sub><b>Tema claro</b> — o sigue a tu escritorio automáticamente.</sub></td>
+</tr>
+<tr>
+<td><img src="assets/screenshot-folders.png" alt="Airsonic recorrido por las carpetas del servidor"><br><sub><b>Airsonic por carpetas</b> — la jerarquía del servidor, desplegable en el panel lateral.</sub></td>
+<td><img src="assets/screenshot-queue.png" alt="La cola actual con elementos de Reproducir a continuación y Añadir a la cola"><br><sub><b>Cola actual</b> — a continuación, añadidas a la cola y luego la lista de origen.</sub></td>
 </tr>
 <tr>
 <td><img src="assets/screenshot-equalizer.png" alt="Ecualizador de diez bandas con curva de respuesta en vivo"><br><sub><b>Ecualizador</b> — curva de respuesta en vivo, presets, velocidad y balance estéreo.</sub></td>
-<td><img src="assets/screenshot-settings.png" alt="Ajustes de Airsonic"><br><sub><b>Ajustes</b> — idioma, carpetas de música y tu servidor Airsonic / Subsonic.</sub></td>
+<td><img src="assets/screenshot-settings.png" alt="Ajustes de Airsonic"><br><sub><b>Ajustes</b> — idioma, tema, carpetas, actualizaciones y tu servidor Airsonic / Subsonic.</sub></td>
 </tr>
 </table>
 
-> Las capturas de arriba están en inglés salvo la principal; la interfaz completa cambia de idioma en vivo desde *Ajustes*.
+> Salvo la principal, las capturas están en inglés; toda la interfaz cambia de idioma en vivo desde *Ajustes*.
 
 ## Instalación
 
 ### AppImage (recomendado)
 
-1. Descarga `Juke-x86_64.AppImage` de la [última versión](https://github.com/vezzulab/juke/releases/latest).
+1. Descarga `Juke-x86_64.AppImage` (unos 190 MB) de la [última versión](https://github.com/vezzulab/juke/releases/latest).
 2. Hazlo ejecutable y ábrelo:
 
    ```sh
@@ -107,11 +139,13 @@ Inglés y español, con cambio en vivo. Escalado HiDPI de Qt 6 (también fraccio
 
 3. En el primer arranque Juke se ofrece a añadirse a tu **menú de aplicaciones con su icono**. Solo toca tu propia cuenta de usuario (`~/.local/share/applications` y `~/.local/share/icons`) y puedes deshacerlo cuando quieras en *Ajustes*.
 
-Todo lo que Juke necesita — Python, Qt y libVLC — va dentro del archivo. Solo necesitas:
+Todo lo que Juke necesita — Python, Qt, libVLC y yt-dlp — va dentro del archivo. Solo necesitas:
 
 - Linux x86_64 con **glibc 2.35 o superior** (Ubuntu 22.04, Debian 12, Fedora 36 o más reciente)
 - PulseAudio o PipeWire para el sonido (presentes en prácticamente todo escritorio)
 - FUSE 2 (`libfuse2`) — o ejecútalo con `--appimage-extract-and-run`
+
+**Actualizar:** Juke te avisa cuando sale una versión nueva (o usa *menú ▸ Buscar actualizaciones…*). Si el AppImage está en una carpeta donde puedes escribir, *Actualizar ahora* lo reemplaza en su sitio y ofrece reiniciar.
 
 ### Desde el código fuente
 
@@ -137,12 +171,14 @@ Para añadir al menú el lanzador y el icono de una instalación desde fuente: `
 
 | | |
 | --- | --- |
-| **Biblioteca** | Añade tus carpetas de música en *Ajustes ▸ Biblioteca*. Juke las indexa en un hilo en segundo plano y solo relee los archivos que cambiaron. |
-| **Airsonic** | Pulsa **Ajustes** al final del panel lateral (o el botón *Configurar Airsonic…* de la vista vacía de Airsonic) ▸ pestaña *Airsonic*: dirección del servidor (p. ej. `http://tu-servidor:4040`), usuario y contraseña, luego *Probar conexión*. *Sincronizar Airsonic* importa el servidor una vez; recórrelo en **Servidores**. Las canciones terminadas se registran (scrobble) en el servidor. |
+| **Biblioteca** | Añade tus carpetas de música en *Ajustes ▸ Biblioteca* (o con el botón de la biblioteca vacía). Juke las indexa en un hilo de baja prioridad y solo relee los archivos que cambiaron. |
+| **Airsonic** | Pulsa **Ajustes** al final del panel lateral (o *Configurar Airsonic…* en la vista vacía de Airsonic) ▸ pestaña *Airsonic*: dirección del servidor (p. ej. `http://tu-servidor:4040`), usuario y contraseña, luego *Probar conexión*. *Sincronizar Airsonic* importa el servidor; recórrelo en **Servidores**. Las canciones terminadas se registran (scrobble) en el servidor. Se admiten servidores que no pueden comprobar tokens con sal (Airsonic-Advanced con contraseñas con hash): Juke entra entonces con la contraseña y te recomienda usar `https://`. |
+| **Radio** | En **Radio**: *Mis Emisoras* (las tuyas) y *Explorar Radio* (busca por nombre o elige una etiqueta). ♥ guarda una emisora, ▶ la sintoniza. *Añadir emisora por URL…* acepta cualquier dirección web. Detalles abajo. |
 | **Cola** | Clic derecho ▸ **Reproducir a continuación** / **Añadir a la cola**. La lista *Cola actual* muestra lo que suena, lo que encolaste y lo que sigue. |
-| **Listas** | Pulsa el **+** junto a *Listas* (o `Ctrl` + `N`) para crear una. Clic derecho en canciones ▸ *Añadir a la lista*; clic derecho en una lista para renombrarla o eliminarla. Las listas sobreviven a los reescaneos y a las resincronizaciones de Airsonic. |
+| **Listas** | Pulsa el **+** junto a *Listas* (o `Ctrl` + `N`). Clic derecho en canciones ▸ *Añadir a la lista*; clic derecho en una lista para renombrarla o eliminarla. Las listas sobreviven a los reescaneos y a las resincronizaciones de Airsonic. |
 | **Favoritos** | Clic derecho ▸ *Marcar como favorita*. |
 | **Etiquetas** | Clic derecho ▸ *Editar metadatos…* escribe en el archivo (canciones locales). |
+| **Tema** | *Ajustes ▸ Tema* (igual que el sistema / oscuro / claro) o `Ctrl` + `T`. |
 
 | Atajo | Acción |
 | --- | --- |
@@ -152,8 +188,46 @@ Para añadir al menú el lanzador y el icono de una instalación desde fuente: `
 | `Ctrl` + `F` | Buscar |
 | `Ctrl` + `N` | Nueva lista |
 | `Ctrl` + `E` | Ecualizador |
+| `Ctrl` + `T` | Cambiar claro / oscuro |
 | `Ctrl` + `,` | Ajustes |
 | `Ctrl` + `Q` | Salir |
+
+### Añadir una emisora por URL
+
+Pega una dirección y Juke muestra *Buscando señal de audio…* mientras averigua dónde está el audio:
+
+1. **Directa:** la dirección es una transmisión (`.mp3`, `.aac`, `.ogg`, `.m3u8`), un punto de montaje Icecast / Shoutcast (`http://host:8000/stream`) o una lista `.pls` / `.m3u` — se usa la primera entrada que funcione. A las direcciones sin pista se les pregunta qué son.
+2. **Páginas web:** primero se prueban las direcciones de transmisión que enlaza la página (el reproductor de una emisora suele incrustar `…:8146/stream`, un `.m3u8`, un `.pls` o una etiqueta `<audio>`) y después [yt-dlp](https://github.com/yt-dlp/yt-dlp). Lo que termina — un vídeo de introducción, una cuña — no es una emisora y solo se usa si no aparece nada en vivo.
+3. **Nombre e icono:** de la cabecera ICY de la transmisión o del título de la página, y el icono de la página.
+
+Los sitios de noticias y blogs suelen solo *nombrar* a sus emisoras; si una página no tiene audio, Juke lo dice y te lleva a *Explorar Radio*.
+
+**Las emisoras se mueven.** Cambian su dirección de transmisión todo el tiempo, así que una emisora guardada recuerda de dónde salió: su id de Radio-Browser, o la página o lista que diste. Al sintonizarla, Juke reproduce la dirección guardada al instante y comprueba en segundo plano; si la emisora se movió, o la transmisión se cae, cambia a la dirección nueva y la recuerda.
+
+**La canción en el aire.** El LCD muestra el título ICY que envía la emisora. libVLC no pide títulos en transmisiones `https://`, así que Juke los lee por su cuenta: una petición pequeña al sintonizar y cada 30 segundos después, solo mientras la ventana está a la vista. Se ignoran textos de relleno como "Now Playing info goes here".
+
+## Privacidad
+
+Juke no tiene telemetría, ni cuentas, ni analítica. Lleva incluidas su tipografía y sus iconos, así que no hace peticiones para ellos. Se conecta a:
+
+| Qué | Cuándo |
+| --- | --- |
+| Tu servidor Airsonic / Subsonic | Solo si configuras uno. |
+| `api.github.com` | Una vez al día para buscar una versión nueva, si dejas activada *Buscar actualizaciones automáticamente*. Solo se envían el nombre y la versión del programa. |
+| Radio Browser (`*.api.radio-browser.info`) y las propias emisoras | Solo cuando abres *Explorar Radio*, añades una emisora o la sintonizas. |
+
+## Rendimiento
+
+Medido en una laptop AMD Ryzen 7 2700U con batería (Fedora, Wayland), desde `/proc`:
+
+| | AppImage |
+| --- | --- |
+| En reposo, ventana abierta | 0 despertares, ~0 % de CPU, ~100 MB residentes |
+| Reproduciendo (medidor quieto con batería) | ~1,2 % de un núcleo, ~136 MB |
+| 60.000 pistas | orden por defecto en ~25 ms, una búsqueda de texto en ~100–140 ms, una página de filas en ~2 ms |
+| Sincronización Airsonic, 6.000 canciones | ~8 s |
+
+Cómo: un Juke inactivo no tiene temporizadores en marcha; libVLC, httpx y mutagen se cargan al usarse por primera vez; el temporizador de sondeo solo existe mientras suena algo y se relaja cuando la ventana está oculta; el trabajo de disco al arrancar se retrasa y va con baja prioridad; el medidor de niveles animado solo corre cuando la ventana está a la vista **y** el equipo tiene corriente (*Ajustes ▸ Medidor de niveles*); el AppImage lleva el bytecode precompilado.
 
 ## Cómo se mantiene rápido
 
@@ -162,23 +236,23 @@ Para añadir al menú el lanzador y el icono de una instalación desde fuente: `
 - **Un `QAbstractTableModel` virtual y perezoso**: ids en memoria, filas leídas de 256 en 256, como máximo 48 páginas en caché.
 - **Una sola tubería de audio**: un único reproductor libVLC para toda la sesión.
 
-Medido en una laptop AMD Ryzen 7 2700U con 60.000 pistas (`tests/test_core.py`): orden por defecto en ~25 ms, una búsqueda de texto en ~100–140 ms y una página de filas en ~2 ms.
-
 ## Estructura del proyecto
 
 ```
 juke/
 ├── main.py             punto de entrada (Wayland/HiDPI, CLI)
 ├── config.py           rutas XDG, persistencia de ajustes
-├── i18n.py, locales/   inglés / español, cambio en vivo
+├── updater.py          búsqueda de versiones en GitHub, actualización verificada en sitio
 ├── integration.py      entrada del menú de aplicaciones + iconos (AppImage)
-├── audio/              motor (libVLC), ecualizador, cola, balance, resolución de fuentes
-├── api/airsonic.py     cliente REST Subsonic asíncrono (httpx)
-├── db/                 biblioteca SQLite e indexador en segundo plano
-└── gui/                ventana principal, barra superior, panel lateral, tabla, ecualizador, diálogos, tema QSS, iconos SVG
+├── power.py            detección de corriente / batería
+├── i18n.py, locales/   inglés / español, cambio en vivo
+├── audio/              motor libVLC, ecualizador, cola, balance, títulos ICY, resolución de fuentes
+├── api/                cliente Airsonic, cliente Radio-Browser, resolutor de transmisiones
+├── db/                 biblioteca SQLite (pistas, listas, emisoras) e indexador en segundo plano
+└── gui/                ventana principal, barra superior, panel lateral, tabla, vista de radio, diálogos, temas, iconos SVG
 packaging/              construcción del AppImage (AppRun, entrada .desktop, scripts)
 docs/                   el sitio web del proyecto (GitHub Pages)
-tests/                  pruebas unitarias y de interfaz sin pantalla
+tests/                  pruebas unitarias y de interfaz sin pantalla (incluye reproducción real con libVLC)
 ```
 
 ## Construir el AppImage
@@ -187,7 +261,9 @@ tests/                  pruebas unitarias y de interfaz sin pantalla
 packaging/build-appimage.sh     # escribe dist/Juke-x86_64.AppImage
 ```
 
-Constrúyelo en la distribución **más antigua** que quieras soportar: un AppImage necesita al menos la glibc con la que se construyó. El [workflow de publicación](.github/workflows/appimage.yml) construye en Ubuntu 22.04. Las variables de entorno (`PYTHON_PREFIX`, `APPIMAGETOOL`, `RUNTIME_FROM`) están documentadas al inicio del script.
+Constrúyelo en la distribución **más antigua** que quieras soportar: un AppImage necesita al menos la glibc con la que se construyó. Subir una etiqueta `v*` ejecuta el [workflow de publicación](.github/workflows/appimage.yml) (Ubuntu 22.04), que construye el AppImage y lo adjunta al release. Las variables de entorno (`PYTHON_PREFIX`, `APPIMAGETOOL`, `RUNTIME_FROM`) están documentadas al inicio del script.
+
+Para publicar una versión nueva: sube `__version__` en `juke/__init__.py`, crea el release y todos los Juke instalados la ofrecerán.
 
 ## Desarrollo
 
@@ -197,11 +273,16 @@ python -m unittest discover -s tests -t .
 QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=2 python tools/make_assets.py assets   # regenerar capturas
 ```
 
-Las pruebas incluyen reproducción real con libVLC (se omite si libVLC no está).
+La suite tiene más de cien pruebas, incluida reproducción real con libVLC (se omite si libVLC no está).
 
 ## Límites conocidos
 
 - El espectro de la pantalla LCD es un **medidor animado, no un analizador** — libVLC no expone datos FFT.
 - El **balance** estéreo necesita PulseAudio o PipeWire (`pactl`) y un flujo estéreo; si no, se desactiva.
-- Aún no hay MPRIS / teclas multimedia globales, ni reproducción sin pausas (gapless), ni reordenar canciones arrastrando dentro de las listas, y solo un servidor Airsonic a la vez.
+- Aún no hay MPRIS / teclas multimedia globales, ni reproducción sin pausas, ni reordenar canciones arrastrando dentro de las listas, y solo un servidor Airsonic a la vez.
 - La navegación por carpetas está disponible para Airsonic; la biblioteca local se recorre por artista, álbum y género.
+- Radio: no se admiten emisoras que pidan inicio de sesión o usen transmisiones protegidas. La canción en el aire requiere que la emisora envíe metadatos ICY.
+
+## Créditos
+
+[libVLC](https://www.videolan.org/) para la reproducción, [Qt for Python](https://doc.qt.io/qtforpython-6/) para la interfaz, [yt-dlp](https://github.com/yt-dlp/yt-dlp), [httpx](https://www.python-httpx.org/) y [mutagen](https://mutagen.readthedocs.io/), el directorio comunitario [radio-browser.info](https://www.radio-browser.info/) y la tipografía [Inter](https://rsms.me/inter/) (licencia SIL Open Font, incluida).

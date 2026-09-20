@@ -38,6 +38,9 @@ _GLYPHS: dict[str, tuple[str, str]] = {
     "server": ("stroke", '<rect x="2.5" y="3" width="19" height="7.5" rx="2"/><rect x="2.5" y="13.5" width="19" height="7.5" rx="2"/><path d="M6.5 6.8h.01M6.5 17.3h.01"/>'),
     "clock": ("stroke", '<circle cx="12" cy="12" r="9.5"/><path d="M12 6.5V12l3.8 2.2"/>'),
     "queue": ("stroke", '<path d="M4 6h12M4 12h12M4 18h7"/><path d="M17.5 14.5v6l4.5-3z" fill="currentColor"/>'),
+    "radio": ("stroke", '<circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/>'),
+    "globe": ("stroke", '<circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c3 3 3 16 0 19M12 2.5c-3 3-3 16 0 19"/>'),
+    "heart-outline": ("stroke", '<path d="M12 20.6s-7.6-4.6-9.6-9.7A5.4 5.4 0 0 1 12 6.2a5.4 5.4 0 0 1 9.6 4.7c-2 5.1-9.6 9.7-9.6 9.7z"/>'),
     "gear": ("stroke", '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
     "more": ("stroke", '<circle cx="5" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="19" cy="12" r="1.7" fill="currentColor"/>'),
     "playlist": ("stroke", '<path d="M4 6h16M4 12h16M4 18h9"/><path d="M17 18h4M19 16v4"/>'),
@@ -103,21 +106,27 @@ def icon(name: str, color: str = styles.SUBTEXT, active: str | None = None,
     return result
 
 
-def _placeholder_svg() -> str:
+def _placeholder_svg(radio: bool = False) -> str:
+    """A soft square with a music note (songs) or a radio-wave glyph (stations), in the theme's colours."""
+    muted = styles.MUTED
+    if radio:
+        glyph = (f'<g transform="translate(24 24) scale(2)" fill="none" stroke="{muted}" stroke-width="1.6" stroke-linecap="round">'
+                 f'<circle cx="12" cy="12" r="2" fill="{muted}"/>'
+                 '<path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></g>')
+    else:
+        glyph = (f'<g transform="translate(28 28) scale(1.7)" fill="none" stroke="{muted}" stroke-width="1.8" '
+                 'stroke-linecap="round" stroke-linejoin="round">'
+                 f'<path d="M9 18V5.5l11-2V16"/><circle cx="6" cy="18" r="3" fill="{muted}"/><circle cx="17" cy="16" r="3" fill="{muted}"/></g>')
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">'
         '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
         f'<stop offset="0" stop-color="{styles.SURFACE}"/><stop offset="1" stop-color="{styles.PANEL}"/></linearGradient></defs>'
-        '<rect width="96" height="96" rx="14" fill="url(#g)"/>'
-        f'<g transform="translate(28 28) scale(1.7)" fill="none" stroke="{styles.MUTED}" stroke-width="1.8" '
-        'stroke-linecap="round" stroke-linejoin="round">'
-        f'<path d="M9 18V5.5l11-2V16"/><circle cx="6" cy="18" r="3" fill="{styles.MUTED}"/><circle cx="17" cy="16" r="3" fill="{styles.MUTED}"/></g>'
-        '</svg>'
+        f'<rect width="96" height="96" rx="14" fill="url(#g)"/>{glyph}</svg>'
     )
 
 
-def placeholder_cover(size: int) -> QPixmap:
-    return render_svg(_placeholder_svg(), size)
+def placeholder_cover(size: int, radio: bool = False) -> QPixmap:
+    return render_svg(_placeholder_svg(radio), size)
 
 
 def app_icon() -> QIcon:

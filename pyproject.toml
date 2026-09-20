@@ -19,6 +19,7 @@ dependencies = [
     "httpx>=0.25",
     "mutagen>=1.47",
     "python-vlc>=3.0.18",
+    "yt-dlp>=2024.1.1",
 ]
 
 [project.urls]

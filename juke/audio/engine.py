@@ -15,10 +15,14 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 
+from ..workers import AsyncWorker
+from . import icy
 from .balance import StreamBalance
 from .equalizer import BANDS_HZ, Equalizer
 
 POLL_ACTIVE_MS = 500     # window in front: progress bar and time labels follow playback
+ICY_FIRST_MS = 2500      # first own ICY title lookup after tuning in
+ICY_EVERY_MS = 30_000    # then every half minute, and only while the window is in front
 POLL_HIDDEN_MS = 2000    # window hidden/minimised/unfocused: only watch for the end of the song
 READY_AFTER_MS = 400     # media time after which the audio output is fully up
 
@@ -36,6 +40,7 @@ class AudioEngine(QObject):
     position_changed = Signal(int, int)        # elapsed ms, total ms
     track_finished = Signal()                  # reached the end by itself
     error = Signal(str)
+    now_playing_changed = Signal(str)          # live radio: the song the station is playing right now (ICY metadata)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -50,6 +55,14 @@ class AudioEngine(QObject):
         self._vlc = None                       # the python-vlc module, imported on first use
         self._instance = None
         self._player = None
+        self._media = None                     # the media being played: libVLC updates its metadata live
+        self._live = False
+        self._url_leaf = ""
+        self._url = ""
+        self._icy_token = 0
+        self._icy_worker: AsyncWorker | None = None
+        self._station_name = ""
+        self._now_playing = ""
         self._backend_tried = False
         self._balance_dirty = False
         self._balance = StreamBalance()
@@ -114,7 +127,12 @@ class AudioEngine(QObject):
         if url.startswith(("http://", "https://")):
             media.add_option(":network-caching=2000")
         self._player.set_media(media)
-        media.release()
+        old, self._media = self._media, media       # keep it: ICY "now playing" arrives on this object
+        if old is not None:
+            old.release()
+        self._now_playing = ""
+        self._url_leaf = os.path.basename(url.split("?", 1)[0].rstrip("/")).lower()
+        self._url = url
         self._player.play()
         self._audio_ready = self._aout_safe
         self._audio_pending = True
@@ -123,7 +141,80 @@ class AudioEngine(QObject):
         self._apply_equalizer()          # idempotent: the pipeline is not restarted
         self._set_state("playing")
         self._schedule_balance()
+        self._icy_token += 1
+        if self._live:
+            self._later(ICY_FIRST_MS, lambda t=self._icy_token: self._lookup_title(t))
         return True
+
+    def set_live(self, live: bool, station_name: str = "") -> None:
+        """Live radio: while on, ICY "now playing" metadata is read and announced as it changes."""
+        self._live = live
+        self._station_name = station_name
+        if not live:
+            self._now_playing = ""
+
+    def now_playing(self) -> str:
+        return self._now_playing
+
+    # -- our own ICY lookup (libVLC does not request titles on https streams) ----------------------
+    def _lookup_title(self, token: int) -> None:
+        """Chain of single-shot timers: it ends by itself when the station is left or stopped."""
+        if token != self._icy_token or not self._live or self._state == "stopped":
+            return
+        again = lambda: self._later(ICY_EVERY_MS, lambda: self._lookup_title(token))
+        if not self._ui_active or self._read_now_playing():        # nobody is looking / libVLC already has it
+            again()
+            return
+        url = self._url
+
+        async def look(_progress):
+            return await icy.read_stream_title(url)
+
+        worker = AsyncWorker(look, self)
+        self._icy_worker = worker
+
+        def done(raw: str) -> None:
+            if token == self._icy_token and self._live:
+                self._announce(icy.clean_stream_title(raw, self._station_name))
+            again()
+
+        worker.result.connect(done)
+        worker.failed.connect(lambda _m: again())
+        worker.finished.connect(lambda w=worker: (setattr(self, "_icy_worker", None) if self._icy_worker is w else None, w.deleteLater()))
+        worker.start()
+
+    def _later(self, ms: int, callback) -> None:
+        """A single-shot timer on the kernel-friendly coarse clock (QTimer.singleShot cannot pick one)."""
+        timer = QTimer(self)
+        timer.setSingleShot(True)
+        timer.setTimerType(Qt.VeryCoarseTimer)
+        timer.timeout.connect(callback)
+        timer.timeout.connect(timer.deleteLater)
+        timer.start(ms)
+
+    def _announce(self, text: str) -> None:
+        if text != self._now_playing:
+            self._now_playing = text
+            self.now_playing_changed.emit(text)
+
+    def _read_now_playing(self) -> str:
+        media, vlc = self._media, self._vlc
+        if media is None or vlc is None:
+            return ""
+        text = media.get_meta(vlc.Meta.NowPlaying) or ""
+        if not text:                                           # Ogg/Vorbis streams carry artist and title instead
+            title, artist = media.get_meta(vlc.Meta.Title) or "", media.get_meta(vlc.Meta.Artist) or ""
+            if title and self._is_real_title(title):
+                text = f"{artist} - {title}" if artist else title
+        return " ".join(text.split())
+
+    def _is_real_title(self, title: str) -> bool:
+        """libVLC fills "title" with the station name or, failing that, the last part of the address
+        ("stream", "live.mp3"): neither is a song."""
+        low = title.strip().lower()
+        if not low or low == self._station_name.strip().lower() or low.startswith(("http://", "https://")):
+            return False
+        return low != self._url_leaf and low != os.path.splitext(self._url_leaf)[0]
 
     def toggle_pause(self) -> None:
         if self._player is None or self._state == "stopped":
@@ -142,6 +233,7 @@ class AudioEngine(QObject):
             self._set_state("playing")
 
     def stop(self) -> None:
+        self._now_playing = ""
         if self._player is not None:
             self._player.stop()
         self._set_state("stopped")
@@ -259,14 +351,25 @@ class AudioEngine(QObject):
             if not self._audio_ready and self._player.get_time() >= READY_AFTER_MS:
                 self._audio_ready = True
                 self._apply_audio_levels()
+            if self._live:
+                text = self._read_now_playing()          # libVLC's own reading (http:// streams)
+                if text and text != self._now_playing:
+                    self._announce(text)
             if self._ui_active:
                 self.position_changed.emit(max(0, self._player.get_time()), max(0, self._player.get_length()))
 
     def shutdown(self) -> None:
+        self._icy_token += 1
+        if self._icy_worker is not None:
+            self._icy_worker.cancel()
+            self._icy_worker.wait(1500)
         self._timer.stop()
         if self._player is not None:
             self._player.stop()
             self._player.release()
+            if self._media is not None:
+                self._media.release()
+                self._media = None
             self._instance.release()
             self._player = None
 

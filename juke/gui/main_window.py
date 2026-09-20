@@ -8,21 +8,24 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QProcess, QSize, QThread, QTimer, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
-                               QProgressBar, QSizePolicy, QSplitter, QToolButton, QVBoxLayout, QWidget)
+                               QProgressBar, QPushButton, QSizePolicy, QSplitter, QStackedWidget, QToolButton, QVBoxLayout,
+                               QWidget)
 
 from .. import REPO_URL, __version__, integration, updater
+from ..api import radio as radio_api
 from ..api.airsonic import AirsonicClient, normalize_base_url
 from ..audio.engine import AudioEngine
 from ..audio.equalizer import Equalizer
 from ..audio.queue import PlayQueue
 from ..audio.sources import SourceError, SourceResolver
 from ..config import AUDIO_EXTENSIONS, Config
-from ..db.database import SOURCE_AIRSONIC, SOURCE_LOCAL, Database, Scope, Track
+from ..db.database import SOURCE_AIRSONIC, SOURCE_LOCAL, Database, Scope, Station, Track
 from ..db.indexer import LibraryScanner, cover_key_for, cover_path, extract_cover, read_tags, save_cover
 from ..i18n import tr, translator, trn
 from ..power import on_battery
 from ..workers import AsyncWorker
 from . import icons, styles
+from .components.radio_view import RadioView
 from .components.sidebar import Sidebar
 from .components.top_bar import TopBar
 from .components.track_table import TrackTable
@@ -63,6 +66,10 @@ class MainWindow(QMainWindow):
         self._eq_dialog: EqualizerDialog | None = None
         self._playlists: list[tuple[int, str, int]] = []
         self._update_worker: AsyncWorker | None = None
+        self.current_station: Station | None = None
+        self._station_token = 0            # bumps on every station change so late answers can be ignored
+        self._station_refreshed = False
+        self._radio_workers: set[AsyncWorker] = set()
         self._empty_action = ""
         self._errors_in_a_row = 0
         self._warned_no_vlc = False
@@ -76,6 +83,13 @@ class MainWindow(QMainWindow):
         self.top_bar = TopBar()
         self.sidebar = Sidebar()
         self.table = TrackTable(db)
+        self.radio_view = RadioView(db)
+        self.stack = QStackedWidget()
+        self.stack.addWidget(self.table)
+        self.stack.addWidget(self.radio_view)
+        self.add_station_button = QPushButton()
+        self.add_station_button.setCursor(Qt.PointingHandCursor)
+        self.add_station_button.hide()
         self.title_label = QLabel()
         self.title_label.setObjectName("heading")
         self.subtitle_label = QLabel()
@@ -102,6 +116,7 @@ class MainWindow(QMainWindow):
         header.setSpacing(12)
         header.addLayout(heading, 1)
         header.addWidget(self.search)
+        header.addWidget(self.add_station_button)
         header.addWidget(self.menu_button)
         main_view = QWidget()
         main_view.setObjectName("mainView")
@@ -109,7 +124,7 @@ class MainWindow(QMainWindow):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
         column.addLayout(header)
-        column.addWidget(self.table, 1)
+        column.addWidget(self.stack, 1)
 
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.setChildrenCollapsible(False)
@@ -201,6 +216,13 @@ class MainWindow(QMainWindow):
         t.new_playlist_requested.connect(self._new_playlist)
         t.remove_from_playlist_requested.connect(self._remove_from_playlist)
         t.action_requested.connect(self._run_empty_action)
+        rv = self.radio_view
+        rv.play_requested.connect(lambda station: self._play_station(station))
+        rv.save_requested.connect(self._save_station)
+        rv.remove_requested.connect(self._remove_station)
+        rv.summary_changed.connect(self._update_heading)
+        self.add_station_button.clicked.connect(lambda: self._add_station_by_url())
+        eng.now_playing_changed.connect(self._now_playing)
         self.sidebar.new_playlist_requested.connect(lambda: self._new_playlist())
         self.sidebar.rename_playlist_requested.connect(self._rename_playlist)
         self.sidebar.delete_playlist_requested.connect(self._delete_playlist)
@@ -249,6 +271,7 @@ class MainWindow(QMainWindow):
         self.sidebar.apply_theme()
         self.table.track_model.apply_theme()
         self.table.viewport().update()
+        self.radio_view.apply_theme()
 
     def toggle_theme(self) -> None:
         """Flip between the dark and light look (also leaves "follow the system" mode)."""
@@ -288,6 +311,10 @@ class MainWindow(QMainWindow):
         self._update_activity()
 
     def closeEvent(self, event) -> None:  # noqa: N802
+        self.radio_view.cancel()
+        for worker in list(self._radio_workers):
+            worker.cancel()
+            worker.wait(1500)
         try:
             styles.signals.changed.disconnect(self._theme_slot)
         except (RuntimeError, TypeError):
@@ -304,7 +331,9 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------------------ text
     def retranslate(self) -> None:
-        self.search.setPlaceholderText(tr("search.placeholder"))
+        self.search.setPlaceholderText(tr("radio.search_placeholder") if self._radio_active() else tr("search.placeholder"))
+        self.add_station_button.setText(tr("radio.add_url"))
+        self.radio_view.retranslate()
         self.menu_button.setToolTip(tr("menu.more"))
         self.settings_button.setText("\u2002\u2002" + tr("sidebar.settings"))  # en-spaces: air between icon and label
         self.sidebar.retranslate()
@@ -325,6 +354,7 @@ class MainWindow(QMainWindow):
             return action
 
         add(tr("menu.new_playlist"), lambda: self._new_playlist(), "Ctrl+N")
+        add(tr("radio.add_url"), lambda: self._add_station_by_url())
         add(tr("menu.equalizer"), self.toggle_equalizer, "Ctrl+E")
         add(tr("menu.toggle_theme"), self.toggle_theme, "Ctrl+T")
         menu.addSeparator()
@@ -372,7 +402,7 @@ class MainWindow(QMainWindow):
         db = self.db
         self.sidebar.set_counts(
             all=db.count(), airsonic=db.count(SOURCE_AIRSONIC), favorites=db.count_favorites(),
-            queue=len(self.queue.view()) or None,
+            queue=len(self.queue.view()) or None, stations=db.count_stations() or None,
         )
 
     def _scope_for(self, key: str, value: object) -> tuple[Scope, list[int] | None, str | None]:
@@ -395,8 +425,26 @@ class MainWindow(QMainWindow):
             "queue": (Scope(), self.queue.view(), None),
         }.get(key, (Scope(), None, None))
 
+    def _radio_active(self) -> bool:
+        return self.stack.currentWidget() is self.radio_view
+
     def _show_view(self, key: str, value: object) -> None:
         self._view = (key, value)
+        radio = key in ("stations", "explore")
+        switching = radio or self._radio_active()
+        self.stack.setCurrentWidget(self.radio_view if radio else self.table)
+        self.add_station_button.setVisible(radio)
+        self.search.setPlaceholderText(tr("radio.search_placeholder") if radio else tr("search.placeholder"))
+        if switching:                    # text typed for songs must not filter stations, and the other way round
+            self.search.blockSignals(True)
+            self.search.clear()
+            self.search.blockSignals(False)
+            self.table.track_model.set_text("")
+        if radio:
+            self.radio_view.show_mode(key)
+            self.radio_view.set_playing_url(self.current_station.stream_url if self.current_station else None)
+            self._update_heading()
+            return
         scope, fixed, sort = self._scope_for(key, value)
         self.table.queue_mode = key == "queue"
         self.table.playlist_mode = key == "playlist"
@@ -407,6 +455,9 @@ class MainWindow(QMainWindow):
             self.sync_airsonic()
 
     def _apply_search(self) -> None:
+        if self._radio_active():
+            self.radio_view.set_filter_text(self.search.text())
+            return
         self.table.track_model.set_text(self.search.text())
         self._update_heading()
 
@@ -420,9 +471,14 @@ class MainWindow(QMainWindow):
             return next((name for pid, name, _ in self._playlists if pid == value), "")
         return tr({"all": "sidebar.all", "artists": "sidebar.artists", "albums": "sidebar.albums",
                    "genres": "sidebar.genres", "airsonic": "sidebar.airsonic", "favorites": "sidebar.favorites",
-                   "recent": "sidebar.recent", "queue": "sidebar.queue"}.get(key, "sidebar.all"))
+                   "recent": "sidebar.recent", "queue": "sidebar.queue", "stations": "sidebar.stations",
+                   "explore": "sidebar.explore"}.get(key, "sidebar.all"))
 
     def _update_heading(self) -> None:
+        if self._view[0] in ("stations", "explore"):
+            self.title_label.setText(self._view_title())
+            self.subtitle_label.setText(self.radio_view.summary())
+            return
         self.title_label.setText(self._view_title())
         model = self.table.track_model
         count = model.rowCount()
@@ -490,8 +546,10 @@ class MainWindow(QMainWindow):
             reason = tr("msg.airsonic_not_configured") if str(exc) == "airsonic" else tr("msg.file_missing", path=str(exc))
             self._skip_after_error(reason)
             return
+        self.engine.set_live(False)                # leaving live radio: no ICY reading, no station state
         if not self.engine.play_url(url):
             return
+        self._leave_station()
         self._errors_in_a_row = 0
         self.queue.current = track_id
         self.current_track = track
@@ -520,6 +578,7 @@ class MainWindow(QMainWindow):
         self._start(next_id)
 
     def _playback_ended(self) -> None:
+        self._leave_station()
         self.top_bar.lcd.clear()
         self.current_track = None
         self.table.track_model.set_current(None)
@@ -539,6 +598,9 @@ class MainWindow(QMainWindow):
         if self.engine.state in ("playing", "paused"):
             self.engine.toggle_pause()
             return
+        if self.current_station is not None:            # stopped on a radio station: tune it in again
+            self._play_station(self.current_station)
+            return
         selected = self.table.selected_ids()
         if selected:
             self._play_from_table(selected[0])
@@ -553,6 +615,9 @@ class MainWindow(QMainWindow):
         self.engine.stop()
 
     def _track_finished(self) -> None:
+        if self.current_station is not None:            # a live stream never "finishes": the connection dropped
+            self._station_failed()
+            return
         track = self.current_track
         if track is not None:
             self.db.record_completed(track.id)
@@ -565,6 +630,9 @@ class MainWindow(QMainWindow):
             if not self._warned_no_vlc:
                 self._warned_no_vlc = True
                 notice(self, tr("msg.no_vlc_title"), tr("msg.no_vlc"))
+            return
+        if self.current_station is not None:
+            self._station_failed()
             return
         self._skip_after_error(tr("msg.playback_error"))
 
@@ -601,6 +669,140 @@ class MainWindow(QMainWindow):
         if self._view[0] == "queue":
             self.table.track_model.set_fixed_ids(self.queue.view())
             self._update_heading()
+
+    # ------------------------------------------------------------------------------ radio
+    def _station_cover(self, station: Station) -> QPixmap | None:
+        if station.favicon and radio_api.icon_path(station.favicon).exists():
+            pixmap = QPixmap(str(radio_api.icon_path(station.favicon)))
+            return None if pixmap.isNull() else pixmap
+        return None
+
+    def _leave_station(self) -> None:
+        self._station_token += 1
+        self.current_station = None
+        self.radio_view.set_playing_url(None)
+
+    def _play_station(self, station: Station, refresh: bool = True) -> None:
+        """Tune in. The saved address is used at once; meanwhile Juke checks (in the background) whether
+        the station has moved, because stations keep changing their stream address."""
+        self._station_token += 1
+        token = self._station_token
+        self.engine.set_live(True, station.name)
+        if not self.engine.play_url(station.stream_url):
+            self.engine.set_live(False)
+            return
+        self.queue.current = None
+        self.current_track = None
+        self.table.track_model.set_current(None)
+        self.current_station = station
+        self._station_refreshed = not refresh
+        self.top_bar.set_station(station, self._station_cover(station))
+        self.radio_view.set_playing_url(station.stream_url)
+        self.setWindowTitle(f"{station.name} · Juke")
+        self._fetch_station_icon(station)
+        if refresh and (station.uuid or station.source_url):
+            self._refresh_station(station, token, failed=False)
+
+    def _refresh_station(self, station: Station, token: int, failed: bool) -> None:
+        async def look(_progress):
+            return await radio_api.refresh_station(station)
+
+        worker = AsyncWorker(look, self)
+        self._radio_workers.add(worker)
+
+        def done(fresh) -> None:
+            if token != self._station_token:
+                return                                   # the user has moved on
+            if fresh is None:
+                if failed:
+                    self._station_gave_up()
+                return
+            if fresh.id:
+                self.db.update_station_stream(fresh.id, fresh.stream_url, fresh.codec, fresh.bitrate, fresh.favicon)
+                self._after_stations_changed()
+            self.notify(tr("radio.new_signal", name=fresh.name), 4000)
+            self._play_station(fresh, refresh=False)
+
+        worker.result.connect(done)
+        worker.failed.connect(lambda _message: self._station_gave_up() if failed and token == self._station_token else None)
+        worker.finished.connect(lambda w=worker: (self._radio_workers.discard(w), w.deleteLater()))
+        worker.start()
+
+    def _station_failed(self) -> None:
+        """The stream died or never started: look for the station's current address, once."""
+        station = self.current_station
+        if station is None:
+            return
+        if not self._station_refreshed and (station.uuid or station.source_url):
+            self._station_refreshed = True
+            self.notify(tr("radio.refreshing"), 5000)
+            self._refresh_station(station, self._station_token, failed=True)
+        else:
+            self._station_gave_up()
+
+    def _station_gave_up(self) -> None:
+        self.notify(tr("radio.error"), 8000)
+        self.engine.stop()
+        self.engine.set_live(False)
+        self.top_bar.lcd.clear()
+        self._leave_station()
+        self.setWindowTitle("Juke")
+
+    def _now_playing(self, text: str) -> None:
+        self.top_bar.set_now_playing(text)
+        if self.current_station is not None:
+            name = self.current_station.name
+            self.setWindowTitle(f"{text} — {name} · Juke" if text else f"{name} · Juke")
+
+    def _save_station(self, station: Station) -> None:
+        saved_id = self.db.add_station(station)
+        self._after_stations_changed()
+        self.notify(tr("radio.saved", name=station.name), 3500)
+        self._fetch_station_icon(Station(**{**{f: getattr(station, f) for f in station.__slots__}, "id": saved_id}))
+
+    def _remove_station(self, station: Station) -> None:
+        self.db.remove_station(station.id)
+        self._after_stations_changed()
+        self.notify(tr("radio.removed", name=station.name), 3500)
+
+    def _add_station_by_url(self) -> None:
+        from .radio_dialog import AddStationDialog
+
+        dialog = AddStationDialog(self)
+        if not dialog.exec():
+            return
+        station = dialog.station()
+        if station is None:
+            return
+        self._save_station(station)
+        self.sidebar.select("stations")
+        self._show_view("stations", None)
+
+    def _after_stations_changed(self) -> None:
+        self._update_counts()
+        self.radio_view.refresh()
+        self._update_heading()
+
+    def _fetch_station_icon(self, station: Station) -> None:
+        if not station.favicon or radio_api.icon_path(station.favicon).exists():
+            return
+
+        async def fetch(_progress):
+            return await radio_api.fetch_icon(station.favicon)
+
+        worker = AsyncWorker(fetch, self)
+        self._radio_workers.add(worker)
+
+        def done(ok) -> None:
+            if not ok:
+                return
+            self.radio_view.refresh_icons()
+            if self.current_station is not None and self.current_station.favicon == station.favicon:
+                self.top_bar.lcd.set_cover(self._station_cover(station))
+
+        worker.result.connect(done)
+        worker.finished.connect(lambda w=worker: (self._radio_workers.discard(w), w.deleteLater()))
+        worker.start()
 
     # ------------------------------------------------------------------------------ playlists
     def refresh_playlists(self) -> None:

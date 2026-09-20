@@ -250,6 +250,33 @@ def main() -> None:
     stage_playing(window, db)
     grab(window, out / "screenshot-main.png")
 
+    # Internet radio: saved stations (invented names) and a live one on air
+    from juke.db.database import Station
+    for name, host, tags, country, codec, bitrate in (
+            ("Radio Costa Brava", "costabrava", "salsa, tropical", "Dominican Republic", "AAC", 128),
+            ("Latido FM 98.3", "latido", "pop, latino", "Colombia", "MP3", 128),
+            ("Nocturna Jazz", "nocturna", "jazz, lounge", "Spain", "AAC", 64),
+            ("Bachata Real", "bachatareal", "bachata", "Dominican Republic", "MP3", 96),
+            ("Mundo Clásico", "mundo", "classical", "Mexico", "AAC", 128)):
+        db.add_station(Station(0, name, f"https://{host}.example/stream", tags=tags, country=country, codec=codec, bitrate=bitrate))
+    window._update_counts()
+    live = db.stations()[3]
+    window.current_station = live
+    window.top_bar.set_station(live, None)
+    window.top_bar.set_now_playing("Aurora Vale - Paper Moons")
+    window.top_bar.set_state("playing")
+    window.top_bar.set_position(184000, 0)
+    window.sidebar.select("stations")
+    window._show_view("stations", None)
+    window.radio_view.set_playing_url(live.stream_url)
+    grab(window, out / "screenshot-radio.png")
+    window.current_station = None
+    window.radio_view.set_playing_url(None)
+    window.top_bar.lcd.clear()
+    window.sidebar.select("all")
+    window._show_view("all", None)
+    stage_playing(window, db)
+
     # the same window in the light theme
     window.theme.apply("light")
     grab(window, out / "screenshot-light.png")

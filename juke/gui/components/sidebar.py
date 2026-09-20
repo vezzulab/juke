@@ -163,12 +163,16 @@ class Sidebar(QTreeWidget):
             entry(library, key, glyph, kind)
         servers = header("servers")
         entry(servers, "airsonic", "server", "group")
+        radio = header("radio")
+        entry(radio, "stations", "radio")
+        entry(radio, "explore", "globe")
         lists = header("lists")
         lists.setData(0, ACTION_ROLE, "plus")
         for key, glyph in (("favorites", "heart"), ("recent", "clock"), ("queue", "queue")):
             entry(lists, key, glyph)
         self.expandItem(library)
         self.expandItem(servers)
+        self.expandItem(radio)
         self.expandItem(lists)
 
         self.itemClicked.connect(self._clicked)
@@ -371,12 +375,13 @@ class Sidebar(QTreeWidget):
         self.viewport().update()
 
     def retranslate(self) -> None:
-        titles = {"library": "sidebar.library", "servers": "sidebar.servers", "lists": "sidebar.lists"}
+        titles = {"library": "sidebar.library", "servers": "sidebar.servers", "radio": "sidebar.radio", "lists": "sidebar.lists"}
         for name, item in self._headers.items():
             item.setText(0, tr(titles[name]).upper())
         names = {"all": "sidebar.all", "artists": "sidebar.artists", "albums": "sidebar.albums",
                  "genres": "sidebar.genres", "airsonic": "sidebar.airsonic", "favorites": "sidebar.favorites",
-                 "recent": "sidebar.recent", "queue": "sidebar.queue"}
+                 "recent": "sidebar.recent", "queue": "sidebar.queue", "stations": "sidebar.stations",
+                 "explore": "sidebar.explore"}
         for key, label in names.items():
             self._items[(key, None)].setText(0, tr(label))
         for name in list(self._filled):

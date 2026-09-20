@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS stations (
     codec       TEXT    NOT NULL DEFAULT '',
     bitrate     INTEGER NOT NULL DEFAULT 0,
     uuid        TEXT    NOT NULL DEFAULT '',
+    source_url  TEXT    NOT NULL DEFAULT '',
     added_at    REAL    NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_stations_name ON stations (name COLLATE NOCASE);
@@ -158,6 +159,7 @@ class Station:
     codec: str = ""
     bitrate: int = 0
     uuid: str = ""
+    source_url: str = ""    # the page / playlist the user gave: stations change their stream address, so keep where to find it again
 
     @property
     def saved(self) -> bool:
@@ -194,6 +196,9 @@ class Database:
         columns = {row[1] for row in conn.execute("PRAGMA table_info(tracks)")}
         if "folder" not in columns:
             conn.execute("ALTER TABLE tracks ADD COLUMN folder TEXT NOT NULL DEFAULT ''")
+        station_columns = {row[1] for row in conn.execute("PRAGMA table_info(stations)")}
+        if station_columns and "source_url" not in station_columns:
+            conn.execute("ALTER TABLE stations ADD COLUMN source_url TEXT NOT NULL DEFAULT ''")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tracks_folder ON tracks (folder COLLATE NOCASE)")
         conn.commit()
 
@@ -393,7 +398,7 @@ class Database:
         return row[0], row[1]
 
     # -- radio stations ----------------------------------------------------------------------
-    _STATION_COLS = "id, name, stream_url, homepage, favicon, tags, country, codec, bitrate, uuid"
+    _STATION_COLS = "id, name, stream_url, homepage, favicon, tags, country, codec, bitrate, uuid, source_url"
 
     def stations(self) -> list[Station]:
         cur = self.connect().execute(f"SELECT {self._STATION_COLS} FROM stations ORDER BY name COLLATE NOCASE")
@@ -404,13 +409,26 @@ class Database:
         conn = self.connect()
         with conn:
             conn.execute(
-                "INSERT INTO stations (name, stream_url, homepage, favicon, tags, country, codec, bitrate, uuid, added_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(stream_url) DO UPDATE SET name=excluded.name, "
+                "INSERT INTO stations (name, stream_url, homepage, favicon, tags, country, codec, bitrate, uuid, source_url, added_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(stream_url) DO UPDATE SET name=excluded.name, "
                 "homepage=excluded.homepage, favicon=excluded.favicon, tags=excluded.tags, country=excluded.country, "
-                "codec=excluded.codec, bitrate=excluded.bitrate, uuid=excluded.uuid",
+                "codec=excluded.codec, bitrate=excluded.bitrate, uuid=excluded.uuid, "
+                "source_url=CASE WHEN excluded.source_url != '' THEN excluded.source_url ELSE stations.source_url END",
                 (station.name.strip(), station.stream_url, station.homepage, station.favicon, station.tags,
-                 station.country, station.codec, station.bitrate, station.uuid, time.time()))
+                 station.country, station.codec, station.bitrate, station.uuid, station.source_url, time.time()))
             return conn.execute("SELECT id FROM stations WHERE stream_url=?", (station.stream_url,)).fetchone()[0]
+
+    def update_station_stream(self, station_id: int, stream_url: str, codec: str = "", bitrate: int = 0, favicon: str = "") -> bool:
+        """The station moved to a new stream address. False if another saved station already uses it."""
+        conn = self.connect()
+        try:
+            with conn:
+                conn.execute("UPDATE stations SET stream_url=?, codec=CASE WHEN ?!='' THEN ? ELSE codec END, "
+                             "bitrate=CASE WHEN ?>0 THEN ? ELSE bitrate END, favicon=CASE WHEN ?!='' THEN ? ELSE favicon END WHERE id=?",
+                             (stream_url, codec, codec, bitrate, bitrate, favicon, favicon, station_id))
+            return True
+        except sqlite3.IntegrityError:
+            return False
 
     def remove_station(self, station_id: int) -> None:
         conn = self.connect()
