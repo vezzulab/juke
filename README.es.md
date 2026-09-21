@@ -62,7 +62,7 @@ Un Juke inactivo **no genera ningún despertar**. Reproduciendo con batería usa
 <td valign="top">
 
 ### Ecualizador de 10 bandas
-Diez bandas (60 Hz – 16 kHz), preamp de ±20 dB, diez presets incluidos y los tuyos. Usa el ecualizador nativo de libVLC sobre un único reproductor de larga vida, así que cambiar de canción — o sintonizar una emisora — nunca lo reinicia.
+Diez bandas (60 Hz – 16 kHz), preamp de ±20 dB, quince presets incluidos (con **Dembow, Reggaetón, Salsa, Merengue y Bachata**) y los tuyos. Cada preset suena con su propio margen, así que un realce de graves nunca hace que el sonido se rompa. Usa el ecualizador nativo de libVLC sobre un único reproductor de larga vida, así que cambiar de canción — o sintonizar una emisora — nunca lo reinicia.
 
 </td>
 <td valign="top">
@@ -159,7 +159,7 @@ con Jetpack Compose y Media3.
 - Sigue sonando con la pantalla apagada, con los controles de siempre en la notificación.
 - *Ajustes ▸ Ayuda* tiene **Enviar comentarios** y el **registro** de la app, con los datos privados ocultos, y un botón para **apoyar en Ko-fi**.
 - Los mismos veinte temas de color, en *Ajustes ▸ Colores*.
-- **Letras y karaoke.** Busca la letra por el nombre de la canción o pégala, míralas seguir a la canción, y pasa a **Karaoke**: líneas grandes, cuenta regresiva antes de cada frase y **Reducir voz**, que quita al cantante principal de la canción.
+- **Letras y karaoke.** Busca la letra por el nombre de la canción o pégala, míralas seguir a la canción, y pasa a **Karaoke**: líneas grandes, y cuenta regresiva antes de cada frase.
 - **Ordena** carpetas y canciones de A → Z o de Z → A, en la biblioteca y en el servidor.
 - Mejor en la pantalla de bloqueo: la tarjeta del reproductor, la notificación y los botones de audífonos o Bluetooth funcionan, tocar la notificación abre Juke, y el sistema puede reanudar lo que sonaba. La barra de tiempo sigue tu dedo y muestra al instante a dónde saltas.
 - Ecualizador de 10 bandas, español e inglés, oscuro y claro.
@@ -335,7 +335,7 @@ La suite tiene más de cien pruebas, incluida reproducción real con libVLC (se 
 ## Límites conocidos
 
 - El espectro de la pantalla LCD es un **medidor animado, no un analizador** — libVLC no expone datos FFT.
-- El **karaoke** (letra a pantalla completa con cuenta regresiva y reducción de voz) está en Android. En Linux tienes la columna de letra sincronizada; el filtro de quitar voz de libVLC no se puede activar desde Python.
+- El **karaoke** (letra a pantalla completa con cuenta regresiva antes de cada frase) está en Android. En Linux tienes la columna de letra sincronizada. Juke nunca procesa el sonido de tus canciones más allá del ecualizador que elijas.
 - El **balance** estéreo necesita PulseAudio o PipeWire (`pactl`) y un flujo estéreo; si no, se desactiva.
 - Aún no hay MPRIS / teclas multimedia globales, ni reproducción sin pausas, ni reordenar canciones arrastrando dentro de las listas, y solo un servidor Airsonic a la vez.
 - Tus propias carpetas viven en Juke (*Carpetas*), el servidor Airsonic se recorre por sus carpetas y la biblioteca local por artista, álbum y género.

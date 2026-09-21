@@ -29,9 +29,6 @@ object LocalLibrary {
         }
     }
 
-    private fun albumArt(albumId: Long): String? =
-        if (albumId <= 0) null else ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId).toString()
-
     /** "/storage/emulated/0/Music/x.mp3" -> "/storage/emulated/0"; "/storage/1A2B-3C4D/..." -> "/storage/1A2B-3C4D". */
     private fun volumeRoot(path: String): String? {
         val parts = path.split('/')                                  // "", "storage", <vol>, ...
@@ -97,7 +94,7 @@ object LocalLibrary {
                     codec = cursor.getString(mime).orEmpty().substringAfter('/').uppercase().removePrefix("X-"),
                     bitRate = 0,
                     uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, songId).toString(),
-                    artworkUri = albumArt(cursor.getLong(albumId)),
+                    artworkUri = ArtProvider.uri(context, songId),         // read from the song itself, on every Android
                 )
                 tracks.getOrPut(parent) { ArrayList() } += (cursor.getInt(trackNo) % 1000) to song
             }

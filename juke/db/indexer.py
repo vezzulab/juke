@@ -177,6 +177,21 @@ def cover_path(key: str) -> Path:
 
 def extract_cover(path: str) -> bytes | None:
     """Embedded artwork bytes (ID3, FLAC, MP4, Vorbis) or a cover image next to the file."""
+    data = embedded_cover(path)
+    if data:
+        return data
+    folder = Path(path).parent
+    try:
+        for entry in sorted(folder.iterdir()):
+            if entry.suffix.lower() in _IMAGE_EXT and entry.stem.lower() in _FOLDER_ART:
+                return entry.read_bytes()
+    except OSError:
+        pass
+    return None
+
+
+def embedded_cover(path: str) -> bytes | None:
+    """The artwork inside the file itself (ID3, FLAC, MP4, Vorbis), if it has any."""
     import mutagen
     from mutagen.flac import FLAC, Picture
     from mutagen.id3 import ID3
@@ -200,16 +215,7 @@ def extract_cover(path: str) -> bytes | None:
                 data = Picture(base64.b64decode(tags["metadata_block_picture"][0])).data
         except Exception:
             data = None
-    if data:
-        return data
-    folder = Path(path).parent
-    try:
-        for entry in sorted(folder.iterdir()):
-            if entry.suffix.lower() in _IMAGE_EXT and entry.stem.lower() in _FOLDER_ART:
-                return entry.read_bytes()
-    except OSError:
-        pass
-    return None
+    return data or None
 
 
 def save_cover(key: str, data: bytes) -> bool:

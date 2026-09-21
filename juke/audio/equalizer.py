@@ -15,19 +15,38 @@ BAND_LABELS = ("60", "170", "310", "600", "1K", "3K", "6K", "12K", "14K", "16K")
 MIN_DB = -20.0
 MAX_DB = 20.0
 
-# name -> gains for BANDS_HZ (dB). Preamp is 0 for every built-in preset.
+# name -> gains for BANDS_HZ (dB). The curves are deliberately smooth: neighbouring bands never jump more than a few
+# dB, because a jagged curve sounds phasey rather than better. Every preset is played with the preamp of
+# ``headroom()`` below, so a boost never drives the signal into clipping.
 BUILTIN_PRESETS: dict[str, tuple[float, ...]] = {
     "Flat":        (0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
-    "Rock":        (4, 3, 2, -1, -2, -1, 2, 4, 5, 5),
-    "Pop":         (-1, 3, 4, 5, 3, 0, -1, -2, -2, -2),
-    "Jazz":        (3, 2, 1, 2, -2, -2, 0, 1, 2, 3),
-    "Bass Boost":  (7, 6, 5, 3, 1, 0, 0, 0, 0, 0),
-    "Vocal":       (-3, -3, -2, 1, 4, 4, 3, 1, 0, -1),
-    "Classical":   (0, 0, 0, 0, 0, 0, -2, -3, -3, -4),
-    "Electronic":  (5, 4, 1, 0, -2, 2, 1, 1, 4, 5),
-    "Heavy Metal": (5, 4, 0, -3, -1, 2, 5, 6, 5, 4),
-    "Techno":      (5, 4, 0, -4, -3, 0, 5, 6, 6, 5),
+    "Rock":        (5, 4, 1, -1, -1, 2, 4, 4, 4, 3),
+    "Pop":         (3, 2, 0, 0, 1, 3, 3, 3, 3, 2),
+    "Jazz":        (3, 2, 1, 0, 0, 1, 2, 2, 2, 2),
+    "Bass Boost":  (8, 6, 4, 2, 0, 0, 0, 0, 0, 0),
+    "Vocal":       (-3, -2, -1, 1, 3, 4, 3, 1, 1, 0),
+    "Classical":   (2, 1, 0, 0, 0, 1, 1, 2, 2, 2),
+    "Electronic":  (6, 5, 2, 0, -1, 1, 3, 4, 4, 4),
+    "Heavy Metal": (5, 4, 1, -1, 0, 3, 4, 4, 4, 3),
+    "Techno":      (6, 5, 2, -1, -2, 1, 3, 4, 5, 4),
+    # Caribbean genres, each tuned for what actually carries it: the sub kick of dembow and reggaeton, the brass and
+    # timbales of salsa, the tambora and güira of merengue, the requinto guitar of bachata.
+    "Dembow":      (7, 5, 2, -1, 0, 2, 4, 4, 4, 3),
+    "Reggaeton":   (6, 5, 2, 0, 1, 2, 3, 3, 3, 2),
+    "Salsa":       (2, 2, 0, 1, 2, 3, 4, 3, 3, 2),
+    "Merengue":    (4, 3, 0, 1, 2, 3, 4, 4, 4, 3),
+    "Bachata":     (3, 2, -1, 0, 2, 4, 4, 3, 3, 2),
 }
+
+
+def headroom(gains) -> float:
+    """The preamp a curve has to be played at so that its loudest boost cannot clip.
+
+    A song is already mastered close to the maximum, so lifting a band by +7 dB has nowhere to go and the sound
+    breaks up — the opposite of what the boost was for. Shifting the whole curve down by its own biggest boost keeps
+    the shape and the headroom; what is lost is loudness, which the volume knob gives back cleanly.
+    """
+    return -max(0.0, max(gains))
 
 
 def _clamp(value: float) -> float:
@@ -87,7 +106,7 @@ class Equalizer(QObject):
 
     # -- presets ---------------------------------------------------------------
     def _all_presets(self) -> dict[str, tuple[float, tuple[float, ...]]]:
-        presets = {name: (0.0, tuple(map(float, gains))) for name, gains in BUILTIN_PRESETS.items()}
+        presets = {name: (headroom(gains), tuple(map(float, gains))) for name, gains in BUILTIN_PRESETS.items()}
         for name, p in self.custom.items():
             presets[name] = (p["preamp"], tuple(p["gains"]))
         return presets

@@ -94,6 +94,18 @@ class SidebarDelegate(QStyledItemDelegate):
             x += side + 12
 
         right = pill.right() - 12
+        key = index.data(KEY_ROLE)
+        if key and key[0] == "device":                     # the eject button, at the end of the row like iTunes had it
+            box = QRectF(pill.right() - 32, pill.center().y() - 11, 22, 22)
+            over = getattr(option.widget, "eject_hover", None) == key
+            if over:
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(styles.qcolor(styles.OVERLAY, 230))
+                painter.drawRoundedRect(box, 7, 7)
+            shape = icons.glyph("eject", styles.TEXT if over or hovered or selected else styles.MUTED, 14)
+            painter.drawPixmap(int(box.center().x() - shape.width() / shape.devicePixelRatio() / 2),
+                               int(box.center().y() - shape.height() / shape.devicePixelRatio() / 2), shape)
+            right -= 30
         count = index.data(COUNT_ROLE)
         if kind in ("group", "folder"):
             painter.setPen(QPen(QColor(styles.MUTED), 1.8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
@@ -140,6 +152,10 @@ class Sidebar(QTreeWidget):
     restore_removed_requested = Signal()
     tracks_dropped = Signal(str, int, list)         # "playlist" | "folder", its id, track ids
     paths_dropped = Signal(int, list)               # folder id (0 = top level), files and directories from outside
+    device_tracks_dropped = Signal(str, list)       # device key, track ids dragged from the song table
+    device_paths_dropped = Signal(str, list)        # device key, files and folders dragged from the file manager
+    device_folder_dropped = Signal(str, int)        # device key, one of the user's folders dragged from this sidebar
+    device_eject_requested = Signal(str)            # device key
     folder_moved = Signal(int, int)                 # folder id, new parent id (0 = top level)
 
     def __init__(self, parent=None) -> None:
@@ -168,10 +184,12 @@ class Sidebar(QTreeWidget):
         self._items: dict[tuple[str, object], QTreeWidgetItem] = {}
         self._before_click: QTreeWidgetItem | None = None
         self.plus_hover: tuple | None = None           # the header (key) whose "+" the mouse is on
+        self.eject_hover: tuple | None = None          # the device (key) whose eject button the mouse is on
         self._folder_tree: dict = {}   # nested {name: {subname: {...}}} of the server's folders
         self._user_folders: dict[int | None, list] = {}    # parent id -> the folders (Music.juke) directly below it
         self._folder_by_id: dict[int, object] = {}
         self._root_sort = "name"
+        self._ready_devices: list[tuple[str, str]] = []    # (key, name) of the phones that can take songs now
 
         def header(name: str) -> QTreeWidgetItem:
             item = QTreeWidgetItem(self, [""])
@@ -191,6 +209,8 @@ class Sidebar(QTreeWidget):
             self._items[(key, None)] = item
             return item
 
+        devices = header("devices")                    # phones and tablets: above everything, and only while one is plugged in
+        devices.setHidden(True)
         library = header("library")
         for key, glyph, kind in (("all", "note", "item"), ("artists", "artist", "group"),
                                  ("albums", "album", "group"), ("genres", "genre", "group")):
@@ -204,6 +224,7 @@ class Sidebar(QTreeWidget):
         lists.setData(0, ACTION_ROLE, "plus")
         folders = header("folders")
         folders.setData(0, ACTION_ROLE, "plus")
+        self.expandItem(devices)
         self.expandItem(library)
         self.expandItem(servers)
         self.expandItem(radio)
@@ -335,17 +356,28 @@ class Sidebar(QTreeWidget):
     def _plus_at(self, pos) -> str | None:
         return next((n for n in self._PLUS_HEADERS if self._plus_rect(n).contains(pos)), None)
 
+    def _eject_rect(self, item: QTreeWidgetItem) -> QRect:
+        row = self.visualItemRect(item)
+        return QRect(row.right() - 32, row.center().y() - 11, 22, 22)
+
+    def _eject_at(self, pos) -> tuple | None:
+        """The key of the device whose eject button is under ``pos``."""
+        item = self.itemAt(pos)
+        key = item.data(0, KEY_ROLE) if item else None
+        return key if key and key[0] == "device" and self._eject_rect(item).contains(pos) else None
+
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
         name = self._plus_at(event.position().toPoint())
         hover = ("header", name) if name else None
-        if hover != self.plus_hover:
-            self.plus_hover = hover
+        eject = self._eject_at(event.position().toPoint())
+        if hover != self.plus_hover or eject != self.eject_hover:
+            self.plus_hover, self.eject_hover = hover, eject
             self.viewport().update()
         super().mouseMoveEvent(event)
 
     def leaveEvent(self, event) -> None:  # noqa: N802
-        if self.plus_hover:
-            self.plus_hover = None
+        if self.plus_hover or self.eject_hover:
+            self.plus_hover = self.eject_hover = None
             self.viewport().update()
         super().leaveEvent(event)
 
@@ -355,6 +387,9 @@ class Sidebar(QTreeWidget):
             if name:
                 QToolTip.showText(event.globalPos(), tr("playlist.new" if name == "lists" else "folder.new"), self.viewport())
                 return True
+            if self._eject_at(event.pos()):
+                QToolTip.showText(event.globalPos(), tr("device.eject"), self.viewport())
+                return True
         return super().viewportEvent(event)
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
@@ -362,6 +397,11 @@ class Sidebar(QTreeWidget):
             name = self._plus_at(event.position().toPoint())
             if name:
                 (self.new_playlist_requested.emit() if name == "lists" else self.new_folder_requested.emit(0))
+                event.accept()
+                return
+            eject = self._eject_at(event.position().toPoint())
+            if eject:
+                self.device_eject_requested.emit(eject[1])
                 event.accept()
                 return
         self._before_click = self.currentItem()
@@ -386,6 +426,8 @@ class Sidebar(QTreeWidget):
         if key and key[0] == "playlist":
             menu.addAction(tr("menu.rename"), lambda _c=False, pid=key[1]: self.rename_playlist_requested.emit(pid))
             menu.addAction(tr("menu.delete"), lambda _c=False, pid=key[1]: self.delete_playlist_requested.emit(pid))
+        elif key and key[0] == "device":
+            menu.addAction(tr("device.eject"), lambda k=key[1]: self.device_eject_requested.emit(k))
         elif key and key[0] == "ufolder":
             self._folder_menu(menu, item, int(key[1]))
         elif item is self._headers["folders"]:
@@ -411,6 +453,13 @@ class Sidebar(QTreeWidget):
         menu.addAction(tr("menu.play"), lambda: act("play", folder_id))
         menu.addAction(tr("menu.shuffle"), lambda: act("shuffle", folder_id))
         menu.addAction(tr("menu.add_to_queue"), lambda: act("queue", folder_id))
+        if len(self._ready_devices) == 1:
+            key, name = self._ready_devices[0]
+            menu.addAction(tr("menu.send_to_device", name=name), lambda: act("device:" + key, folder_id))
+        elif self._ready_devices:
+            send = menu.addMenu(tr("menu.send_to"))
+            for key, name in self._ready_devices:
+                send.addAction(name, lambda _c=False, k=key: act("device:" + k, folder_id))
         menu.addSeparator()
         menu.addAction(tr("menu.new_subfolder"), lambda: self.new_folder_requested.emit(folder_id))
         menu.addAction(tr("menu.rename"), lambda: self.rename_folder_requested.emit(folder_id))
@@ -520,6 +569,8 @@ class Sidebar(QTreeWidget):
         key = item.data(0, KEY_ROLE)
         kind = key[0] if key else None
         top = item is self._headers["folders"]
+        if kind == "device":
+            return "device" if mime.hasFormat(MIME_TRACKS) or mime.hasFormat(MIME_FOLDER) or mime.hasUrls() else None
         if mime.hasFormat(MIME_TRACKS):
             return "playlist" if kind == "playlist" else "folder" if kind == "ufolder" else None
         if mime.hasFormat(MIME_FOLDER) or mime.hasUrls():
@@ -591,6 +642,25 @@ class Sidebar(QTreeWidget):
             event.ignore()
             return
         key = item.data(0, KEY_ROLE)
+        if kind == "device":                             # songs (or files) dropped on a phone: they are copied onto it
+            import json
+
+            if mime.hasFormat(MIME_TRACKS):
+                try:
+                    ids = [int(i) for i in json.loads(bytes(mime.data(MIME_TRACKS)).decode())]
+                except (ValueError, TypeError):
+                    ids = []
+                if ids:
+                    self.device_tracks_dropped.emit(key[1], ids)
+            elif mime.hasFormat(MIME_FOLDER):
+                self.device_folder_dropped.emit(key[1], int(bytes(mime.data(MIME_FOLDER)).decode()))
+            else:
+                paths = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
+                if paths:
+                    self.device_paths_dropped.emit(key[1], paths)
+            event.setDropAction(self._action_for(event) or Qt.CopyAction)
+            event.accept()
+            return
         target = int(key[1]) if kind in ("folder", "playlist") else 0
         if mime.hasFormat(MIME_TRACKS):
             import json
@@ -631,6 +701,31 @@ class Sidebar(QTreeWidget):
             self.select(*current)
         self.viewport().update()
 
+    def set_devices(self, devices: list[tuple[str, str]], ready: set[str] | frozenset[str] = frozenset()) -> None:
+        """(key, name) of the phones and tablets that are plugged in, and which of them can take songs. The section
+        shows only when there is one."""
+        self._ready_devices = [(key, name) for key, name in devices if key in ready]
+        header = self._headers["devices"]
+        current = self.current_key()
+        self.blockSignals(True)
+        for key in [k for k in self._items if k[0] == "device"]:
+            header.removeChild(self._items.pop(key))
+        icon = icons.icon("device", styles.SUBTEXT, active=styles.ACCENT, size=18)
+        for key, name in devices:
+            item = QTreeWidgetItem(header, [name])
+            item.setData(0, KIND_ROLE, "item")
+            item.setData(0, KEY_ROLE, ("device", key))
+            item.setData(0, COUNT_ROLE, None)
+            item.setIcon(0, icon)
+            item.setData(0, ICON_ROLE, ("device", 18))
+            self._items[("device", key)] = item
+        header.setHidden(not devices)
+        header.setExpanded(True)
+        self.blockSignals(False)
+        if current in self._items:
+            self.select(*current)
+        self.viewport().update()
+
     def _clicked(self, item: QTreeWidgetItem) -> None:
         if item.data(0, KIND_ROLE) not in ("group", "folder"):
             return
@@ -662,7 +757,7 @@ class Sidebar(QTreeWidget):
         self.viewport().update()
 
     def retranslate(self) -> None:
-        titles = {"library": "sidebar.library", "servers": "sidebar.servers", "radio": "sidebar.radio",
+        titles = {"devices": "sidebar.devices", "library": "sidebar.library", "servers": "sidebar.servers", "radio": "sidebar.radio",
                   "lists": "sidebar.lists", "folders": "sidebar.folders"}
         for name, item in self._headers.items():
             item.setText(0, tr(titles[name]).upper())

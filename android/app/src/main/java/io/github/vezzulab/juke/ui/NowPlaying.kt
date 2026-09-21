@@ -201,7 +201,7 @@ private fun Extras(vm: JukeViewModel, onEqualizer: () -> Unit, onLyrics: () -> U
         )
         Key(R.drawable.ic_stop, stringResource(R.string.stop), vm::stop, size = 46.dp, icon = 18.dp, tint = muted)
         Key(R.drawable.ic_lyrics, stringResource(R.string.lyrics), onLyrics, size = 46.dp, icon = 20.dp, tint = if (vm.lyricsText.isNotBlank()) AccentA else muted, enabled = !vm.isLive)
-        Key(R.drawable.ic_mic, stringResource(R.string.karaoke), onKaraoke, size = 46.dp, icon = 20.dp, tint = if (vm.voiceReduction) AccentA else muted, enabled = !vm.isLive)
+        Key(R.drawable.ic_mic, stringResource(R.string.karaoke), onKaraoke, size = 46.dp, icon = 20.dp, tint = if (vm.lyricsLines.isNotEmpty()) AccentA else muted, enabled = !vm.isLive)
         Key(R.drawable.ic_sliders, stringResource(R.string.equalizer), onEqualizer, size = 46.dp, icon = 20.dp,
             tint = if (io.github.vezzulab.juke.playback.EqualizerHub.enabled) AccentA else muted)
     }

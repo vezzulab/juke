@@ -87,7 +87,6 @@
     <string name="lyrics_auto">Buscar letras en línea para canciones que no tienen</string>
     <string name="lyrics_auto_hint">Desactivado por defecto. Al activarlo, el nombre, el artista y la duración de una canción sin letra se envían a LRCLIB (lrclib.net) cuando empieza a sonar.</string>
     <string name="karaoke">Karaoke</string>
-    <string name="voice_reduce">Reducir voz</string>
     <string name="karaoke_no_times">Esta letra no tiene tiempos, así que no puede seguir la canción. Busca una versión sincronizada para cantar.</string>
     <string name="sort">Ordenar</string>
     <string name="sort_original">Orden original</string>

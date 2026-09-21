@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import logging
 import threading
@@ -26,11 +27,14 @@ from ..config import AUDIO_EXTENSIONS, Config
 from ..db.database import SOURCE_AIRSONIC, SOURCE_LOCAL, Database, Scope, Station, Track
 from .. import lyrics as lyrics_lib
 from ..db.folders import DB_NAME, PACKAGE_NAME, FolderStore, prepare_package
+from ..devices import mtp, transfer
+from ..devices.manager import DeviceManager
 from ..db.indexer import LibraryScanner, cover_key_for, cover_path, extract_cover, read_tags, save_cover
 from ..i18n import tr, translator, trn
 from ..power import on_battery
 from ..workers import AsyncWorker
 from . import icons, styles
+from .components.device_view import DeviceView
 from .components.lyrics_panel import LyricsPanel
 from .components.radio_view import RadioView
 from .components.sidebar import Sidebar
@@ -105,9 +109,15 @@ class MainWindow(QMainWindow):
         self.sidebar = Sidebar()
         self.table = TrackTable(db)
         self.radio_view = RadioView(db)
+        self.device_view = DeviceView()
+        self.devices = DeviceManager(self)
+        self._device_identity: tuple[str, str] | None = None     # which phone the page shows, to follow it when its USB key changes
+        self._known_devices: set[str] = set()
+        self._sent_progress = -1
         self.stack = QStackedWidget()
         self.stack.addWidget(self.table)
         self.stack.addWidget(self.radio_view)
+        self.stack.addWidget(self.device_view)
         self.add_station_button = QPushButton()
         self.add_station_button.setCursor(Qt.PointingHandCursor)
         self.add_station_button.hide()
@@ -284,6 +294,26 @@ class MainWindow(QMainWindow):
         self.sidebar.tracks_dropped.connect(self._tracks_dropped)
         self.sidebar.paths_dropped.connect(self._paths_dropped)
         self.sidebar.folder_moved.connect(self._folder_moved)
+        self.sidebar.device_tracks_dropped.connect(self._send_tracks_to_device)
+        self.sidebar.device_paths_dropped.connect(self._send_paths_to_device)
+        t.send_to_device_requested.connect(self._send_tracks_to_device)
+        self.devices.changed.connect(self._devices_changed)
+        self.devices.progress.connect(self._device_progress)
+        self.devices.sent.connect(self._device_sent)
+        self.devices.send_failed.connect(self._device_send_failed)
+        self.devices.reading.connect(self._device_reading)
+        self.devices.songs.connect(self._device_songs)
+        self.devices.read_failed.connect(self._device_read_failed)
+        self.devices.removed.connect(self._device_removed)
+        self.device_view.remove_requested.connect(self._remove_from_device)
+        self.device_view.eject_requested.connect(self._eject_device)
+        self.sidebar.device_eject_requested.connect(self._eject_device)
+        self.devices.ejected.connect(lambda _key, name: self.notify(tr("msg.device_ejected", name=name), 8000))
+        self.device_view.files_chosen.connect(self._send_paths_to_device)
+        self.device_view.folder_chosen.connect(self._send_folder_to_device)
+        self.sidebar.device_folder_dropped.connect(self._send_folder_to_device)
+        self.device_view.refresh_requested.connect(self.devices.refresh)
+        self.device_view.cancel_requested.connect(self.devices.cancel)
         t.add_to_folder_requested.connect(self._add_to_folder)
         t.new_folder_requested.connect(lambda ids: self._new_folder(0, ids))
         t.remove_from_folder_requested.connect(self._remove_from_folder)
@@ -498,6 +528,7 @@ class MainWindow(QMainWindow):
             QGuiApplication.applicationState() == Qt.ApplicationActive
         self.engine.set_ui_active(active)
         self.top_bar.set_animating(active and self._meter_allowed())
+        self.devices.set_active(active)
         if active and self.config.get("meter") == "auto" and self.engine.state == "playing":
             self._power_timer.start()     # the charger may be plugged in or out while we play
         else:
@@ -517,6 +548,7 @@ class MainWindow(QMainWindow):
         self._update_activity()
 
     def closeEvent(self, event) -> None:  # noqa: N802
+        self.devices.shutdown()
         self.radio_view.cancel()
         for worker in list(self._radio_workers):
             worker.cancel()
@@ -540,6 +572,7 @@ class MainWindow(QMainWindow):
         self.search.setPlaceholderText(tr("radio.search_placeholder") if self._radio_active() else tr("search.placeholder"))
         self.add_station_button.setText(tr("radio.add_url"))
         self.radio_view.retranslate()
+        self.device_view.retranslate()
         self.menu_button.setToolTip(tr("menu.more"))
         self.theme_button.setToolTip(tr("settings.theme"))
         self._build_theme_menu()
@@ -612,6 +645,161 @@ class MainWindow(QMainWindow):
     def notify(self, message: str, ms: int = 5000) -> None:
         self.statusBar().showMessage(message, ms)
 
+    # ------------------------------------------------------------------------------ phones and tablets
+    def _devices_changed(self) -> None:
+        found = self.devices.devices
+        self.sidebar.set_devices([(d.key, d.label) for d in found], {d.key for d in self.devices.ready()})
+        self.table.devices = [(d.key, d.label) for d in self.devices.ready()]
+        for device in found:
+            if device.key not in self._known_devices:
+                self.notify(tr("msg.device_connected", name=device.label), 4000)
+        self._known_devices = {d.key for d in found}
+        if self._view[0] != "device":
+            return
+        device = self.devices.get(str(self._view[1]))
+        if device is None and self._device_identity:              # choosing "File transfer" re-plugs it under a new key
+            device = next((d for d in found if (d.vendor, d.product) == self._device_identity), None)
+        if device is None:
+            self.sidebar.select("all")
+            self._show_view("all", None)
+            return
+        self.sidebar.select("device", device.key)
+        self._show_view("device", device.key)
+
+    def _send_tracks_to_device(self, key: str, ids: list[int], folder: str = "") -> None:
+        items: list[transfer.Item] = []
+        for track in self.db.tracks_by_ids(ids):
+            if track.is_local:
+                items.append(transfer.Item(os.path.basename(track.location), track.artist, track.album, path=track.location,
+                                           folder=folder, cover_key=track.cover_key))
+            elif track.source_type == SOURCE_AIRSONIC and self.airsonic is not None:
+                name = f"{track.track_no:02d} {track.title}" if track.track_no else track.title
+                cover = self.airsonic.cover_art_url(track.cover_key[3:], 800) if track.cover_key.startswith("as_") else ""
+                items.append(transfer.Item(name, track.artist, track.album, url=self.airsonic.build_url("download.view", id=track.location),
+                                           folder=folder, cover_url=cover))
+        self._start_send(key, items)
+
+    def _send_folder_to_device(self, key: str, folder_id: int) -> None:
+        """One of the user's own folders, with the folders inside it."""
+        ids = self._folder_ids(folder_id)
+        if not ids:
+            self.notify(tr("empty.folder.title"), 3000)
+            return
+        folder = self.folders.get(folder_id)
+        self._send_tracks_to_device(key, ids, folder.name if folder else "")      # one folder there for the whole Juke folder
+
+    def _send_paths_to_device(self, key: str, paths: list[str]) -> None:
+        items: list[transfer.Item] = []
+        for path in paths:
+            name = os.path.basename(path.rstrip("/")) if os.path.isdir(path) else ""      # a folder of files stays one folder
+            items += [transfer.Item(os.path.basename(f), path=f, folder=name) for f in mtp.iter_audio([path], AUDIO_EXTENSIONS)]
+        self._start_send(key, items)
+
+    def _start_send(self, key: str, items: list[transfer.Item]) -> None:
+        device = self.devices.get(key)
+        if device is None or device.state != "ready":
+            return
+        if not items:
+            self.notify(tr("msg.device_no_songs"), 6000)
+            return
+        if self.devices.sending:
+            self.notify(tr("msg.device_busy"), 4000)
+            return
+        self._sent_progress = -1
+        if self.devices.send(key, items, self.device_view.storage_for(device)) and self._view == ("device", key):
+            self.device_view.set_sending(True)
+            self.device_view.set_progress(0, len(items), "", 0.0)
+
+    def _device_progress(self, key: str, done: int, total: int, name: str, fraction: float) -> None:
+        if self._view == ("device", key):
+            self.device_view.set_progress(done, total, name, fraction)
+        if done != self._sent_progress:                            # the status bar, for whoever is looking at another page
+            self._sent_progress = done
+            device = self.devices.get(key)
+            if done < total and device is not None:
+                self.notify(f"{device.label} · {tr('device.sending', done=done + 1, total=total)}", 0)
+
+    def _device_sent(self, key: str, result) -> None:
+        device = self.devices.get(key)
+        name = device.label if device else ""
+        if device is not None and result.storage and len([s for s in device.storages if s.writable]) > 1:
+            name += f" ({result.storage})"                       # which one it went to, when there was a choice
+        if self._view == ("device", key):
+            self.device_view.set_sending(False)
+            self.device_view.show_device(device)
+        if result.cancelled:
+            text = tr("msg.device_stopped", name=name)
+        elif result.sent:
+            text = trn("msg.device_sent", result.sent, name=name)
+        else:
+            text = tr("msg.device_nothing", name=name) if not result.failed else trn("msg.device_failed", len(result.failed))[3:]
+        if result.sent and result.skipped:
+            text += trn("msg.device_skipped", result.skipped)
+        if result.sent and result.failed:
+            text += trn("msg.device_failed", len(result.failed))
+        self.notify(text, 9000)
+        if result.sent:
+            self._reread_device(key)
+
+    def _reread_device(self, key: str, tries: int = 20) -> None:
+        """What the device holds changed (songs sent or removed): read it again if its page is open. The job that
+        changed it is still finishing when this is called, so it waits a moment for it."""
+        if self._view != ("device", key):
+            return
+        if self.devices.working or self.devices.reading_now:
+            if tries:
+                QTimer.singleShot(150, lambda: self._reread_device(key, tries - 1))
+            return
+        if not self.devices.read_songs(key):
+            self.device_view.set_reading(None)
+
+    def _device_reading(self, key: str, count: int) -> None:
+        if self._view == ("device", key):
+            self.device_view.set_reading(count)
+
+    def _device_songs(self, key: str, songs: list) -> None:
+        if self._view == ("device", key):
+            self.device_view.set_songs(songs)
+
+    def _device_read_failed(self, key: str, why: str) -> None:
+        device = self.devices.get(key)
+        if self._view == ("device", key):
+            self.device_view.set_reading(None)
+        self.notify(tr("msg.device_read_failed", name=device.label if device else "", why=why), 9000)
+
+    def _eject_device(self, key: str) -> None:
+        device = self.devices.get(key)
+        if device is None:
+            return
+        if self.devices.working or self.devices.reading_now:
+            if self.devices.working and not confirm(self, tr("device.eject_title"), tr("device.eject_busy", name=device.label)):
+                return
+        self.devices.eject(key)
+
+    def _remove_from_device(self, key: str, songs: list) -> None:
+        device = self.devices.get(key)
+        if device is None or not songs:
+            return
+        if not confirm(self, tr("device.remove_title"), trn("device.remove_ask", len(songs), name=device.label)):
+            return
+        if self.devices.remove(key, songs):
+            self.device_view.set_reading(0)
+
+    def _device_removed(self, key: str, removed: int, failed: int) -> None:
+        device = self.devices.get(key)
+        text = trn("msg.device_removed", removed, name=device.label if device else "")
+        if failed:
+            text += trn("msg.device_remove_failed", failed)
+        self.notify(text, 8000)
+        self._reread_device(key)
+
+    def _device_send_failed(self, key: str, why: str) -> None:
+        device = self.devices.get(key)
+        if self._view == ("device", key):
+            self.device_view.set_sending(False)
+        self.notify(tr("msg.device_error", name=device.label if device else "", why=why), 9000)
+        self.devices.refresh()
+
     # ------------------------------------------------------------------------------ library views
     def refresh_library(self) -> None:
         """Re-read groups/counts and reload the current view after the library changed."""
@@ -670,6 +858,27 @@ class MainWindow(QMainWindow):
 
     def _show_view(self, key: str, value: object) -> None:
         self._view = (key, value)
+        if key == "device":
+            device = self.devices.get(str(value))
+            self._device_identity = (device.vendor, device.product) if device else None
+            self.add_station_button.hide()
+            self.search.blockSignals(True)
+            self.search.clear()                                # what was typed for songs is not a search of the device
+            self.search.blockSignals(False)
+            self.search.setPlaceholderText(tr("search.placeholder"))
+            self.device_view.filter("")
+            self.device_view.show_device(device)
+            self.device_view.set_sending(self.devices.sending == value)
+            if not self.devices.sending:
+                self.devices.refresh()                          # a card may have been put in or taken out meanwhile
+            if device is not None and device.state == "ready":
+                self.device_view.clear_songs()
+                self.device_view.set_reading(0)
+                if not self.devices.read_songs(device.key):
+                    self.device_view.set_reading(None)
+            self.stack.setCurrentWidget(self.device_view)
+            self._update_heading()
+            return
         radio = key in ("stations", "explore")
         switching = radio or self._radio_active()
         self.stack.setCurrentWidget(self.radio_view if radio else self.table)
@@ -699,6 +908,9 @@ class MainWindow(QMainWindow):
             self.sync_airsonic()
 
     def _apply_search(self) -> None:
+        if self._view[0] == "device":
+            self.device_view.filter(self.search.text())
+            return
         if self._radio_active():
             self.radio_view.set_filter_text(self.search.text())
             return
@@ -724,6 +936,11 @@ class MainWindow(QMainWindow):
                    "explore": "sidebar.explore"}.get(key, "sidebar.all"))
 
     def _update_heading(self) -> None:
+        if self._view[0] == "device":
+            device = self.devices.get(str(self._view[1]))
+            self.title_label.setText(device.label if device else "")
+            self.subtitle_label.setText(tr("device.subtitle") if device and device.state == "ready" else "")
+            return
         if self._view[0] in ("stations", "explore"):
             self.title_label.setText(self._view_title())
             self.subtitle_label.setText(self.radio_view.summary())
@@ -1076,6 +1293,7 @@ class MainWindow(QMainWindow):
     def refresh_folders(self) -> None:
         self.sidebar.set_user_folders(self.folders.tree(), self.folders.root_sort())
         self.table.set_folders(self.folders.tree())
+        self.device_view.set_folders(self.folders.tree())
         self._view_timer.start()                      # Music.juke/Folders follows, a moment after the last change
 
     def _write_folder_view(self) -> None:
@@ -1155,6 +1373,9 @@ class MainWindow(QMainWindow):
         self.start_scan()
 
     def _folder_action(self, action: str, folder_id: int) -> None:
+        if action.startswith("device:"):
+            self._send_folder_to_device(action[len("device:"):], folder_id)
+            return
         if action == "duplicate":
             copy = self.folders.duplicate(folder_id)
             self.refresh_folders()

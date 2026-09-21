@@ -43,6 +43,11 @@ class MainActivity : AppCompatActivity() {
         setContent { JukeTheme(vm.theme) { JukeRoot(vm, onLanguage = ::applyLanguage, onGrantAudio = { askAudio.launch(audioPermission) }) } }
     }
 
+    override fun onStart() {
+        super.onStart()
+        vm.onForeground()                       // songs may have been copied over while the app was away
+    }
+
     /** The whole screen belongs to the music: the system bars stay away until they are swiped in. */
     private fun immersive() {
         WindowCompat.setDecorFitsSystemWindows(window, false)

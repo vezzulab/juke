@@ -87,7 +87,6 @@
     <string name="lyrics_auto">Search lyrics online for songs that have none</string>
     <string name="lyrics_auto_hint">Off by default. When on, the name, artist and length of a song without lyrics are sent to LRCLIB (lrclib.net) as it starts to play.</string>
     <string name="karaoke">Karaoke</string>
-    <string name="voice_reduce">Reduce voice</string>
     <string name="karaoke_no_times">These lyrics have no times, so they cannot follow the song. Find a synced version to sing along.</string>
     <string name="sort">Sort</string>
     <string name="sort_original">Original order</string>

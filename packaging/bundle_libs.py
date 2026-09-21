@@ -70,6 +70,14 @@ def main(appdir: Path) -> None:
         shutil.copy2(real, lib_dir / soname)
         roots.append(lib_dir / soname)
 
+    # libmtp (phones and tablets over USB): Juke talks to the device itself, so no gvfs / file manager is needed
+    try:
+        real = find_lib("libmtp.so.9").resolve()
+        shutil.copy2(real, lib_dir / "libmtp.so.9")
+        roots.append(lib_dir / "libmtp.so.9")
+    except SystemExit:
+        print("   (libmtp not installed here: the AppImage will not see phones)")
+
     source = find_plugin_root()
     for name in PLUGIN_DIRS:
         for plugin in (source / name).glob("*.so"):

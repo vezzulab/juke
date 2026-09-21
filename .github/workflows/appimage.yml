@@ -19,7 +19,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libvlc5 libvlccore9 vlc-plugin-base rsync squashfs-tools desktop-file-utils \
+            libvlc5 libvlccore9 vlc-plugin-base libmtp9 rsync squashfs-tools desktop-file-utils \
             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
             libxcb-shape0 libxcb-xkb1 libxkbcommon-x11-0 libxcb-xinerama0 \
             libegl1 libgl1 libopengl0 libxkbcommon0 libfontconfig1 libdbus-1-3 libglib2.0-0
@@ -49,6 +49,7 @@ jobs:
       - name: Sanity checks
         run: |
           test -f build/AppDir/usr/lib/libvlc.so.5
+          test -f build/AppDir/usr/lib/libmtp.so.9
           test -f build/AppDir/usr/lib/vlc/plugins/audio_output/libpulse_plugin.so
           ./dist/Juke-x86_64.AppImage --appimage-extract-and-run --version
 

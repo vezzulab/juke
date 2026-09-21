@@ -62,7 +62,7 @@ An idle Juke makes **no wake-ups at all**. Playing on battery it uses about **1 
 <td valign="top">
 
 ### 10-band equalizer
-Ten bands (60 Hz – 16 kHz), ±20 dB preamp, ten built-in presets and your own. It runs through libVLC's native equalizer on one long-lived player, so switching songs — or tuning in a radio station — never resets it.
+Ten bands (60 Hz – 16 kHz), ±20 dB preamp, fifteen built-in presets (including **Dembow, Reggaeton, Salsa, Merengue and Bachata**) and your own. Every preset is played with its own headroom, so a bass boost never makes the sound break up. It runs through libVLC's native equalizer on one long-lived player, so switching songs — or tuning in a radio station — never resets it.
 
 </td>
 <td valign="top">
@@ -158,7 +158,7 @@ Compose and Media3.
 - 10-band equalizer, English and Spanish, dark and light.
 - *Settings ▸ Help* has **Send feedback** and the app's **log**, with private details hidden, and a **Support on Ko-fi** button.
 - The same twenty colour themes, in *Settings ▸ Colors*.
-- **Lyrics and karaoke.** Find lyrics by the song's name or paste them, see them follow the song, and switch to **Karaoke**: big lines, a countdown into each phrase, and **Reduce voice**, which takes the lead singer out of the song.
+- **Lyrics and karaoke.** Find lyrics by the song's name or paste them, see them follow the song, and switch to **Karaoke**: big lines, and a countdown into each phrase.
 - **Sort** folders and songs A → Z or Z → A, in the library and on the server.
 - Better on the lock screen: the player card, the notification and headset or Bluetooth buttons work, tapping the notification opens Juke, and the system can resume what was playing. The time bar follows your finger and shows where you jump at once.
 
@@ -333,7 +333,7 @@ The suite has over a hundred tests, including real playback through libVLC (skip
 ## Known limits
 
 - The spectrum in the LCD is an **animated meter, not an analyser** — libVLC does not expose FFT data.
-- **Karaoke** (full-screen lyrics with a countdown and voice reduction) is on Android. On Linux you get the synced lyrics column; libVLC's own vocal-removal filter cannot be switched on from Python.
+- **Karaoke** (full-screen lyrics with a countdown into each phrase) is on Android. On Linux you get the synced lyrics column. Juke never processes the sound of your songs beyond the equalizer you choose.
 - Stereo **balance** needs PulseAudio or PipeWire (`pactl`) and a stereo stream; it is disabled otherwise.
 - No MPRIS / global media keys yet, no gapless playback, no drag-and-drop reordering inside playlists, one Airsonic server at a time.
 - Your own folders live in Juke (*Folders*), the Airsonic server is browsed by its folders, and the local library by artist, album and genre.

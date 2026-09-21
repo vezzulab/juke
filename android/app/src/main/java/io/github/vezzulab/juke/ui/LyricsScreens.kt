@@ -167,7 +167,7 @@ private fun LyricsFinder(vm: JukeViewModel, onDone: () -> Unit) {
     }
 }
 
-/** Karaoke: big lines that follow the song, a countdown into each phrase, and the voice reduction switch. */
+/** Karaoke: big lines that follow the song, with a countdown into each phrase. The sound is never touched. */
 @Composable
 fun KaraokeScreen(vm: JukeViewModel, onClose: () -> Unit, onLyrics: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -181,10 +181,6 @@ fun KaraokeScreen(vm: JukeViewModel, onClose: () -> Unit, onLyrics: () -> Unit) 
             Column(Modifier.weight(1f).padding(start = 6.dp)) {
                 Text(vm.itemTitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
                 Text(vm.artist, maxLines = 1, overflow = TextOverflow.Ellipsis, color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(stringResource(R.string.voice_reduce), style = MaterialTheme.typography.labelMedium, color = if (vm.voiceReduction) AccentA else colors.onSurfaceVariant)
-                Switch(vm.voiceReduction, vm::changeVoiceReduction)
             }
         }
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {

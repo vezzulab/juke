@@ -83,7 +83,10 @@ class FoldersGuiTests(unittest.TestCase):
     # ------------------------------------------------------------------------------------------
     def test_sidebar_order_and_what_no_longer_lives_there(self):
         sidebar = self.sidebar
-        headers = [sidebar.topLevelItem(i).text(0) for i in range(sidebar.topLevelItemCount())]
+        top = [sidebar.topLevelItem(i) for i in range(sidebar.topLevelItemCount())]
+        self.assertEqual(top[0].text(0), "DEVICES")                # first of all, and out of sight until a phone is plugged in
+        self.assertTrue(top[0].isHidden())
+        headers = [item.text(0) for item in top if not item.isHidden()]
         self.assertEqual(headers, ["LIBRARY", "SERVERS", "RADIO", "PLAYLISTS", "FOLDERS"])
         for gone in ("favorites", "recent", "queue"):
             self.assertNotIn((gone, None), sidebar._items)

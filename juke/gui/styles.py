@@ -245,6 +245,10 @@ QTableView {{
 QTableView::item {{ padding: 0 8px; border: none; }}
 QTableView::item:hover {{ background: {rgba(ACCENT2, 0.07)}; }}
 QTableView::item:selected {{ background: {rgba(ACCENT, 0.24)}; }}
+QTreeWidget#deviceSongs {{ background: transparent; border: none; }}
+QTreeWidget#deviceSongs::item {{ padding: 5px 6px; border-radius: 8px; }}
+QTreeWidget#deviceSongs::item:hover {{ background: {SURFACE}; }}
+QTreeWidget#deviceSongs::item:selected {{ background: {rgba(ACCENT, 0.24)}; }}
 QHeaderView {{ background: {BASE}; }}
 QHeaderView::section {{
     background: {BASE}; color: {SUBTEXT}; border: none; border-bottom: 1px solid {BORDER};

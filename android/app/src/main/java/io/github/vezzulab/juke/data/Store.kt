@@ -16,9 +16,6 @@ class Store(context: Context) {
         get() = prefs.getString("theme", "dark").orEmpty()
         set(v) { prefs.edit().putString("theme", v).apply() }
 
-    var voiceReduction: Boolean           // karaoke: take the lead voice out of the song
-        get() = prefs.getBoolean("voice_reduction", false)
-        set(v) { prefs.edit().putBoolean("voice_reduction", v).apply() }
 
     var lyricsAuto: Boolean               // ask LRCLIB for songs that have no lyrics (off: only when asked)
         get() = prefs.getBoolean("lyrics_auto", false)

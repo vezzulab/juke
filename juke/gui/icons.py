@@ -48,6 +48,8 @@ _GLYPHS: dict[str, tuple[str, str]] = {
     "playlist": ("stroke", '<path d="M4 6h16M4 12h16M4 18h9"/><path d="M17 18h4M19 16v4"/>'),
     "sliders": ("stroke", '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1.5 14h5M9.5 8h5M17.5 16h5"/>'),
     "refresh": ("stroke", '<path d="M22 4v6h-6M2 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L22 10M2 14l3.6 4.4A9 9 0 0 0 20.5 15"/>'),
+    "eject": ("stroke", '<path d="M12 4.5 20 14H4z"/><path d="M5 19h14"/>'),
+    "device": ("stroke", '<rect x="5" y="2.5" width="14" height="19" rx="2.6"/><path d="M10.5 18.4h3"/>'),
     "folder": ("stroke", '<path d="M21.5 18.5a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h4.5l2 3h8.5a2 2 0 0 1 2 2z"/>'),
     "trash": ("stroke", '<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>'),
     "close": ("stroke", '<path d="M6 6l12 12M18 6L6 18"/>'),

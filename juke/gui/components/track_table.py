@@ -213,6 +213,7 @@ class TrackTable(QTableView):
     add_to_folder_requested = Signal(int, list)     # folder id, track ids
     new_folder_requested = Signal(list)             # create a folder holding these tracks
     remove_from_folder_requested = Signal(list)
+    send_to_device_requested = Signal(str, list)    # device key, track ids
     action_requested = Signal()                     # the button of an empty-state message
 
     def __init__(self, db: Database, parent=None) -> None:
@@ -224,6 +225,7 @@ class TrackTable(QTableView):
         self.folder_mode = False                    # showing one of the user's folders: songs can be taken out of it
         self.duplicate_mode: str | None = None      # showing copies of songs ("same" | "exact")
         self.playlists: list[tuple[int, str]] = []
+        self.devices: list[tuple[str, str]] = []        # (key, name) of the phones that are ready to take songs
         self._folder_children: dict[int | None, list] = {}
         self.empty_title = ""
         self.empty_hint = ""
@@ -357,6 +359,13 @@ class TrackTable(QTableView):
         if self.playlist_mode:
             menu.addAction(tr("menu.remove_from_playlist"), lambda: self.remove_from_playlist_requested.emit(ids))
         self._add_folder_menu(menu, ids)
+        if len(self.devices) == 1:
+            key, name = self.devices[0]
+            menu.addAction(tr("menu.send_to_device", name=name), lambda: self.send_to_device_requested.emit(key, ids))
+        elif self.devices:
+            send = menu.addMenu(tr("menu.send_to"))
+            for key, name in self.devices:
+                send.addAction(name, lambda _c=False, k=key: self.send_to_device_requested.emit(k, ids))
         if self.folder_mode:
             menu.addAction(tr("menu.remove_from_folder"), lambda: self.remove_from_folder_requested.emit(ids))
         menu.addSeparator()

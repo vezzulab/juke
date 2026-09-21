@@ -2,7 +2,12 @@ package io.github.vezzulab.juke
 
 import android.app.Application
 import android.content.ComponentName
+import android.database.ContentObserver
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.provider.MediaStore
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -20,11 +25,11 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import io.github.vezzulab.juke.data.*
 import io.github.vezzulab.juke.playback.EqualizerHub
-import io.github.vezzulab.juke.playback.KaraokeHub
 import io.github.vezzulab.juke.ui.Accents
 import io.github.vezzulab.juke.playback.PlaybackService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** What a browser screen is showing right now. */
@@ -59,6 +64,7 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val scanned = LocalLibrary.scan(getApplication())
                 tree = scanned
+                lastLook = SystemClock.elapsedRealtime()
                 localCrumbs.clear()
                 if (scanned.roots.size == 1) localCrumbs += scanned.roots.first()     // only one card or one storage: go straight in
                 showLocal()
@@ -69,6 +75,38 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    // Songs that arrive while the app is open or asleep (copied over USB, downloaded, put on the card) show up by themselves:
+    // Android tells us when its music index changes, and a look is taken every time the app comes back to the front.
+    private var lastLook = 0L
+    private var refreshJob: Job? = null
+    private val mediaWatcher = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) { refreshSoon(2_000) }
+    }
+    init { app.contentResolver.registerContentObserver(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, mediaWatcher) }
+
+    /** A copy of a folder of songs makes hundreds of changes in a row: look once, when they have stopped. */
+    private fun refreshSoon(afterMs: Long) {
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch { delay(afterMs); refreshLocal() }
+    }
+
+    /** Read the library again without the spinner and without losing the folder that is open. */
+    fun refreshLocal() {
+        if (!hasAudioPermission || tree == null) return
+        lastLook = SystemClock.elapsedRealtime()
+        viewModelScope.launch {
+            try {
+                tree = LocalLibrary.scan(getApplication())
+                showLocal()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                AppLog.w("library", "Refreshing the library failed", e)
+            }
+        }
+    }
+
+    fun onForeground() { if (SystemClock.elapsedRealtime() - lastLook > 20_000) refreshSoon(300) }
 
     var sortOrder by mutableStateOf(runCatching { SortOrder.valueOf(store.sortOrder) }.getOrDefault(SortOrder.Original)); private set
     private var remoteRaw: BrowseState = BrowseState.Idle
@@ -196,17 +234,15 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
     var currentTrackId by mutableStateOf<String?>(null); private set
     var hasMedia by mutableStateOf(false); private set
 
-    // ---- lyrics and karaoke ----------------------------------------------------------------------
+    // ---- lyrics (and the karaoke page that follows them) ----------------------------------------------------------------------
     private val lyricsStore = LyricsStore(app)
     var lyricsText by mutableStateOf(""); private set
     var lyricsLines by mutableStateOf<List<LyricLine>>(emptyList()); private set        // the same lyrics with times, when they have them
     var lyricsAuto by mutableStateOf(store.lyricsAuto); private set
-    var voiceReduction by mutableStateOf(store.voiceReduction.also { KaraokeHub.voiceReduction = it }); private set
     private var lyricsFor: String? = null
     private val lyricsTried = HashSet<String>()
 
     fun changeLyricsAuto(on: Boolean) { lyricsAuto = on; store.lyricsAuto = on; if (on) loadLyrics() }
-    fun changeVoiceReduction(on: Boolean) { voiceReduction = on; store.voiceReduction = on; KaraokeHub.voiceReduction = on }
 
     private fun loadLyrics() {
         val id = currentTrackId
@@ -436,5 +472,9 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
         if (i >= 0) { stations[i] = fresh; store.stations = stations.toList() }
     }
 
-    override fun onCleared() { controller?.release(); super.onCleared() }
+    override fun onCleared() {
+        getApplication<Application>().contentResolver.unregisterContentObserver(mediaWatcher)
+        controller?.release()
+        super.onCleared()
+    }
 }
