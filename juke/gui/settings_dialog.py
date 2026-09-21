@@ -10,6 +10,8 @@ from ..api.airsonic import AirsonicClient, normalize_base_url
 from ..config import Config
 from ..i18n import LANGUAGES, tr
 from ..workers import AsyncWorker
+from . import styles
+from .icons import theme_swatch
 
 
 class SettingsDialog(QDialog):
@@ -52,8 +54,13 @@ class SettingsDialog(QDialog):
         self.language.setCurrentIndex(max(0, self.language.findData(self._config.get("language"))))
         form.addRow(tr("settings.language"), self.language)
         self.theme = QComboBox()
-        for value, label in (("auto", "settings.theme_auto"), ("dark", "settings.theme_dark"), ("light", "settings.theme_light")):
-            self.theme.addItem(tr(label), value)
+        names = {"auto": "settings.theme_auto", "dark": "settings.theme_dark", "light": "settings.theme_light"}
+        for value in ("auto", "dark", "light", *styles.COLOR_THEMES):
+            label = tr(names.get(value, f"theme.{value}"))
+            if value == "auto":
+                self.theme.addItem(label, value)
+            else:
+                self.theme.addItem(theme_swatch(value), label, value)
         self.theme.setCurrentIndex(max(0, self.theme.findData(self._config.get("theme"))))
         form.addRow(tr("settings.theme"), self.theme)
         self.meter = QComboBox()
@@ -72,6 +79,13 @@ class SettingsDialog(QDialog):
         updates_hint.setObjectName("muted")
         updates_hint.setWordWrap(True)
         form.addRow("", updates_hint)
+        self.lyrics_auto = QCheckBox(tr("settings.lyrics_auto"))
+        self.lyrics_auto.setChecked(bool(self._config.get("lyrics.auto_search")))
+        form.addRow("", self.lyrics_auto)
+        lyrics_hint = QLabel(tr("settings.lyrics_auto_hint"))
+        lyrics_hint.setObjectName("muted")
+        lyrics_hint.setWordWrap(True)
+        form.addRow("", lyrics_hint)
         self.integration = QCheckBox(tr("settings.integration"))
         self.integration.setChecked(integration_installed)
         form.addRow("", self.integration)
@@ -195,6 +209,7 @@ class SettingsDialog(QDialog):
         config.set("theme", self.theme.currentData())
         config.set("meter", self.meter.currentData())
         config.set("update.enabled", self.updates.isChecked())
+        config.set("lyrics.auto_search", self.lyrics_auto.isChecked())
         config.set("airsonic", {
             "enabled": self.as_enabled.isChecked(), "url": normalize_base_url(self.as_url.text()),
             "username": self.as_user.text().strip(), "password": self.as_password.text(),

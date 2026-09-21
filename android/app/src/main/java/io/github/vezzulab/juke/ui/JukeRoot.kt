@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.vezzulab.juke.JukeViewModel
 import io.github.vezzulab.juke.R
 
@@ -37,9 +38,13 @@ fun JukeRoot(vm: JukeViewModel, onLanguage: (String) -> Unit, onGrantAudio: () -
     var dest by rememberSaveable { mutableStateOf(Dest.Card) }
     var showPlayer by rememberSaveable { mutableStateOf(false) }
     var showEq by rememberSaveable { mutableStateOf(false) }
+    var showLyrics by rememberSaveable { mutableStateOf(false) }
+    var showKaraoke by rememberSaveable { mutableStateOf(false) }
     var showAdd by rememberSaveable { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
 
+    BackHandler(enabled = showKaraoke) { showKaraoke = false }
+    BackHandler(enabled = showLyrics && !showKaraoke) { showLyrics = false }
     BackHandler(enabled = showAdd) { showAdd = false }
     BackHandler(enabled = showEq && !showAdd) { showEq = false }
     BackHandler(enabled = showPlayer && !showEq && !showAdd) { showPlayer = false }
@@ -63,22 +68,41 @@ fun JukeRoot(vm: JukeViewModel, onLanguage: (String) -> Unit, onGrantAudio: () -
                 }
                 if (!wide) MiniPlayer(vm, onOpen = { showPlayer = true })
                 if (!rail) Bar(dest) { dest = it }
+                Credit()
             }
             if (wide) {
                 Box(Modifier.width(420.dp).fillMaxHeight().padding(10.dp).chassis(26.dp, colors.surfaceContainerLow)) {
-                    NowPlaying(vm, onEqualizer = { showEq = true })
+                    NowPlaying(vm, onEqualizer = { showEq = true }, onLyrics = { showLyrics = true }, onKaraoke = { showKaraoke = true })
                 }
             }
         }
         AnimatedVisibility(showPlayer && !wide, enter = slideInVertically { it }, exit = slideOutVertically { it }) {
             Box(Modifier.fillMaxSize().background(colors.background).windowInsetsPadding(WindowInsets.safeDrawing)) {
-                NowPlaying(vm, onEqualizer = { showEq = true }, onClose = { showPlayer = false })
+                NowPlaying(vm, onEqualizer = { showEq = true }, onClose = { showPlayer = false }, onLyrics = { showLyrics = true }, onKaraoke = { showKaraoke = true })
+            }
+        }
+        AnimatedVisibility(showLyrics, enter = slideInVertically { it }, exit = slideOutVertically { it }) {
+            Box(Modifier.fillMaxSize().background(colors.background).windowInsetsPadding(WindowInsets.safeDrawing)) {
+                LyricsScreen(vm, onClose = { showLyrics = false }, onKaraoke = { showKaraoke = true })
+            }
+        }
+        AnimatedVisibility(showKaraoke, enter = slideInVertically { it }, exit = slideOutVertically { it }) {
+            Box(Modifier.fillMaxSize().background(colors.background).windowInsetsPadding(WindowInsets.safeDrawing)) {
+                KaraokeScreen(vm, onClose = { showKaraoke = false }, onLyrics = { showKaraoke = false; showLyrics = true })
             }
         }
         AddStationSheet(vm, showAdd) { showAdd = false }
         EqualizerSheet(showEq) { showEq = false }
         androidx.compose.animation.AnimatedVisibility(opening, exit = androidx.compose.animation.fadeOut()) { Splash { opening = false } }
     }
+}
+
+/** "Juke by Vezzu Studio", quiet, in the middle at the very bottom of the app. */
+@Composable
+private fun Credit() {
+    Text("Juke by Vezzu Studio", Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 6.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f), maxLines = 1,
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium))
 }
 
 @Composable

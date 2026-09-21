@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ComponentName
 import android.os.Bundle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -19,6 +20,8 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import io.github.vezzulab.juke.data.*
 import io.github.vezzulab.juke.playback.EqualizerHub
+import io.github.vezzulab.juke.playback.KaraokeHub
+import io.github.vezzulab.juke.ui.Accents
 import io.github.vezzulab.juke.playback.PlaybackService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -36,8 +39,8 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
     val store = Store(app)
     val stations = mutableStateListOf<Station>()
 
-    var theme by mutableStateOf(store.theme); private set
-    fun applyTheme(value: String) { theme = value; store.theme = value }
+    var theme by mutableStateOf(store.theme.also { id -> Accents.use(id) }); private set
+    fun applyTheme(value: String) { theme = value; store.theme = value; Accents.use(value) }
 
     // ---- the SD card and the device's own storage ------------------------------------------------
     private var tree: LocalLibrary.Tree? = null
@@ -67,13 +70,29 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    var sortOrder by mutableStateOf(runCatching { SortOrder.valueOf(store.sortOrder) }.getOrDefault(SortOrder.Original)); private set
+    private var remoteRaw: BrowseState = BrowseState.Idle
+
+    /** The list in the chosen order. Volumes (card, internal storage) keep their own order; songs sort by title. */
+    private fun ordered(state: BrowseState): BrowseState {
+        if (state !is BrowseState.Ready) return state
+        val volumes = state.folders.any { it.name == "sd" || it.name == "internal" }
+        return BrowseState.Ready(if (volumes) state.folders else state.folders.sortedBy(sortOrder) { it.name }, state.tracks.sortedBy(sortOrder) { it.title })
+    }
+
+    fun setSort(order: SortOrder) {
+        sortOrder = order; store.sortOrder = order.name
+        showLocal()
+        remote = ordered(remoteRaw)
+    }
+
     private fun showLocal() {
         val scanned = tree ?: return
-        local = when {
+        local = ordered(when {
             scanned.isEmpty -> BrowseState.Ready(emptyList(), emptyList())
             localCrumbs.isEmpty() -> BrowseState.Ready(scanned.roots, emptyList())
             else -> BrowseState.Ready(scanned.children(localCrumbs.last().id), scanned.tracks(localCrumbs.last().id))
-        }
+        })
     }
 
     fun openLocal(folder: Folder) { localCrumbs += folder; showLocal() }
@@ -125,7 +144,7 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
         remote = BrowseState.Loading
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            remote = try {
+            val loaded = try {
                 when {
                     searchQuery.isNotBlank() -> BrowseState.Ready(emptyList(), c.search(searchQuery))
                     serverCrumbs.isEmpty() -> {
@@ -143,6 +162,8 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
                 AppLog.w("server", "Loading the server failed", e)
                 BrowseState.Failed(e.message ?: "error")
             }
+            remoteRaw = loaded
+            remote = ordered(loaded)
         }
     }
 
@@ -174,6 +195,43 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
     var currentStationUrl by mutableStateOf<String?>(null); private set
     var currentTrackId by mutableStateOf<String?>(null); private set
     var hasMedia by mutableStateOf(false); private set
+
+    // ---- lyrics and karaoke ----------------------------------------------------------------------
+    private val lyricsStore = LyricsStore(app)
+    var lyricsText by mutableStateOf(""); private set
+    var lyricsLines by mutableStateOf<List<LyricLine>>(emptyList()); private set        // the same lyrics with times, when they have them
+    var lyricsAuto by mutableStateOf(store.lyricsAuto); private set
+    var voiceReduction by mutableStateOf(store.voiceReduction.also { KaraokeHub.voiceReduction = it }); private set
+    private var lyricsFor: String? = null
+    private val lyricsTried = HashSet<String>()
+
+    fun changeLyricsAuto(on: Boolean) { lyricsAuto = on; store.lyricsAuto = on; if (on) loadLyrics() }
+    fun changeVoiceReduction(on: Boolean) { voiceReduction = on; store.voiceReduction = on; KaraokeHub.voiceReduction = on }
+
+    private fun loadLyrics() {
+        val id = currentTrackId
+        lyricsFor = id
+        lyricsText = id?.let { lyricsStore.get(it) }.orEmpty()
+        lyricsLines = if (Lyrics.isSynced(lyricsText)) Lyrics.parse(lyricsText) else emptyList()
+        if (lyricsText.isBlank() && id != null && lyricsAuto && lyricsTried.add(id) && itemTitle.isNotBlank() && artist.isNotBlank()) {
+            val (title, by, disc) = Triple(itemTitle, artist, album)
+            val seconds = ((controller?.mediaMetadata?.durationMs ?: controller?.duration?.takeIf { it > 0 } ?: 0L) / 1000).toInt()
+            viewModelScope.launch {
+                val hit = runCatching { LrcLib.exact(title, by, disc, seconds) }.getOrNull() ?: return@launch
+                if (currentTrackId == id) saveLyrics(hit.text)
+            }
+        }
+    }
+
+    fun saveLyrics(text: String) {
+        val id = currentTrackId ?: return
+        lyricsStore.set(id, text)
+        loadLyrics()
+    }
+
+    suspend fun findLyrics(title: String, by: String): List<LrcLib.Found> = LrcLib.search(title, by)
+    /** Goes up whenever the position or the length may have changed (a seek, a new song, the length becoming known). */
+    var progressVersion by mutableIntStateOf(0); private set
     var shuffle by mutableStateOf(false); private set
     var repeat by mutableStateOf(Player.REPEAT_MODE_OFF); private set
 
@@ -186,7 +244,11 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
             val c = runCatching { future.get() }.getOrNull() ?: return@addListener
             controller = c
             c.addListener(object : Player.Listener {
-                override fun onEvents(player: Player, events: Player.Events) { syncFrom(player) }
+                override fun onEvents(player: Player, events: Player.Events) {
+                    syncFrom(player)
+                    if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_POSITION_DISCONTINUITY, Player.EVENT_PLAYBACK_STATE_CHANGED,
+                            Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_MEDIA_METADATA_CHANGED)) progressVersion++
+                }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     AppLog.e("player", "Playback failed (${error.errorCodeName}) for ${c.currentMediaItem?.mediaMetadata?.title}", error)
                 }
@@ -218,6 +280,7 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
         badge = own?.extras?.getString("badge").orEmpty()
         currentStationUrl = if (isLive) item?.localConfiguration?.uri?.toString() else null
         currentTrackId = if (isLive) null else item?.mediaId
+        if (currentTrackId != lyricsFor) loadLyrics()
         val stream = p.mediaMetadata.title?.toString().orEmpty()     // ICY metadata replaces the title on a live stream
         nowPlaying = if (isLive && stream.isNotBlank() && stream != itemTitle) stream else ""
     }
@@ -230,6 +293,7 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
             MediaItem.Builder().setMediaId(t.id).setUri(address)
                 .setMediaMetadata(
                     MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist).setAlbumTitle(t.album)
+                        .setDurationMs(t.durationSec.takeIf { it > 0 }?.let { it * 1000L })
                         .setArtworkUri((t.artworkUri ?: t.coverArt?.let { api?.coverUrl(it) })?.toUri())
                         .setExtras(Bundle().apply {
                             putString("badge", listOf(t.codec, if (t.bitRate > 0) "${t.bitRate} kbps" else "").filter { it.isNotBlank() }.joinToString(" "))
@@ -277,7 +341,15 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
     fun stop() { controller?.let { it.stop(); it.clearMediaItems() } }
     fun next() { controller?.seekToNextMediaItem() }
     fun previous() { controller?.let { if (it.currentPosition > 3000 || !it.hasPreviousMediaItem()) it.seekTo(0) else it.seekToPreviousMediaItem() } }
-    fun seekTo(fraction: Float) { controller?.let { val d = it.duration; if (d != C.TIME_UNSET && d > 0) it.seekTo((d * fraction).toLong()) } }
+    fun seekTo(fraction: Float) {
+        controller?.let {
+            val d = lengthOf(it)
+            if (d > 0) { it.seekTo((d * fraction.coerceIn(0f, 1f)).toLong()); progressVersion++ }
+        }
+    }
+
+    /** The song's length: what the player found out, or, for a server song it cannot measure (transcoded streams), what the server said. */
+    private fun lengthOf(p: Player): Long = p.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: (p.mediaMetadata.durationMs ?: 0L)
     fun toggleShuffle() { controller?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled } }
     fun cycleRepeat() {
         controller?.let {
@@ -288,9 +360,7 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-    fun position(): Pair<Long, Long> = controller?.let {
-        it.currentPosition to (it.duration.takeIf { d -> d != C.TIME_UNSET && d > 0 } ?: 0L)
-    } ?: (0L to 0L)
+    fun position(): Pair<Long, Long> = controller?.let { it.currentPosition.coerceAtLeast(0L) to lengthOf(it) } ?: (0L to 0L)
 
     // ---- stations ---------------------------------------------------------------------------------
     fun saveStations(list: List<Station>) {

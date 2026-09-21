@@ -7,7 +7,7 @@ from PySide6.QtGui import QGuiApplication
 
 from . import styles
 
-CHOICES = ("auto", "dark", "light")
+CHOICES = ("auto", *styles.THEMES)
 
 
 def system_scheme() -> str:
@@ -20,7 +20,7 @@ def system_scheme() -> str:
 
 
 def resolve(setting: str) -> str:
-    return setting if setting in ("dark", "light") else system_scheme()
+    return setting if setting in styles.THEMES else system_scheme()
 
 
 class ThemeManager(QObject):

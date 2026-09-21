@@ -55,7 +55,59 @@ LIGHT = {
     "HANDLE_HOVER": "#1e2233",
 }
 
-THEMES = {"dark": DARK, "light": LIGHT}
+DARK["IS_DARK"], LIGHT["IS_DARK"] = True, False
+
+
+def _mix(a: str, b: str, t: float) -> str:
+    ca, cb = [int(a[i:i + 2], 16) for i in (1, 3, 5)], [int(b[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{max(0, min(255, round(x + (y - x) * t))):02x}" for x, y in zip(ca, cb))
+
+
+def _palette(dark: bool, base: str, text: str, accent: str, accent2: str) -> dict:
+    """A whole palette from four colours: the background, the text and two accents. Everything else (panels,
+    borders, secondary text, hover shades) is derived so the pieces always sit together; the contrast test
+    in tests/test_gui.py holds every theme to the same legibility rules."""
+    white, black = "#ffffff", "#000000"
+    if dark:
+        mantle = _mix(base, black, .28)
+        return {"IS_DARK": True, "BASE": base, "MANTLE": mantle, "PANEL": _mix(base, white, .06), "SURFACE": _mix(base, white, .12),
+                "OVERLAY": _mix(base, white, .2), "BORDER": _mix(base, white, .09), "TEXT": text, "SUBTEXT": _mix(text, base, .36),
+                "MUTED": _mix(text, base, .58), "ACCENT": accent, "ACCENT2": accent2, "ACCENT_HOVER": _mix(accent, white, .2),
+                "ACCENT2_HOVER": _mix(accent2, white, .2), "ON_ACCENT": _mix(base, black, .45), "RED": "#f38ba8", "GREEN": "#a6e3a1",
+                "ALT_ROW": _mix(base, mantle, .5), "LCD_TOP": _mix(base, black, .38), "LCD_BOTTOM": _mix(base, black, .2),
+                "HANDLE_HOVER": white}
+    return {"IS_DARK": False, "BASE": base, "MANTLE": _mix(base, black, .045), "PANEL": white, "SURFACE": _mix(base, black, .075),
+            "OVERLAY": _mix(base, black, .16), "BORDER": _mix(base, black, .09), "TEXT": text, "SUBTEXT": _mix(text, base, .24),
+            "MUTED": _mix(text, base, .42), "ACCENT": accent, "ACCENT2": accent2, "ACCENT_HOVER": _mix(accent, black, .14),
+            "ACCENT2_HOVER": _mix(accent2, black, .14), "ON_ACCENT": white, "RED": "#c62f55", "GREEN": "#23824a",
+            "ALT_ROW": _mix(base, black, .025), "LCD_TOP": white, "LCD_BOTTOM": _mix(base, black, .03), "HANDLE_HOVER": text}
+
+
+# name -> (dark?, background, text, accent, second accent). Soft pastels first, then the deeper looks.
+COLOR_THEMES = {
+    "rose": (False, "#fdf1f5", "#3d2230", "#b83266", "#8a4fc4"),
+    "lavender": (False, "#f5f1fd", "#2f2a4a", "#6444c2", "#b3408f"),
+    "mint": (False, "#eef9f3", "#1f3a33", "#187a56", "#1f709e"),
+    "sky": (False, "#f1f7fd", "#1f3145", "#1f68b8", "#7a55c9"),
+    "peach": (False, "#fff4ec", "#42281a", "#b8501a", "#b83266"),
+    "sand": (False, "#faf5e9", "#3d3524", "#8a5a00", "#2a7a6a"),
+    "lagoon": (False, "#edf9fa", "#173a40", "#0e7c86", "#2f62c9"),
+    "coral": (False, "#fff2ef", "#4a2320", "#b93a26", "#a85f0c"),
+    "sage": (False, "#f1f5ec", "#2b3829", "#44762f", "#8a5a1f"),
+    "lemon": (False, "#fdfae6", "#3b3818", "#7a6600", "#b3471a"),
+    "forest": (True, "#10231a", "#e3f2e8", "#5fd39a", "#c5e063"),
+    "ocean": (True, "#08192c", "#e6f5ff", "#22d3ff", "#6f9bff"),
+    "sunset": (True, "#26121a", "#ffeee6", "#ff8a4c", "#ff5c9c"),
+    "neon": (True, "#150a26", "#f6ecff", "#d868ff", "#2ee6ff"),
+    "ember": (True, "#1c1414", "#fbeeea", "#ff5a4f", "#ffb84a"),
+    "arctic": (True, "#2e3440", "#eceff4", "#88c0d0", "#b48ead"),
+    "twilight": (True, "#282a36", "#f8f8f2", "#bd93f9", "#ff79c6"),
+    "amber": (True, "#282524", "#ebdbb2", "#fabd2f", "#fe8019"),
+    "rosewood": (True, "#191724", "#e0def4", "#eb6f92", "#c4a7e7"),
+    "graphite": (True, "#1f2226", "#e6e8ea", "#4fd1c5", "#f6ad55"),
+}
+
+THEMES = {"dark": DARK, "light": LIGHT, **{name: _palette(*spec) for name, spec in COLOR_THEMES.items()}}
 
 FONT_FAMILY = '"Inter", "Cantarell", "Roboto", "Noto Sans", "DejaVu Sans", sans-serif'
 MONO_FAMILY = '"JetBrains Mono", "DejaVu Sans Mono", "Noto Sans Mono", monospace'
@@ -78,7 +130,7 @@ def set_theme(name: str) -> None:
 
 
 def is_dark() -> bool:
-    return NAME == "dark"
+    return bool(THEMES.get(NAME, DARK).get("IS_DARK", True))
 
 
 def rgba(hex_color: str, alpha: float) -> str:
@@ -107,6 +159,9 @@ QWidget#central {{ background: {BASE}; }}
 QToolTip {{ background: {PANEL}; color: {TEXT}; border: 1px solid {OVERLAY}; border-radius: 6px; padding: 5px 8px; }}
 QLabel {{ background: transparent; }}
 QLabel#muted {{ color: {SUBTEXT}; }}
+QPlainTextEdit#lyricsText {{ background: transparent; border: none; padding: 6px 18px 30px 18px; font-size: 16px; line-height: 150%; color: {SUBTEXT}; selection-background-color: transparent; }}
+QWidget#lyricsPanel {{ background: {MANTLE}; border-left: 1px solid {BORDER}; }}
+QLabel#credit {{ color: {MUTED}; font-size: 11px; letter-spacing: 0.4px; }}
 QLabel#metaArt {{ background: {PANEL}; border: 1px solid {BORDER}; border-radius: 12px; color: {SUBTEXT}; }}
 QLabel#heading {{ font-size: 15px; font-weight: 600; }}
 QLabel#eqValue {{ font-family: {MONO_FAMILY}; font-size: 11px; color: {ACCENT}; }}

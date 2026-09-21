@@ -89,7 +89,7 @@ fun PlayKey(playing: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier
             .clickable(source, null, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        JIcon(if (playing) R.drawable.ic_pause else R.drawable.ic_play, tint = Color(0xFF0A0C14), size = size * 0.42f,
+        JIcon(if (playing) R.drawable.ic_pause else R.drawable.ic_play, tint = MaterialTheme.colorScheme.onPrimary, size = size * 0.42f,
             description = if (playing) "Pause" else "Play")
     }
 }
@@ -213,7 +213,7 @@ fun ActionKey(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, 
             .clickable(source, null, enabled = enabled, onClick = onClick).padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
     ) {
-        val content = if (accent) Color(0xFF0A0C14) else colors.onSurface
+        val content = if (accent) colors.onPrimary else colors.onSurface
         if (icon != null) { JIcon(icon, tint = content.copy(alpha = if (enabled) 1f else 0.4f), size = 18.dp); Spacer(Modifier.width(8.dp)) }
         Text(text, color = content.copy(alpha = if (enabled) 1f else 0.4f), style = MaterialTheme.typography.labelLarge)
     }

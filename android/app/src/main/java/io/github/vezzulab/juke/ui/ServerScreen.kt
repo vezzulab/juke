@@ -60,6 +60,7 @@ fun ServerScreen(vm: JukeViewModel) {
             subtitle = ready?.tracks?.size?.takeIf { it > 0 }?.let { stringResource(R.string.tracks, it) }.orEmpty(),
             canGoUp = vm.canGoUpRemote, onUp = { vm.remoteUp() },
         ) {
+            if (vm.server.isComplete) SortKey(vm)
             if (vm.server.isComplete) Key(R.drawable.ic_gear, stringResource(R.string.server), { editing = !editing }, size = 44.dp, icon = 20.dp,
                 tint = if (editing) AccentA else MaterialTheme.colorScheme.onSurfaceVariant)
         }

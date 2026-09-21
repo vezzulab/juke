@@ -115,6 +115,8 @@ Bajo **Carpetas** en el panel lateral, Juke guarda tu música como tú la organi
 - La ventana de actualización dice en qué versión estás, cuál salió y qué cambió, y aceptas o cancelas.
 - **Enviar comentarios…** y **Ver registro…** están en el menú ⋯. El reporte se abre como un problema nuevo en GitHub para que lo revises. Antes se ocultan tu carpeta personal, contraseñas y la dirección de tu servidor.
 - El AppImage se añade solo a tu menú de aplicaciones la primera vez que se ejecuta.
+- **Veinte temas de color**, diez claros y diez oscuros, a un clic del botón de paleta junto al menú ⋯. Pasteles suaves (Rosa, Lavanda, Menta, Cielo, Durazno, Arena, Laguna, Coral, Salvia, Limón) y looks más profundos (Bosque profundo, Océano, Atardecer, Neón, Brasa, Ártico, Crepúsculo, Ámbar, Palorrosa, Grafito), todos comprobados para leerse bien.
+- **Letras.** Clic derecho en una canción ▸ *Añadir letra…* (pégala o importa un archivo `.lrc`) o *Buscar letra…*, que busca en [LRCLIB](https://lrclib.net), un servicio gratuito de letras, por el nombre de la canción. Una columna a la derecha se abre sola cuando la canción que suena tiene letra, y se queda cerrada cuando no la tiene. Las letras sincronizadas iluminan la línea que va sonando. Juke también lee un archivo `.lrc` junto a la canción y la letra que venga en sus etiquetas.
 
 ## Capturas
 
@@ -156,6 +158,10 @@ con Jetpack Compose y Media3.
 - Radio: el directorio, o pega una dirección. Si una página tiene varias emisoras, te las ofrece todas.
 - Sigue sonando con la pantalla apagada, con los controles de siempre en la notificación.
 - *Ajustes ▸ Ayuda* tiene **Enviar comentarios** y el **registro** de la app, con los datos privados ocultos, y un botón para **apoyar en Ko-fi**.
+- Los mismos veinte temas de color, en *Ajustes ▸ Colores*.
+- **Letras y karaoke.** Busca la letra por el nombre de la canción o pégala, míralas seguir a la canción, y pasa a **Karaoke**: líneas grandes, cuenta regresiva antes de cada frase y **Reducir voz**, que quita al cantante principal de la canción.
+- **Ordena** carpetas y canciones de A → Z o de Z → A, en la biblioteca y en el servidor.
+- Mejor en la pantalla de bloqueo: la tarjeta del reproductor, la notificación y los botones de audífonos o Bluetooth funcionan, tocar la notificación abre Juke, y el sistema puede reanudar lo que sonaba. La barra de tiempo sigue tu dedo y muestra al instante a dónde saltas.
 - Ecualizador de 10 bandas, español e inglés, oscuro y claro.
 
 Descarga `Juke-<versión>.apk` de la [última versión](https://github.com/vezzulab/juke/releases/latest).
@@ -263,6 +269,7 @@ Juke no tiene telemetría, ni cuentas, ni analítica. Lleva incluidas su tipogra
 | Tu servidor Airsonic / Subsonic | Solo si configuras uno. |
 | `api.github.com` | Al abrirse y cada 30 minutos mientras está abierto, para buscar una versión nueva, si dejas activada *Buscar actualizaciones automáticamente*. Solo se envían el nombre y la versión del programa. |
 | Radio Browser (`*.api.radio-browser.info`) y las propias emisoras | Solo cuando abres *Explorar Radio*, añades una emisora o la sintonizas. |
+| `lrclib.net` | Solo cuando pulsas *Buscar letra…*, o si activas *Buscar letras en línea* en Ajustes. Recibe el nombre, el artista, el álbum y la duración de la canción, nada más. |
 | `github.com` (la página de problemas) | Solo cuando pulsas *Abrir en GitHub* en *Enviar comentarios…*. Juke no envía nada por sí mismo; el reporte se abre en tu navegador. |
 
 ## Rendimiento
@@ -328,6 +335,7 @@ La suite tiene más de cien pruebas, incluida reproducción real con libVLC (se 
 ## Límites conocidos
 
 - El espectro de la pantalla LCD es un **medidor animado, no un analizador** — libVLC no expone datos FFT.
+- El **karaoke** (letra a pantalla completa con cuenta regresiva y reducción de voz) está en Android. En Linux tienes la columna de letra sincronizada; el filtro de quitar voz de libVLC no se puede activar desde Python.
 - El **balance** estéreo necesita PulseAudio o PipeWire (`pactl`) y un flujo estéreo; si no, se desactiva.
 - Aún no hay MPRIS / teclas multimedia globales, ni reproducción sin pausas, ni reordenar canciones arrastrando dentro de las listas, y solo un servidor Airsonic a la vez.
 - Tus propias carpetas viven en Juke (*Carpetas*), el servidor Airsonic se recorre por sus carpetas y la biblioteca local por artista, álbum y género.

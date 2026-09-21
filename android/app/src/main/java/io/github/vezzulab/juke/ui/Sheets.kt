@@ -133,7 +133,7 @@ fun AddStationSheet(vm: JukeViewModel, visible: Boolean, onDismiss: () -> Unit) 
                         Box(Modifier.size(22.dp).clip(RoundedCornerShape(7.dp))
                             .background(if (on) AccentBrush else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surfaceContainerHighest)),
                             contentAlignment = Alignment.Center) {
-                            if (on) JIcon(R.drawable.ic_play, tint = Color(0xFF0A0C14), size = 12.dp)
+                            if (on) JIcon(R.drawable.ic_play, tint = MaterialTheme.colorScheme.onPrimary, size = 12.dp)
                         }
                         Spacer(Modifier.width(12.dp))
                         Art(st.favicon, live = true, modifier = Modifier.size(38.dp), corner = 10.dp, glow = false)

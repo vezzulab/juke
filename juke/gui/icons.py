@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from PySide6.QtCore import QByteArray, QRectF, Qt
-from PySide6.QtGui import QGuiApplication, QIcon, QImage, QPainter, QPixmap
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
 from ..assets import ICON_SVG
@@ -42,6 +42,8 @@ _GLYPHS: dict[str, tuple[str, str]] = {
     "globe": ("stroke", '<circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c3 3 3 16 0 19M12 2.5c-3 3-3 16 0 19"/>'),
     "heart-outline": ("stroke", '<path d="M12 20.6s-7.6-4.6-9.6-9.7A5.4 5.4 0 0 1 12 6.2a5.4 5.4 0 0 1 9.6 4.7c-2 5.1-9.6 9.7-9.6 9.7z"/>'),
     "gear": ("stroke", '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
+    "palette": ("stroke", '<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z"/><circle cx="7.6" cy="11.2" r="1.1" fill="currentColor"/><circle cx="10.6" cy="7.4" r="1.1" fill="currentColor"/><circle cx="15.2" cy="7.4" r="1.1" fill="currentColor"/>'),
+    "edit": ("stroke", '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
     "more": ("stroke", '<circle cx="5" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="19" cy="12" r="1.7" fill="currentColor"/>'),
     "playlist": ("stroke", '<path d="M4 6h16M4 12h16M4 18h9"/><path d="M17 18h4M19 16v4"/>'),
     "sliders": ("stroke", '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1.5 14h5M9.5 8h5M17.5 16h5"/>'),
@@ -133,3 +135,21 @@ def app_icon() -> QIcon:
     result = QIcon()
     result.addFile(str(ICON_SVG))
     return result
+
+
+def theme_swatch(theme: str) -> QIcon:
+    """A small chip of a theme: its background with its two accents, so the choice can be seen before it is made."""
+    palette = styles.THEMES[theme]
+    pixmap = QPixmap(30, 18)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(QColor(palette["BORDER"] if palette["IS_DARK"] else palette["OVERLAY"]))
+    painter.setBrush(QColor(palette["BASE"]))
+    painter.drawRoundedRect(QRectF(0.5, 0.5, 29, 17), 5, 5)
+    painter.setPen(Qt.NoPen)
+    for i, key in enumerate(("ACCENT", "ACCENT2")):
+        painter.setBrush(QColor(palette[key]))
+        painter.drawEllipse(QRectF(6 + i * 10, 4.5, 9, 9))
+    painter.end()
+    return QIcon(pixmap)

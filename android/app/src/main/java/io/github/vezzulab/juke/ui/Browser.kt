@@ -7,8 +7,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,6 +27,7 @@ import io.github.vezzulab.juke.BrowseState
 import io.github.vezzulab.juke.JukeViewModel
 import io.github.vezzulab.juke.R
 import io.github.vezzulab.juke.data.Folder
+import io.github.vezzulab.juke.data.SortOrder
 import io.github.vezzulab.juke.data.Track
 
 /** The title strip every screen wears: back key, where you are, and what is in there. */
@@ -34,6 +41,25 @@ fun Crumb(title: String, subtitle: String, canGoUp: Boolean, onUp: () -> Unit, m
             if (subtitle.isNotBlank()) SectionLabel(subtitle, Modifier.padding(top = 3.dp))
         }
         trailing?.invoke(this)
+    }
+}
+
+/** "Sort": the original order, A to Z or Z to A. Shared by the card and the server. */
+@Composable
+fun SortKey(vm: JukeViewModel) {
+    var open by remember { mutableStateOf(false) }
+    val active = vm.sortOrder != SortOrder.Original
+    Box {
+        Key(R.drawable.ic_sort, stringResource(R.string.sort), { open = true }, size = 44.dp, icon = 20.dp,
+            tint = if (active) AccentA else MaterialTheme.colorScheme.onSurfaceVariant)
+        DropdownMenu(open, { open = false }) {
+            listOf(SortOrder.Original to R.string.sort_original, SortOrder.AZ to R.string.sort_az, SortOrder.ZA to R.string.sort_za).forEach { (order, label) ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(label), color = if (vm.sortOrder == order) AccentA else MaterialTheme.colorScheme.onSurface) },
+                    onClick = { vm.setSort(order); open = false },
+                )
+            }
+        }
     }
 }
 
@@ -111,6 +137,7 @@ fun CardScreen(vm: JukeViewModel, onGrant: () -> Unit) {
             subtitle = ready?.tracks?.size?.takeIf { it > 0 }?.let { stringResource(R.string.tracks, it) }.orEmpty(),
             canGoUp = vm.canGoUpLocal, onUp = { vm.localUp() },
         ) {
+            SortKey(vm)
             if ((ready?.tracks?.size ?: 0) > 0 || (here != null && (ready?.folders?.isNotEmpty() == true)))
                 ActionKey(stringResource(R.string.queue_songs), vm::playFolder, icon = R.drawable.ic_play)
         }

@@ -35,6 +35,7 @@ DEFAULTS: dict[str, Any] = {
     "language": "auto",  # auto | en | es
     "music_dirs": [str(Path.home() / "Music")],
     "scan_on_start": True,
+    "lyrics": {"auto_search": False},   # ask LRCLIB for songs that have no lyrics, by themselves (off: only when asked)
     "theme": "auto",  # auto (follow the desktop) | dark | light
     "meter": "auto",  # level-meter animation: auto (mains power only) | on | off
     "volume": 80,

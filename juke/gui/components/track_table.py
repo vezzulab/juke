@@ -204,6 +204,8 @@ class TrackTable(QTableView):
     queue_requested = Signal(list)
     favorite_requested = Signal(list, bool)
     edit_requested = Signal(list)
+    lyrics_requested = Signal(int)        # add or edit the lyrics of one song
+    find_lyrics_requested = Signal(int)   # search for them online
     remove_from_queue_requested = Signal(list)
     add_to_playlist_requested = Signal(int, list)   # playlist id, track ids
     new_playlist_requested = Signal(list)           # create a playlist holding these tracks
@@ -365,6 +367,11 @@ class TrackTable(QTableView):
         edit.setEnabled(any(t.is_local for t in tracks))
         edit.triggered.connect(lambda: self.edit_requested.emit(list(ids)))
         menu.addAction(edit)
+        single = len(tracks) == 1
+        add_lyrics = menu.addAction(tr("menu.lyrics"), lambda: self.lyrics_requested.emit(ids[0]))
+        add_lyrics.setEnabled(single)
+        find_lyrics = menu.addAction(tr("menu.find_lyrics"), lambda: self.find_lyrics_requested.emit(ids[0]))
+        find_lyrics.setEnabled(single)
         menu.exec(event.globalPos())
 
     def set_folders(self, folders: list) -> None:

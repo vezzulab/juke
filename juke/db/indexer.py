@@ -341,6 +341,9 @@ class LibraryScanner(QThread):
         self.progress.emit(done, total)
         removed = 0
         if not self._stop and self._prune:
-            stale = [loc for loc in known if loc not in present]
+            # gone from a scanned folder, or gone from the disk altogether. A song opened or dropped in from somewhere
+            # else is not this scan's to remove while its file is still there.
+            roots = tuple(os.path.abspath(r).rstrip(os.sep) + os.sep for r in self._roots)
+            stale = [loc for loc in known if loc not in present and (loc.startswith(roots) or not os.path.exists(loc))]
             removed = self._db.delete_locations(SOURCE_LOCAL, stale)
         self.scan_finished.emit(done, removed, len(files))

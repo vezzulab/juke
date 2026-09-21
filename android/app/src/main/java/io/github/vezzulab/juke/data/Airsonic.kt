@@ -86,7 +86,8 @@ class AirsonicClient(baseUrl: String, private val user: String, private val pass
     suspend fun scrobble(id: String) { call("scrobble", "id" to id, "submission" to "true") }
 
     /** Asked only when a song is played, so nothing is signed until then. */
-    fun streamUrl(id: String): String = builder("stream").addQueryParameter("id", id).build().toString()
+    /** [estimateContentLength] makes the server say how long a transcoded song is, which is what lets the player jump around in it. */
+    fun streamUrl(id: String): String = builder("stream").addQueryParameter("id", id).addQueryParameter("estimateContentLength", "true").build().toString()
 
     fun coverUrl(id: String, size: Int = 600): String =
         builder("getCoverArt").addQueryParameter("id", id).addQueryParameter("size", size.toString()).build().toString()

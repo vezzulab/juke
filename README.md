@@ -115,6 +115,8 @@ Under **Folders** in the sidebar Juke keeps your music the way you arrange it. T
 - The update window says which version you are on, which one is out and what changed, and you accept or cancel.
 - **Send feedback…** and **View log…** are in the ⋯ menu. A report opens as a new issue on GitHub for you to review. Your home folder, passwords and server address are hidden first.
 - The AppImage adds itself to your applications menu the first time it runs.
+- **Twenty colour themes**, ten light and ten dark, one click away from the palette button next to the ⋯ menu. Soft pastels (Rose, Lavender, Mint, Sky, Peach, Sand, Lagoon, Coral, Sage, Lemon) and deeper looks (Deep Forest, Ocean, Sunset, Neon, Ember, Arctic, Twilight, Amber, Rosewood, Graphite), all checked for legibility.
+- **Lyrics.** Right-click a song ▸ *Add lyrics…* (paste them or import a `.lrc` file) or *Find lyrics…*, which searches [LRCLIB](https://lrclib.net), a free lyrics service, by the song's name. A column on the right opens by itself when the playing song has lyrics, and stays shut when it has none. Synced lyrics light up the line being sung. Juke also reads a `.lrc` file beside the song and the lyrics inside its tags.
 
 ## Screenshots
 
@@ -155,6 +157,10 @@ Compose and Media3.
 - Keeps playing with the screen off, with the usual controls in the notification.
 - 10-band equalizer, English and Spanish, dark and light.
 - *Settings ▸ Help* has **Send feedback** and the app's **log**, with private details hidden, and a **Support on Ko-fi** button.
+- The same twenty colour themes, in *Settings ▸ Colors*.
+- **Lyrics and karaoke.** Find lyrics by the song's name or paste them, see them follow the song, and switch to **Karaoke**: big lines, a countdown into each phrase, and **Reduce voice**, which takes the lead singer out of the song.
+- **Sort** folders and songs A → Z or Z → A, in the library and on the server.
+- Better on the lock screen: the player card, the notification and headset or Bluetooth buttons work, tapping the notification opens Juke, and the system can resume what was playing. The time bar follows your finger and shows where you jump at once.
 
 Get `Juke-<version>.apk` from the [latest release](https://github.com/vezzulab/juke/releases/latest).
 It needs Android 8 or newer and weighs about 3 MB. To build it you need the Android SDK and JDK 17:
@@ -261,6 +267,7 @@ Juke has no telemetry, no accounts and no analytics. It bundles its font and ico
 | Your Airsonic / Subsonic server | Only if you configure one. |
 | `api.github.com` | When it opens and every 30 minutes while open, to look for a new release, if you leave *Check for updates automatically* on. Only the program name and version are sent. |
 | Radio Browser (`*.api.radio-browser.info`) and the stations themselves | Only when you open *Explore Radio*, add a station, or tune in. |
+| `lrclib.net` | Only when you press *Find lyrics…*, or if you turn on *Search lyrics online* in Settings. It gets the song's name, artist, album and length, nothing else. |
 | `github.com` (the issues page) | Only when you press *Open on GitHub* in *Send feedback…*. Juke sends nothing itself; the report opens in your browser. |
 
 ## Performance
@@ -326,6 +333,7 @@ The suite has over a hundred tests, including real playback through libVLC (skip
 ## Known limits
 
 - The spectrum in the LCD is an **animated meter, not an analyser** — libVLC does not expose FFT data.
+- **Karaoke** (full-screen lyrics with a countdown and voice reduction) is on Android. On Linux you get the synced lyrics column; libVLC's own vocal-removal filter cannot be switched on from Python.
 - Stereo **balance** needs PulseAudio or PipeWire (`pactl`) and a stereo stream; it is disabled otherwise.
 - No MPRIS / global media keys yet, no gapless playback, no drag-and-drop reordering inside playlists, one Airsonic server at a time.
 - Your own folders live in Juke (*Folders*), the Airsonic server is browsed by its folders, and the local library by artist, album and genre.

@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QFile, QProcess, QSize, QThread, QTimer, Qt, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QKeySequence, QPixmap, QShortcut
+from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QGuiApplication, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QSizePolicy, QSplitter, QStackedWidget, QToolButton, QVBoxLayout,
                                QWidget)
@@ -24,12 +24,14 @@ from ..audio.queue import PlayQueue
 from ..audio.sources import SourceError, SourceResolver
 from ..config import AUDIO_EXTENSIONS, Config
 from ..db.database import SOURCE_AIRSONIC, SOURCE_LOCAL, Database, Scope, Station, Track
+from .. import lyrics as lyrics_lib
 from ..db.folders import DB_NAME, PACKAGE_NAME, FolderStore, prepare_package
 from ..db.indexer import LibraryScanner, cover_key_for, cover_path, extract_cover, read_tags, save_cover
 from ..i18n import tr, translator, trn
 from ..power import on_battery
 from ..workers import AsyncWorker
 from . import icons, styles
+from .components.lyrics_panel import LyricsPanel
 from .components.radio_view import RadioView
 from .components.sidebar import Sidebar
 from .components.top_bar import TopBar
@@ -126,6 +128,13 @@ class MainWindow(QMainWindow):
         self.menu_button.setPopupMode(QToolButton.InstantPopup)
         self.menu_button.setCursor(Qt.PointingHandCursor)
 
+        self.theme_button = QToolButton()
+        self.theme_button.setObjectName("menuButton")
+        self.theme_button.setIcon(icons.icon("palette", styles.TEXT))
+        self.theme_button.setFixedSize(38, 38)
+        self.theme_button.setPopupMode(QToolButton.InstantPopup)
+        self.theme_button.setCursor(Qt.PointingHandCursor)
+
         heading = QVBoxLayout()
         heading.setSpacing(2)
         heading.addWidget(self.title_label)
@@ -136,6 +145,7 @@ class MainWindow(QMainWindow):
         header.addLayout(heading, 1)
         header.addWidget(self.search)
         header.addWidget(self.add_station_button)
+        header.addWidget(self.theme_button)
         header.addWidget(self.menu_button)
         main_view = QWidget()
         main_view.setObjectName("mainView")
@@ -159,6 +169,11 @@ class MainWindow(QMainWindow):
         footer.setContentsMargins(12, 6, 12, 14)
         footer.setSpacing(2)
         footer.addWidget(self.support_button)
+        self.credit_label = QLabel("Juke by Vezzu Studio")
+        self.credit_label.setObjectName("credit")
+        self.credit_label.setAlignment(Qt.AlignCenter)
+        footer.addSpacing(4)
+        footer.addWidget(self.credit_label)
         side = QWidget()
         side.setObjectName("sidebarPanel")
         side_layout = QVBoxLayout(side)
@@ -166,9 +181,13 @@ class MainWindow(QMainWindow):
         side_layout.setSpacing(0)
         side_layout.addWidget(self.sidebar, 1)
         side_layout.addLayout(footer)
+        self.lyrics_panel = LyricsPanel()
+        self.lyrics_panel.hide()
         self.splitter.addWidget(side)
         self.splitter.addWidget(main_view)
+        self.splitter.addWidget(self.lyrics_panel)
         self.splitter.setStretchFactor(1, 1)
+        self.splitter.setStretchFactor(2, 0)
         central = QWidget()
         central.setObjectName("central")
         root = QVBoxLayout(central)
@@ -227,6 +246,12 @@ class MainWindow(QMainWindow):
         eng.state_changed.connect(tb.set_state)
         eng.state_changed.connect(lambda _s: self._update_activity())
         eng.position_changed.connect(tb.set_position)
+        eng.position_changed.connect(lambda elapsed, _total: self.lyrics_panel.set_position(elapsed))
+        self.lyrics_panel.closed.connect(self._close_lyrics)
+        self.lyrics_panel.edit_requested.connect(lambda: self.current_track and self._edit_lyrics(self.current_track.id))
+        self.lyrics_panel.find_requested.connect(lambda: self.current_track and self._find_lyrics(self.current_track.id))
+        self.table.lyrics_requested.connect(self._edit_lyrics)
+        self.table.find_lyrics_requested.connect(self._find_lyrics)
         eng.track_finished.connect(self._track_finished)
         eng.error.connect(self._engine_error)
         self.sidebar.selected.connect(self._show_view)
@@ -274,7 +299,8 @@ class MainWindow(QMainWindow):
                            ("Ctrl+E", self.toggle_equalizer), ("Ctrl+,", self.open_settings),
                            ("Ctrl+Right", lambda: self._advance(auto=False)), ("Ctrl+Left", self._previous),
                            ("Ctrl+Q", self.close), ("Ctrl+N", lambda: self._new_playlist()),
-                           ("Ctrl+Shift+N", lambda: self._new_folder()), ("Ctrl+T", self.toggle_theme)):
+                           ("Ctrl+Shift+N", lambda: self._new_folder()), ("Ctrl+T", self.toggle_theme),
+                           ("Ctrl+L", self.toggle_lyrics)):
             QShortcut(QKeySequence(keys), self).activated.connect(slot)
 
     def _restore_state(self) -> None:
@@ -294,7 +320,8 @@ class MainWindow(QMainWindow):
 
     def save_state(self) -> None:
         self.config.set("window.geometry", bytes(self.saveGeometry()).hex())
-        self.config.set("window.splitter", self.splitter.sizes())
+        sizes = self.splitter.sizes()
+        self.config.set("window.splitter", [sizes[0], sizes[1] + (sizes[2] if len(sizes) > 2 else 0)])
         self.config.set("volume", self.engine.volume)
         self.config.set("muted", self.engine.muted)
         self.config.set("shuffle", self.queue.shuffle)
@@ -305,6 +332,8 @@ class MainWindow(QMainWindow):
     def _on_theme_changed(self) -> None:
         """Icons and brushes are built once, so the widgets that own them rebuild them now."""
         self.menu_button.setIcon(icons.icon("more", styles.TEXT))
+        self.theme_button.setIcon(icons.icon("palette", styles.TEXT))
+        self._sync_theme_menu()
         self.support_button.setIcon(icons.icon("heart", styles.ACCENT, active=styles.ACCENT_HOVER, size=18))
         self._search_action.setIcon(icons.icon("search", styles.MUTED, size=18))
         self.top_bar.apply_theme()
@@ -313,12 +342,149 @@ class MainWindow(QMainWindow):
         self.table.viewport().update()
         self.radio_view.apply_theme()
 
+    # ------------------------------------------------------------------------------ lyrics
+    def _lyrics_of(self, track: Track) -> str:
+        """What is known for this song: what was saved in Juke, then a .lrc beside the file, then the file's own tag."""
+        return self.db.get_lyrics(track) or (lyrics_lib.local_lyrics(track.location) if track.is_local else "")
+
+    def _load_lyrics(self, track: Track) -> None:
+        """A new song began: show its lyrics if it has any and open the column by itself, otherwise leave it shut."""
+        self._lyrics_dismissed = None if getattr(self, "_lyrics_dismissed", None) != track.id else track.id
+        text = self._lyrics_of(track)
+        self.lyrics_panel.set_song(track.title, track.artist)
+        self.lyrics_panel.set_lyrics(text)
+        if text:
+            self._show_lyrics_panel(getattr(self, "_lyrics_dismissed", None) != track.id)
+        else:
+            self._show_lyrics_panel(getattr(self, "_lyrics_pinned", False))
+            if self.config.get("lyrics.auto_search"):
+                self._auto_search_lyrics(track)
+
+    def _show_lyrics_panel(self, visible: bool) -> None:
+        if visible == self.lyrics_panel.isVisible():
+            return
+        sizes = self.splitter.sizes()
+        self.lyrics_panel.setVisible(visible)
+        if visible:
+            wanted = 340
+            self.splitter.setSizes([sizes[0], max(320, sizes[1] - wanted), wanted])
+
+    def toggle_lyrics(self) -> None:
+        """Ctrl+L: open or close the column by hand (shut, it stays shut for this song)."""
+        opening = not self.lyrics_panel.isVisible()
+        self._lyrics_pinned = opening
+        if self.current_track is not None:
+            self.lyrics_panel.set_song(self.current_track.title, self.current_track.artist)
+            self.lyrics_panel.set_lyrics(self._lyrics_of(self.current_track))
+            self._lyrics_dismissed = None if opening else self.current_track.id
+        self._show_lyrics_panel(opening)
+
+    def _close_lyrics(self) -> None:
+        self._lyrics_pinned = False
+        if self.current_track is not None:
+            self._lyrics_dismissed = self.current_track.id
+        self._show_lyrics_panel(False)
+
+    def _save_lyrics(self, track: Track, text: str) -> None:
+        self.db.set_lyrics(track, text)
+        if self.current_track is not None and self.current_track.id == track.id:
+            self._lyrics_dismissed = None
+            self.lyrics_panel.set_lyrics(text)
+            self._show_lyrics_panel(bool(text.strip()) or self.lyrics_panel.isVisible())
+
+    def _edit_lyrics(self, track_id: int) -> None:
+        from .lyrics_dialog import LyricsEditDialog
+
+        track = self.db.get_track(track_id)
+        if track is None:
+            return
+        dialog = LyricsEditDialog(track, self._lyrics_of(track), self)
+        if dialog.exec():
+            self._save_lyrics(track, dialog.text)
+
+    def _find_lyrics(self, track_id: int) -> None:
+        from .lyrics_dialog import FindLyricsDialog
+
+        track = self.db.get_track(track_id)
+        if track is None:
+            return
+        dialog = FindLyricsDialog(track, self)
+        if dialog.exec() and dialog.chosen:
+            self._save_lyrics(track, dialog.chosen)
+            self.notify(tr("lyrics.saved"), 3500)
+
+    def _auto_search_lyrics(self, track: Track) -> None:
+        """Only when switched on in Settings: one quiet request for a song that has no lyrics yet."""
+        tried = getattr(self, "_lyrics_tried", set())
+        self._lyrics_tried = tried
+        if track.id in tried or not track.title or not track.artist:
+            return
+        tried.add(track.id)
+
+        async def look(_progress):
+            return await lyrics_lib.get_exact(track.title, track.artist, track.album, track.duration)
+
+        worker = AsyncWorker(look, self)
+        self._workers.add(worker)
+
+        def found(item) -> None:
+            if item is not None and self.db.get_track(track.id) is not None:
+                self._save_lyrics(track, item.text)
+
+        worker.result.connect(found)
+        worker.finished.connect(lambda w=worker: (self._workers.discard(w), w.deleteLater()))
+        worker.start()
+
+    def _build_theme_menu(self) -> None:
+        """The palette button: every look in one click, each with a chip of its colours."""
+        if getattr(self, "_theme_menu", None) is not None:
+            self._theme_menu.deleteLater()                 # rebuilt when the language changes
+        menu = QMenu(self)
+        group = QActionGroup(menu)
+        group.setExclusive(True)
+        self._theme_actions: dict[str, QAction] = {}
+        names = {"auto": "settings.theme_auto", "dark": "settings.theme_dark", "light": "settings.theme_light"}
+        pastel = [n for n, spec in styles.COLOR_THEMES.items() if not spec[0]]
+        deep = [n for n, spec in styles.COLOR_THEMES.items() if spec[0]]
+        for value in ("auto", "dark", "light", None, *pastel, None, *deep):
+            if value is None:
+                menu.addSeparator()
+                continue
+            action = QAction(tr(names.get(value, f"theme.{value}")), menu)
+            action.setData(action.text())
+            if value != "auto":
+                action.setIcon(icons.theme_swatch(value))
+            action.setCheckable(True)
+            action.setActionGroup(group)
+            action.triggered.connect(lambda _c=False, v=value: self._choose_theme(v))
+            menu.addAction(action)
+            self._theme_actions[value] = action
+        menu.aboutToShow.connect(self._sync_theme_menu)
+        self.theme_button.setMenu(menu)
+        self._theme_menu = menu
+        self._sync_theme_menu()
+
+    def _sync_theme_menu(self) -> None:
+        actions = getattr(self, "_theme_actions", {})
+        current = self.config.get("theme")
+        for value, action in actions.items():
+            action.setText(action.data() + ("    ✓" if value == current else ""))    # the checkbox is hidden by the icon chip
+        if current in actions:
+            actions[current].setChecked(True)
+
+    def _choose_theme(self, value: str) -> None:
+        self.config.set("theme", value)
+        self.config.save()
+        self.theme.apply(value)
+        self._sync_theme_menu()
+
     def toggle_theme(self) -> None:
         """Flip between the dark and light look (also leaves "follow the system" mode)."""
         choice = "light" if styles.is_dark() else "dark"
         self.config.set("theme", choice)
         self.config.save()
         self.theme.apply(choice)
+        self._sync_theme_menu()
 
     # ------------------------------------------------------------------------------ power
     def _meter_allowed(self) -> bool:
@@ -375,6 +541,9 @@ class MainWindow(QMainWindow):
         self.add_station_button.setText(tr("radio.add_url"))
         self.radio_view.retranslate()
         self.menu_button.setToolTip(tr("menu.more"))
+        self.theme_button.setToolTip(tr("settings.theme"))
+        self._build_theme_menu()
+        self.lyrics_panel.retranslate()
         self.support_button.setText("\u2002\u2002" + tr("sidebar.support"))
         self.support_button.setToolTip(tr("sidebar.support_tip"))
         self.sidebar.retranslate()
@@ -407,6 +576,7 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         add(tr("menu.equalizer"), self.toggle_equalizer, "Ctrl+E")
         add(tr("menu.toggle_theme"), self.toggle_theme, "Ctrl+T")
+        add(tr("menu.lyrics_panel"), self.toggle_lyrics, "Ctrl+L")
         menu.addSeparator()
         add(tr("menu.rescan"), self.start_scan)
         self.sync_action = add(tr("menu.sync_airsonic"), self.sync_airsonic)
@@ -644,6 +814,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(self._window_title())
         self._update_counts()
         self._refresh_queue_view()
+        self._load_lyrics(track)
 
     def _skip_after_error(self, reason: str) -> None:
         self._errors_in_a_row += 1
@@ -668,6 +839,7 @@ class MainWindow(QMainWindow):
         self.current_track = None
         self.table.track_model.set_current(None)
         self.setWindowTitle("Juke")
+        self._show_lyrics_panel(False)
 
     def _previous(self) -> None:
         if self.queue.current is None:
@@ -711,6 +883,7 @@ class MainWindow(QMainWindow):
         self._advance(auto=True)
 
     def _engine_error(self, message: str) -> None:
+        log.warning("Playback problem: %s", message)
         if not self.engine.available:
             if not self._warned_no_vlc:
                 self._warned_no_vlc = True

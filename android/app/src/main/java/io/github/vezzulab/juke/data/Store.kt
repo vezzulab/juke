@@ -16,6 +16,18 @@ class Store(context: Context) {
         get() = prefs.getString("theme", "dark").orEmpty()
         set(v) { prefs.edit().putString("theme", v).apply() }
 
+    var voiceReduction: Boolean           // karaoke: take the lead voice out of the song
+        get() = prefs.getBoolean("voice_reduction", false)
+        set(v) { prefs.edit().putBoolean("voice_reduction", v).apply() }
+
+    var lyricsAuto: Boolean               // ask LRCLIB for songs that have no lyrics (off: only when asked)
+        get() = prefs.getBoolean("lyrics_auto", false)
+        set(v) { prefs.edit().putBoolean("lyrics_auto", v).apply() }
+
+    var sortOrder: String                 // "Original" | "AZ" | "ZA": how folders and songs are listed
+        get() = prefs.getString("sort", "Original").orEmpty()
+        set(v) { prefs.edit().putString("sort", v).apply() }
+
     var language: String                  // "system" | "en" | "es"
         get() = prefs.getString("language", "system").orEmpty()
         set(v) { prefs.edit().putString("language", v).apply() }

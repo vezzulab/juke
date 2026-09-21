@@ -1,6 +1,6 @@
 """Juke — a modern 3-pane music player for Linux."""
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 APP_NAME = "Juke"
 APP_ID = "juke"
 REPO_URL = "https://github.com/vezzulab/juke"

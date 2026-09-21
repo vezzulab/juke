@@ -327,3 +327,24 @@ class LibraryFolderQueryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScanKeepsSongsFromElsewhereTests(unittest.TestCase):
+    def test_a_song_opened_from_outside_the_music_folders_survives_the_startup_scan(self):
+        from juke.db.indexer import LibraryScanner
+        tmp = Path(tempfile.mkdtemp(prefix="juke-scan-"))
+        music, elsewhere = tmp / "Music", tmp / "Downloads"
+        music.mkdir()
+        elsewhere.mkdir()
+        inside, outside = music / "a.mp3", elsewhere / "b.mp3"
+        inside.write_bytes(b"x")
+        outside.write_bytes(b"x")
+        db = Database(tmp / "lib.db")
+        db.upsert_many([row(1, location=str(inside)), row(2, location=str(outside))])
+        LibraryScanner(db, [str(music)])._scan()                       # a scan of Music only
+        kept = {t.location for t in db.tracks_by_ids(db.query_ids())}
+        self.assertIn(str(outside), kept)                              # still there: its file exists
+        outside.unlink()
+        inside.unlink()
+        LibraryScanner(db, [str(music)])._scan()
+        self.assertEqual({t.location for t in db.tracks_by_ids(db.query_ids())}, set())   # both gone from disk: both go

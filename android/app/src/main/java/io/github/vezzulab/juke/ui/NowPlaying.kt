@@ -2,8 +2,8 @@ package io.github.vezzulab.juke.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,7 +30,8 @@ import kotlinx.coroutines.delay
 
 /** The player face: art, readout, transport. Portrait stacks it, landscape and tablets set it side by side. */
 @Composable
-fun NowPlaying(vm: JukeViewModel, onEqualizer: () -> Unit, modifier: Modifier = Modifier, onClose: (() -> Unit)? = null) {
+fun NowPlaying(vm: JukeViewModel, onEqualizer: () -> Unit, modifier: Modifier = Modifier, onClose: (() -> Unit)? = null,
+               onLyrics: () -> Unit = {}, onKaraoke: () -> Unit = {}) {
     if (!vm.hasMedia) {
         Box(modifier.fillMaxSize()) {
             if (onClose != null) Key(R.drawable.ic_chevron, stringResource(R.string.back), onClose, Modifier.align(Alignment.TopStart).padding(6.dp), rotation = 90f,
@@ -53,7 +54,7 @@ fun NowPlaying(vm: JukeViewModel, onEqualizer: () -> Unit, modifier: Modifier = 
                     Spacer(Modifier.height(10.dp))
                     Transport(vm)
                     Spacer(Modifier.height(12.dp))
-                    Extras(vm, onEqualizer)
+                    Extras(vm, onEqualizer, onLyrics, onKaraoke)
                 }
             }
         } else {
@@ -76,7 +77,7 @@ fun NowPlaying(vm: JukeViewModel, onEqualizer: () -> Unit, modifier: Modifier = 
                     Spacer(Modifier.height(14.dp))
                     Transport(vm)
                     Spacer(Modifier.height(12.dp))
-                    Extras(vm, onEqualizer)
+                    Extras(vm, onEqualizer, onLyrics, onKaraoke)
                 }
             }
         }
@@ -115,7 +116,7 @@ private fun Readout(vm: JukeViewModel) {
 
 /** A thin rail with a gradient fill: tap or drag anywhere on it. A live stream has no end, so it just glows. */
 @Composable
-private fun Seek(vm: JukeViewModel) {
+internal fun Seek(vm: JukeViewModel) {
     val colors = MaterialTheme.colorScheme
     if (vm.isLive) {
         Box(Modifier.fillMaxWidth().height(3.dp).clip(CircleShape).background(LiveRed.copy(alpha = if (vm.isPlaying) 0.55f else 0.2f)))
@@ -124,22 +125,40 @@ private fun Seek(vm: JukeViewModel) {
     var position by remember { mutableStateOf(0L to 0L) }
     var dragging by remember { mutableStateOf<Float?>(null) }
     val owner = LocalLifecycleOwner.current
-    LaunchedEffect(vm.isPlaying, vm.currentTrackId) {           // only ticks while this screen is up and sound is playing
+    // Reads the position again whenever it may have jumped (a seek, a new song, the length becoming known), even paused;
+    // while sound plays it keeps ticking, only when this screen is up.
+    LaunchedEffect(vm.isPlaying, vm.currentTrackId, vm.progressVersion) {
         position = vm.position()
         if (!vm.isPlaying) return@LaunchedEffect
-        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { while (true) { position = vm.position(); delay(500) } }
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { while (true) { delay(250); if (dragging == null) position = vm.position() } }
     }
     val (pos, dur) = position
     val fraction = dragging ?: if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
     Column(Modifier.fillMaxWidth()) {
         Box(
-            Modifier.fillMaxWidth().height(26.dp)
-                .pointerInput(dur) { detectTapGestures { if (dur > 0) vm.seekTo((it.x / size.width).coerceIn(0f, 1f)) } }
+            Modifier.fillMaxWidth().height(40.dp)
                 .pointerInput(dur) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = { dragging?.let(vm::seekTo); dragging = null },
-                        onDragCancel = { dragging = null },
-                    ) { change, _ -> change.consume(); dragging = (change.position.x / size.width).coerceIn(0f, 1f) }
+                    if (dur <= 0) return@pointerInput
+                    // one gesture for tap and drag: the thumb goes to the finger at once, follows it, and the song jumps on release
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        try {
+                            dragging = (down.position.x / size.width).coerceIn(0f, 1f)
+                            down.consume()
+                            while (true) {
+                                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) { change.consume(); break }
+                                dragging = (change.position.x / size.width).coerceIn(0f, 1f)
+                                change.consume()
+                            }
+                            dragging?.let { f ->
+                                position = (dur * f).toLong() to dur          // show the new place now, not after the next tick
+                                vm.seekTo(f)
+                            }
+                        } finally {
+                            dragging = null
+                        }
+                    }
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -161,7 +180,7 @@ private fun Seek(vm: JukeViewModel) {
 }
 
 @Composable
-private fun Transport(vm: JukeViewModel) {
+internal fun Transport(vm: JukeViewModel) {
     Row(Modifier.fillMaxWidth(), Arrangement.Center, Alignment.CenterVertically) {
         Key(R.drawable.ic_prev, stringResource(R.string.previous), vm::previous, size = 58.dp, icon = 26.dp, enabled = !vm.isLive, filled = true)
         Spacer(Modifier.width(18.dp))
@@ -172,7 +191,7 @@ private fun Transport(vm: JukeViewModel) {
 }
 
 @Composable
-private fun Extras(vm: JukeViewModel, onEqualizer: () -> Unit) {
+private fun Extras(vm: JukeViewModel, onEqualizer: () -> Unit, onLyrics: () -> Unit, onKaraoke: () -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly, Alignment.CenterVertically) {
         Key(R.drawable.ic_shuffle, "Shuffle", vm::toggleShuffle, size = 46.dp, icon = 20.dp, tint = if (vm.shuffle) AccentA else muted, enabled = !vm.isLive)
@@ -181,6 +200,8 @@ private fun Extras(vm: JukeViewModel, onEqualizer: () -> Unit) {
             size = 46.dp, icon = 20.dp, tint = if (vm.repeat != Player.REPEAT_MODE_OFF) AccentA else muted, enabled = !vm.isLive,
         )
         Key(R.drawable.ic_stop, stringResource(R.string.stop), vm::stop, size = 46.dp, icon = 18.dp, tint = muted)
+        Key(R.drawable.ic_lyrics, stringResource(R.string.lyrics), onLyrics, size = 46.dp, icon = 20.dp, tint = if (vm.lyricsText.isNotBlank()) AccentA else muted, enabled = !vm.isLive)
+        Key(R.drawable.ic_mic, stringResource(R.string.karaoke), onKaraoke, size = 46.dp, icon = 20.dp, tint = if (vm.voiceReduction) AccentA else muted, enabled = !vm.isLive)
         Key(R.drawable.ic_sliders, stringResource(R.string.equalizer), onEqualizer, size = 46.dp, icon = 20.dp,
             tint = if (io.github.vezzulab.juke.playback.EqualizerHub.enabled) AccentA else muted)
     }

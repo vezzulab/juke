@@ -54,6 +54,13 @@ CREATE INDEX IF NOT EXISTS idx_tracks_source_type ON tracks (source_type);
 CREATE INDEX IF NOT EXISTS idx_tracks_natural     ON tracks (artist COLLATE NOCASE, album COLLATE NOCASE, track_no, title COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_tracks_favorite    ON tracks (favorite) WHERE favorite = 1;
 CREATE INDEX IF NOT EXISTS idx_tracks_last_played ON tracks (last_played) WHERE last_played > 0;
+CREATE TABLE IF NOT EXISTS lyrics (
+    source_type TEXT NOT NULL,
+    location    TEXT NOT NULL,
+    text        TEXT NOT NULL,
+    updated_at  REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (source_type, location)
+);
 CREATE TABLE IF NOT EXISTS playlists (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL,
@@ -353,6 +360,20 @@ class Database:
     def get_track(self, track_id: int) -> Track | None:
         row = self.connect().execute(f"SELECT {_COLUMNS} FROM tracks WHERE id=?", (track_id,)).fetchone()
         return Track.from_row(row) if row else None
+
+    # -- lyrics: kept by the song's place, so they survive rescans and re-syncs -------------------------
+    def get_lyrics(self, track: Track) -> str:
+        row = self.connect().execute("SELECT text FROM lyrics WHERE source_type=? AND location=?", (track.source_type, track.location)).fetchone()
+        return row[0] if row else ""
+
+    def set_lyrics(self, track: Track, text: str) -> None:
+        conn = self.connect()
+        with conn:
+            if text.strip():
+                conn.execute("INSERT OR REPLACE INTO lyrics (source_type, location, text, updated_at) VALUES (?, ?, ?, ?)",
+                             (track.source_type, track.location, text.strip(), time.time()))
+            else:
+                conn.execute("DELETE FROM lyrics WHERE source_type=? AND location=?", (track.source_type, track.location))
 
     def find_by_location(self, source_type: str, location: str) -> Track | None:
         row = self.connect().execute(
