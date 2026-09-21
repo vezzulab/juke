@@ -194,7 +194,7 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
         <h3 data-i18n="c7_t">Wayland & HiDPI</h3><p data-i18n="c7_p">Qt 6 scaling, fractional included. Every icon is an SVG drawn at your screen's exact scale — no blurry pixels.</p></div>
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg></div>
-        <h3 data-i18n="c8_t">One file, in your menu</h3><p data-i18n="c8_p">An AppImage with Python, Qt and libVLC inside. On first launch it can add itself to your applications menu, icon included.</p></div>
+        <h3 data-i18n="c8_t">One file, in your menu</h3><p data-i18n="c8_p">An AppImage with Python, Qt and libVLC inside, so there is nothing else to install. The first time it runs it adds itself to your applications menu, icon included.</p></div>
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg></div>
         <h3 data-i18n="c9_t">Internet radio</h3><p data-i18n="c9_p">Explore the community directory or paste any web page or stream: Juke finds the audio, shows LIVE and the song on air, and follows stations when they change address.</p></div>
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="2.5" y="7" width="16" height="10" rx="2.5"/><path d="M22 11v2M6 10.5v3M10 10.5v3"/></svg></div>
@@ -202,7 +202,15 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 2.5v19" /><path d="M12 2.5a9.5 9.5 0 0 1 0 19z" fill="currentColor"/></svg></div>
         <h3 data-i18n="c11_t">Dark and light</h3><p data-i18n="c11_p">Pick a theme or match your desktop. Both are checked for legibility and switch instantly with Ctrl+T.</p></div>
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12A9 9 0 0 1 18.5 5.8M3 4v5h5M21 20v-5h-5"/></svg></div>
-        <h3 data-i18n="c12_t">Updates on your terms</h3><p data-i18n="c12_p">Juke tells you when a new version exists and you decide: update now, later, or skip it. Downloads are checksum-verified.</p></div>
+        <h3 data-i18n="c12_t">Updates on your terms</h3><p data-i18n="c12_p">Juke tells you which version you are on, which one is out and what changed, and you accept or cancel. Downloads are checksum-verified.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M21.5 18.5a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h4.5l2 3h8.5a2 2 0 0 1 2 2z"/></svg></div>
+        <h3 data-i18n="c13_t">Your music, in your folders</h3><p data-i18n="c13_p">Make folders, nest them, drag songs in or drop whole folders from your file manager. No import step. It all lives in Music.juke, a library folder inside Music; your files are never moved.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></div>
+        <h3 data-i18n="c14_t">Edit songs, cover art too</h3><p data-i18n="c14_p">Change tags and the cover of one song, or select many with Ctrl+A or Ctrl+click and edit them together. Only what you change is written.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></div>
+        <h3 data-i18n="c15_t">Sorting and duplicates</h3><p data-i18n="c15_p">Sort any folder A→Z, Z→A, by number, newest or oldest, and find duplicate songs from the ⋯ menu.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <h3 data-i18n="c16_t">Tell us what is wrong</h3><p data-i18n="c16_p">Send feedback and read the log from the ⋯ menu. The report opens as a GitHub issue for you to review, with your folders, passwords and server address hidden.</p></div>
     </div>
   </div>
 </section>
@@ -235,7 +243,14 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
       <div>
         <h2 data-i18n="a_title">Juke on your phone.</h2>
         <p class="intro" data-i18n="a_intro">Juke also runs on a phone or a tablet: your files, your server and your stations, in a player that uses the whole screen.</p>
-        <ul class="reqs">
+        <div class="src">
+      <div>
+        <h3 data-i18n="one_t">Or in one line</h3>
+        <p data-i18n="one_p">Downloads it, makes it executable and starts it.</p>
+<pre><code>curl -fsSL https://vezzulab.github.io/juke/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://vezzulab.github.io/juke/install.sh | sh">Copy</button></pre>
+      </div>
+    </div>
+    <ul class="reqs">
           <li data-i18n="a_r1">Your card or the phone's own storage, listed by folders</li>
           <li data-i18n="a_r2">Airsonic / Subsonic on its own tab, by folders too</li>
           <li data-i18n="a_r3">Radio: the directory, or paste an address. A page with several stations offers all of them</li>
@@ -265,15 +280,15 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
 <section id="install">
   <div class="wrap">
     <p class="eyebrow" data-i18n="i_eyebrow">Install</p>
-    <h2 data-i18n="i_title">Download, make executable, run.</h2>
-    <p class="intro" data-i18n="i_intro">No package manager, no dependencies to hunt down — and Juke can add itself to your applications menu on first launch.</p>
+    <h2 data-i18n="i_title">Download it and open it.</h2>
+    <p class="intro" data-i18n="i_intro">Everything is inside the file, so there is nothing else to install. The first time it runs, Juke adds itself to your applications menu.</p>
     <div class="steps">
       <div class="step"><h3 data-i18n="st1_t">Download</h3><p data-i18n="st1_p">Get Juke-x86_64.AppImage from the latest release.</p>
         <a class="btn primary" href="https://github.com/vezzulab/juke/releases/latest" data-i18n="cta_download">Download AppImage</a></div>
-      <div class="step"><h3 data-i18n="st2_t">Make it executable and run</h3><p data-i18n="st2_p">From a terminal, or right-click ▸ Properties ▸ Allow executing.</p>
+      <div class="step"><h3 data-i18n="st2_t">Allow it to run, then open it</h3><p data-i18n="st2_p">Linux asks for this once for any downloaded program: right-click ▸ Properties ▸ Allow executing, or from a terminal.</p>
 <pre><code>chmod +x Juke-x86_64.AppImage
 ./Juke-x86_64.AppImage</code><button class="copy" type="button" data-copy="chmod +x Juke-x86_64.AppImage&#10;./Juke-x86_64.AppImage">Copy</button></pre></div>
-      <div class="step"><h3 data-i18n="st3_t">Add it to your menu</h3><p data-i18n="st3_p">Juke asks once. Say yes and it appears in your applications menu with its icon; undo it any time in Settings.</p>
+      <div class="step"><h3 data-i18n="st3_t">That is all</h3><p data-i18n="st3_p">Juke adds itself to your applications menu with its icon; undo it any time in Settings.</p>
 <pre><code>~/.local/share/applications/juke.desktop
 ~/.local/share/icons/hicolor/…/juke.png</code></pre></div>
     </div>
@@ -286,7 +301,7 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
     <div class="src">
       <div>
         <h3 data-i18n="src_t">Prefer the source?</h3>
-        <p data-i18n="src_p">Juke needs libVLC on the system. Then:</p>
+        <p data-i18n="src_p">Only for the source install, Juke needs libVLC on the system (the AppImage carries its own). Then:</p>
 <pre><code>git clone https://github.com/vezzulab/juke.git
 cd juke
 python -m venv .venv &amp;&amp; . .venv/bin/activate
@@ -309,7 +324,7 @@ juke</code><button class="copy" type="button" data-copy="git clone https://githu
 <footer>
   <div class="wrap">
     <span>Juke · <span data-i18n="foot">A modern music player for Linux</span></span>
-    <span><a href="https://github.com/vezzulab/juke">GitHub</a> · <a href="https://github.com/vezzulab/juke/releases">Releases</a> · <a href="https://github.com/vezzulab/juke/issues" data-i18n="foot_issues">Report a problem</a></span>
+    <span><a href="https://github.com/vezzulab/juke">GitHub</a> · <a href="https://github.com/vezzulab/juke/releases">Releases</a> · <a href="https://ko-fi.com/S1K526XVUI">Ko-fi</a> · <a href="https://github.com/vezzulab/juke/issues" data-i18n="foot_issues">Report a problem</a></span>
   </div>
 </footer>
 
@@ -343,11 +358,15 @@ const T = {
     c5_t: "Cola y listas", c5_p: "Reproducir a continuación pone una canción justo después de la actual; Añadir a la cola va al final. Crea tus propias listas con el botón +.",
     c6_t: "English y Español", c6_p: "Toda la interfaz cambia de idioma en vivo. Esta página también.",
     c7_t: "Wayland y HiDPI", c7_p: "Escalado de Qt 6, incluido el fraccionario. Cada icono es un SVG dibujado a la escala exacta de tu pantalla: nada de píxeles borrosos.",
-    c8_t: "Un archivo, en tu menú", c8_p: "Un AppImage con Python, Qt y libVLC dentro. En el primer arranque puede añadirse a tu menú de aplicaciones, con su icono.",
+    c8_t: "Un archivo, en tu menú", c8_p: "Un AppImage con Python, Qt y libVLC dentro, así que no hay nada más que instalar. La primera vez que se ejecuta se añade a tu menú de aplicaciones, con su icono.",
     c9_t: "Radio por Internet", c9_p: "Explora el directorio comunitario o pega cualquier página web o transmisión: Juke encuentra el audio, muestra EN VIVO y la canción que suena, y sigue a las emisoras cuando cambian de dirección.",
     c10_t: "Ligero con la batería", c10_p: "Un Juke inactivo no genera despertares; reproduciendo con batería usa alrededor del 1 % de un núcleo. El medidor de niveles descansa cuando desenchufas.",
     c11_t: "Oscuro y claro", c11_p: "Elige un tema o sigue a tu escritorio. Los dos están comprobados para leerse bien y cambian al instante con Ctrl+T.",
-    c12_t: "Actualizaciones a tu manera", c12_p: "Juke te avisa cuando hay una versión nueva y tú decides: actualizar ya, más tarde u omitirla. Las descargas se verifican con suma de comprobación.",
+    c12_t: "Actualizaciones a tu manera", c12_p: "Juke te dice en qué versión estás, cuál salió y qué cambió, y aceptas o cancelas. Las descargas se verifican con suma de comprobación.",
+    c13_t: "Tu música, en tus carpetas", c13_p: "Crea carpetas, anídalas, arrastra canciones o suelta carpetas enteras desde tu explorador. Sin paso de importar. Todo vive en Music.juke, una carpeta-biblioteca dentro de Música; tus archivos nunca se mueven.",
+    c14_t: "Edita canciones, y la carátula", c14_p: "Cambia etiquetas y carátula de una canción, o selecciona varias con Ctrl+A o Ctrl+clic y edítalas juntas. Solo se escribe lo que cambies.",
+    c15_t: "Orden y duplicados", c15_p: "Ordena cualquier carpeta A→Z, Z→A, por número, más nueva o más antigua, y busca canciones duplicadas desde el menú ⋯.",
+    c16_t: "Cuéntanos qué falla", c16_p: "Envía comentarios y lee el registro desde el menú ⋯. El reporte se abre como un problema en GitHub para que lo revises, con tus carpetas, contraseñas y dirección del servidor ocultas.",
     s_eyebrow: "Capturas", s_title: "Míralo en acción",
     tab_main: "Biblioteca", tab_radio: "Radio", tab_light: "Tema claro", tab_folders: "Carpetas Airsonic", tab_queue: "Cola", tab_eq: "Ecualizador", tab_settings: "Ajustes",
     cap_main: "Biblioteca con la pantalla LCD, el panel lateral y la tabla de canciones.",
@@ -357,15 +376,16 @@ const T = {
     cap_queue: "La cola actual: a continuación, añadidas a la cola y luego la lista de origen.",
     cap_eq: "Ecualizador con curva de respuesta en vivo, presets, velocidad y balance estéreo.",
     cap_settings: "Idioma, carpetas de música y tu servidor Airsonic / Subsonic.",
-    i_eyebrow: "Instalar", i_title: "Descarga, hazlo ejecutable, ábrelo.",
-    i_intro: "Sin gestor de paquetes ni dependencias que buscar — y Juke puede añadirse a tu menú de aplicaciones en el primer arranque.",
+    i_eyebrow: "Instalar", i_title: "Descárgalo y ábrelo.",
+    i_intro: "Todo va dentro del archivo, así que no hay nada más que instalar. La primera vez que se ejecuta, Juke se añade a tu menú de aplicaciones.",
     st1_t: "Descarga", st1_p: "Obtén Juke-x86_64.AppImage de la última versión.",
-    st2_t: "Hazlo ejecutable y ábrelo", st2_p: "Desde una terminal, o clic derecho ▸ Propiedades ▸ Permitir ejecutar.",
-    st3_t: "Añádelo a tu menú", st3_p: "Juke pregunta una sola vez. Di que sí y aparece en tu menú de aplicaciones con su icono; deshazlo cuando quieras en Ajustes.",
+    st2_t: "Permite que se ejecute y ábrelo", st2_p: "Linux pide esto una vez para cualquier programa descargado: clic derecho ▸ Propiedades ▸ Permitir ejecutar, o desde una terminal.",
+    st3_t: "Eso es todo", st3_p: "Juke se añade a tu menú de aplicaciones con su icono; deshazlo cuando quieras en Ajustes.",
+    one_t: "O en una sola línea", one_p: "Lo descarga, lo hace ejecutable y lo abre.",
     r1: "Linux x86_64 con glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36 o más reciente)",
     r2: "PulseAudio o PipeWire para el sonido",
     r3: "FUSE 2 (libfuse2) — o ejecútalo con --appimage-extract-and-run",
-    src_t: "¿Prefieres el código fuente?", src_p: "Juke necesita libVLC en el sistema. Después:",
+    src_t: "¿Prefieres el código fuente?", src_p: "Solo para la instalación desde el código fuente, Juke necesita libVLC en el sistema (el AppImage lleva el suyo). Después:",
     vlc_t: "Instalar libVLC", th_distro: "Distribución",
     foot: "Un reproductor de música moderno para Linux", foot_issues: "Reportar un problema"
   }

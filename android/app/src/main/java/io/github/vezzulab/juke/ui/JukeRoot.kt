@@ -93,6 +93,7 @@ private fun Rail(dest: Dest, onSelect: (Dest) -> Unit) {
         Spacer(Modifier.weight(1f))
         Dest.entries.forEach { d -> NavKey(d, d == dest, Modifier.padding(vertical = 6.dp)) { onSelect(d) } }
         Spacer(Modifier.weight(1f))
+        SupportKey(compact = true)
     }
 }
 

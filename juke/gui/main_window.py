@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import random
+import logging
+import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QProcess, QSize, QThread, QTimer, Qt, QUrl
+from PySide6.QtCore import QEvent, QFile, QProcess, QSize, QThread, QTimer, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QSizePolicy, QSplitter, QStackedWidget, QToolButton, QVBoxLayout,
@@ -20,6 +24,7 @@ from ..audio.queue import PlayQueue
 from ..audio.sources import SourceError, SourceResolver
 from ..config import AUDIO_EXTENSIONS, Config
 from ..db.database import SOURCE_AIRSONIC, SOURCE_LOCAL, Database, Scope, Station, Track
+from ..db.folders import DB_NAME, PACKAGE_NAME, FolderStore, prepare_package
 from ..db.indexer import LibraryScanner, cover_key_for, cover_path, extract_cover, read_tags, save_cover
 from ..i18n import tr, translator, trn
 from ..power import on_battery
@@ -46,13 +51,27 @@ def format_total(seconds: float) -> str:
     return f"{minutes} min"
 
 
+log = logging.getLogger(__name__)
+KOFI_URL = "https://ko-fi.com/S1K526XVUI"
+
+
 class MainWindow(QMainWindow):
     def __init__(self, config: Config, db: Database, engine: AudioEngine, equalizer: Equalizer,
-                 theme: ThemeManager | None = None) -> None:
+                 theme: ThemeManager | None = None, folders: FolderStore | None = None) -> None:
         super().__init__()
         self.theme = theme or ThemeManager(QApplication.instance(), config.get("theme"))
         self.theme.apply()          # palette + stylesheet first, so every icon below is built in the right colours
         self.config, self.db, self.engine, self.equalizer = config, db, engine, equalizer
+        # Music.juke, the folders the user organises the music in (main.py puts it in the Music folder)
+        self.folders = folders or FolderStore(prepare_package(Path(config.path).parent / PACKAGE_NAME) / DB_NAME)
+        self.db.attach_folders(self.folders.path)
+        self._view_thread: threading.Thread | None = None
+        self._view_timer = QTimer(self)
+        self._view_timer.setSingleShot(True)
+        self._view_timer.setInterval(1500)
+        self._view_timer.timeout.connect(self._write_folder_view)
+        self._extra_scanner: LibraryScanner | None = None
+        self._pending_files: list[str] = []
         self.queue = PlayQueue()
         self.queue.shuffle = bool(config.get("shuffle"))
         self.queue.repeat = config.get("repeat")
@@ -128,17 +147,18 @@ class MainWindow(QMainWindow):
 
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.setChildrenCollapsible(False)
-        self.settings_button = QToolButton()
-        self.settings_button.setObjectName("sidebarSettings")
-        self.settings_button.setIcon(icons.icon("gear", styles.SUBTEXT, active=styles.TEXT, size=18))
-        self.settings_button.setIconSize(QSize(18, 18))
-        self.settings_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.settings_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.settings_button.setCursor(Qt.PointingHandCursor)
-        self.settings_button.clicked.connect(lambda: self.open_settings())
-        footer = QHBoxLayout()
-        footer.setContentsMargins(8, 4, 8, 12)
-        footer.addWidget(self.settings_button)
+        self.support_button = QToolButton()
+        self.support_button.setObjectName("sidebarSupport")
+        self.support_button.setIcon(icons.icon("heart", styles.ACCENT, active=styles.ACCENT_HOVER, size=18))
+        self.support_button.setIconSize(QSize(18, 18))
+        self.support_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.support_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.support_button.setCursor(Qt.PointingHandCursor)
+        self.support_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(KOFI_URL)))
+        footer = QVBoxLayout()
+        footer.setContentsMargins(12, 6, 12, 14)
+        footer.setSpacing(2)
+        footer.addWidget(self.support_button)
         side = QWidget()
         side.setObjectName("sidebarPanel")
         side_layout = QVBoxLayout(side)
@@ -230,18 +250,31 @@ class MainWindow(QMainWindow):
         rv.summary_changed.connect(self._update_heading)
         self.add_station_button.clicked.connect(lambda: self._add_station_by_url())
         eng.now_playing_changed.connect(self._now_playing)
+        self.sidebar.new_folder_requested.connect(lambda parent: self._new_folder(parent))
+        self.sidebar.rename_folder_requested.connect(self._rename_folder)
+        self.sidebar.delete_folder_requested.connect(self._delete_folder)
+        self.sidebar.folder_action_requested.connect(self._folder_action)
+        self.sidebar.sort_folders_requested.connect(self._sort_folders)
+        self.sidebar.restore_removed_requested.connect(self._restore_removed)
+        self.sidebar.tracks_dropped.connect(self._tracks_dropped)
+        self.sidebar.paths_dropped.connect(self._paths_dropped)
+        self.sidebar.folder_moved.connect(self._folder_moved)
+        t.add_to_folder_requested.connect(self._add_to_folder)
+        t.new_folder_requested.connect(lambda ids: self._new_folder(0, ids))
+        t.remove_from_folder_requested.connect(self._remove_from_folder)
         self.sidebar.new_playlist_requested.connect(lambda: self._new_playlist())
         self.sidebar.rename_playlist_requested.connect(self._rename_playlist)
         self.sidebar.delete_playlist_requested.connect(self._delete_playlist)
         translator.changed.connect(self.retranslate)
-        QGuiApplication.instance().applicationStateChanged.connect(lambda _state: self._update_activity())
+        QGuiApplication.instance().applicationStateChanged.connect(self._app_state_changed)
         self._theme_slot = lambda _name: self._on_theme_changed()
         styles.signals.changed.connect(self._theme_slot)
 
         for keys, slot in (("Space", self._play_pressed), ("Ctrl+F", lambda: (self.search.setFocus(), self.search.selectAll())),
                            ("Ctrl+E", self.toggle_equalizer), ("Ctrl+,", self.open_settings),
                            ("Ctrl+Right", lambda: self._advance(auto=False)), ("Ctrl+Left", self._previous),
-                           ("Ctrl+Q", self.close), ("Ctrl+N", lambda: self._new_playlist()), ("Ctrl+T", self.toggle_theme)):
+                           ("Ctrl+Q", self.close), ("Ctrl+N", lambda: self._new_playlist()),
+                           ("Ctrl+Shift+N", lambda: self._new_folder()), ("Ctrl+T", self.toggle_theme)):
             QShortcut(QKeySequence(keys), self).activated.connect(slot)
 
     def _restore_state(self) -> None:
@@ -272,7 +305,7 @@ class MainWindow(QMainWindow):
     def _on_theme_changed(self) -> None:
         """Icons and brushes are built once, so the widgets that own them rebuild them now."""
         self.menu_button.setIcon(icons.icon("more", styles.TEXT))
-        self.settings_button.setIcon(icons.icon("gear", styles.SUBTEXT, active=styles.TEXT, size=18))
+        self.support_button.setIcon(icons.icon("heart", styles.ACCENT, active=styles.ACCENT_HOVER, size=18))
         self._search_action.setIcon(icons.icon("search", styles.MUTED, size=18))
         self.top_bar.apply_theme()
         self.sidebar.apply_theme()
@@ -342,7 +375,8 @@ class MainWindow(QMainWindow):
         self.add_station_button.setText(tr("radio.add_url"))
         self.radio_view.retranslate()
         self.menu_button.setToolTip(tr("menu.more"))
-        self.settings_button.setText("\u2002\u2002" + tr("sidebar.settings"))  # en-spaces: air between icon and label
+        self.support_button.setText("\u2002\u2002" + tr("sidebar.support"))
+        self.support_button.setToolTip(tr("sidebar.support_tip"))
         self.sidebar.retranslate()
         self.top_bar.retranslate()
         self.table.track_model.refresh_headers()
@@ -361,7 +395,16 @@ class MainWindow(QMainWindow):
             return action
 
         add(tr("menu.new_playlist"), lambda: self._new_playlist(), "Ctrl+N")
+        add(tr("menu.new_folder"), lambda: self._new_folder(), "Ctrl+Shift+N")
         add(tr("radio.add_url"), lambda: self._add_station_by_url())
+        menu.addSeparator()
+        show = menu.addMenu(tr("menu.show"))                    # the views that no longer have a place in the sidebar
+        for key, label in (("favorites", "sidebar.favorites"), ("recent", "sidebar.recent"), ("queue", "sidebar.queue")):
+            show.addAction(tr(label), lambda _c=False, k=key: self._show_view(k, None))
+        finder = menu.addMenu(tr("menu.duplicates"))
+        for mode in ("same", "exact"):
+            finder.addAction(tr("menu.dupes_" + mode), lambda _c=False, m=mode: self._show_view("duplicates", m))
+        menu.addSeparator()
         add(tr("menu.equalizer"), self.toggle_equalizer, "Ctrl+E")
         add(tr("menu.toggle_theme"), self.toggle_theme, "Ctrl+T")
         menu.addSeparator()
@@ -371,11 +414,26 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         add(tr("menu.settings"), self.open_settings, "Ctrl+,")
         add(tr("menu.check_updates"), lambda: self.check_for_updates(manual=True))
+        add(tr("menu.feedback"), self.send_feedback)
+        add(tr("menu.view_log"), self.show_log)
         add(tr("menu.about"), self.show_about)
         menu.addSeparator()
         add(tr("menu.quit"), self.close, "Ctrl+Q")
         self.menu_button.setMenu(menu)
         self._menu = menu
+
+    def send_feedback(self) -> None:
+        from .feedback_dialog import FeedbackDialog
+
+        server = self.config.get("airsonic") or {}
+        facts = [f"Language: {self.config.get('language')} · theme {self.config.get('theme')}",
+                 f"Library: {self.db.count(SOURCE_LOCAL)} local songs · server {'on' if server.get('enabled') else 'off'}"]
+        FeedbackDialog(self.config, facts, self).exec()
+
+    def show_log(self) -> None:
+        from .feedback_dialog import LogDialog
+
+        LogDialog(self.config, self).exec()
 
     def _window_title(self) -> str:
         t = self.current_track
@@ -392,6 +450,7 @@ class MainWindow(QMainWindow):
         self.sidebar.set_folders(db.folders(SOURCE_AIRSONIC))
         self._update_counts()
         self.refresh_playlists()
+        self.refresh_folders()
         self._reload_view()
         self._update_heading()
 
@@ -423,6 +482,10 @@ class MainWindow(QMainWindow):
             return Scope(source_type=SOURCE_AIRSONIC, folder=str(value)), None, None
         if key == "playlist":
             return Scope(), self.db.playlist_track_ids(int(value)), None
+        if key == "ufolder":
+            return Scope(ufolders=tuple(self.folders.subtree_ids(int(value)))), None, None
+        if key == "duplicates":
+            return Scope(duplicates=str(value)), None, None
         return {
             "albums": (Scope(), None, "album"),
             "genres": (Scope(), None, "genre"),
@@ -455,6 +518,10 @@ class MainWindow(QMainWindow):
         scope, fixed, sort = self._scope_for(key, value)
         self.table.queue_mode = key == "queue"
         self.table.playlist_mode = key == "playlist"
+        self.table.folder_mode = key == "ufolder"
+        self.table.duplicate_mode = str(value) if key == "duplicates" else None
+        if key in ("duplicates", "favorites", "recent", "queue"):
+            self.sidebar.clear_selection()             # these are reached from the menu, not from the sidebar
         self.table.show_view(scope, fixed, sort)
         self.table.track_model.set_current(self.current_track.id if self.current_track else None)
         self._update_heading()
@@ -476,6 +543,11 @@ class MainWindow(QMainWindow):
             return str(value).rsplit("/", 1)[-1]
         if key == "playlist":
             return next((name for pid, name, _ in self._playlists if pid == value), "")
+        if key == "ufolder":
+            folder = self.folders.get(int(value))
+            return folder.name if folder else ""
+        if key == "duplicates":
+            return tr("dupes.title_" + str(value))
         return tr({"all": "sidebar.all", "artists": "sidebar.artists", "albums": "sidebar.albums",
                    "genres": "sidebar.genres", "airsonic": "sidebar.airsonic", "favorites": "sidebar.favorites",
                    "recent": "sidebar.recent", "queue": "sidebar.queue", "stations": "sidebar.stations",
@@ -498,6 +570,8 @@ class MainWindow(QMainWindow):
                 text += " · " + format_total(seconds)
         if key == "folder":
             text = f"{self._view[1]} · {text}"  # full server path, like a breadcrumb
+        elif key == "ufolder":
+            text = f"{self.folders.path_of(int(self._view[1]))} · {text}"
         self.subtitle_label.setText(text)
         self._update_empty_text()
 
@@ -523,6 +597,10 @@ class MainWindow(QMainWindow):
             title, hint = tr("empty.queue.title"), tr("empty.queue.hint")
         elif key == "playlist":
             title, hint = tr("empty.playlist.title"), tr("empty.playlist.hint")
+        elif key == "ufolder":
+            title, hint = tr("empty.folder.title"), tr("empty.folder.hint")
+        elif key == "duplicates":
+            title, hint = tr("empty.dupes.title"), tr("empty.dupes.hint")
         elif self.db.count() == 0:
             title, hint = tr("empty.library.title"), tr("empty.library.hint")
             action, kind = tr("empty.library.action"), "settings:1"
@@ -821,6 +899,190 @@ class MainWindow(QMainWindow):
         worker.finished.connect(lambda w=worker: (self._radio_workers.discard(w), w.deleteLater()))
         worker.start()
 
+    # ------------------------------------------------------------------------------ folders (Music.juke)
+    def refresh_folders(self) -> None:
+        self.sidebar.set_user_folders(self.folders.tree(), self.folders.root_sort())
+        self.table.set_folders(self.folders.tree())
+        self._view_timer.start()                      # Music.juke/Folders follows, a moment after the last change
+
+    def _write_folder_view(self) -> None:
+        """Bring the browsable copy of the folders (shortcuts under Music.juke) up to date, off the UI thread."""
+        if self._view_thread is not None and self._view_thread.is_alive():
+            self._view_timer.start()                  # one is still running: go again when it is done
+            return
+
+        def work() -> None:
+            try:
+                self.folders.write_view()
+            except OSError:
+                pass
+            finally:
+                self.folders.close_thread_connection()
+
+        self._view_thread = threading.Thread(target=work, name="juke-folder-view", daemon=True)
+        self._view_thread.start()
+
+    def _folder_ids(self, folder_id: int) -> list[int]:
+        """Every song in a folder and the folders below it, in the library's natural order."""
+        return self.db.query_ids(Scope(ufolders=tuple(self.folders.subtree_ids(folder_id))))
+
+    def _new_folder(self, parent_id: int = 0, ids: list[int] | None = None) -> None:
+        name = ask_text(self, tr("folder.new_title"), tr("folder.name_prompt"), tr("folder.default_name"))
+        if not name:
+            return
+        folder_id = self.folders.create(name, parent_id or None)
+        self.refresh_folders()
+        self.sidebar.reveal_folder(folder_id)
+        if ids:
+            self._add_to_folder(folder_id, ids)
+        self._show_view("ufolder", folder_id)
+
+    def _rename_folder(self, folder_id: int) -> None:
+        folder = self.folders.get(folder_id)
+        if folder is None:
+            return
+        name = ask_text(self, tr("folder.rename_title"), tr("folder.name_prompt"), folder.name)
+        if not name or name == folder.name:
+            return
+        self.folders.rename(folder_id, name)
+        self.refresh_folders()
+        self._update_heading()
+
+    def _delete_folder(self, folder_id: int) -> None:
+        folder = self.folders.get(folder_id)
+        if folder is None or not confirm(self, tr("folder.delete_title"), tr("folder.delete_text", name=folder.name)):
+            return
+        inside = set(self.folders.subtree_ids(folder_id))
+        gone = self.folders.delete(folder_id, self.config.get("music_dirs", []))
+        # the folders are how Juke keeps what it has: a folder that goes takes its songs with it (the files stay put)
+        removed = self.db.delete_local_under(gone.dirs) + self.db.delete_locations(SOURCE_LOCAL, gone.orphans)
+        self.refresh_folders()
+        if self._view[0] == "ufolder" and int(self._view[1]) in inside:
+            self.sidebar.select("all")
+            self._show_view("all", None)
+        if removed:
+            self._library_shrank()
+            self.notify(trn("msg.removed_songs", removed), 4000)
+
+    def _library_shrank(self) -> None:
+        """Songs left the library: lists, queue and the player forget them, including the one on the display."""
+        self.refresh_library()
+        self.queue.discard_missing(set(self.db.query_ids()))
+        if self.current_track is not None and self.db.get_track(self.current_track.id) is None:
+            self.engine.stop()
+            self.queue.current = None
+            self._playback_ended()
+
+    def _sort_folders(self, parent_id: int, mode: str) -> None:
+        self.folders.set_sort(parent_id or None, mode)
+        self.refresh_folders()
+
+    def _restore_removed(self) -> None:
+        self.folders.restore_hidden()
+        self.start_scan()
+
+    def _folder_action(self, action: str, folder_id: int) -> None:
+        if action == "duplicate":
+            copy = self.folders.duplicate(folder_id)
+            self.refresh_folders()
+            if copy is not None:
+                self.sidebar.reveal_folder(copy)
+            return
+        if action == "reveal":
+            folder = self.folders.get(folder_id)
+            if folder is not None and folder.source_path:
+                QDesktopServices.openUrl(QUrl.fromLocalFile(folder.source_path))
+            return
+        ids = self._folder_ids(folder_id)
+        if not ids:
+            self.notify(tr("empty.folder.title"), 3000)
+            return
+        if action == "queue":
+            self._add_to_queue(ids)
+        elif action in ("play", "shuffle"):
+            shuffle = action == "shuffle"
+            self._set_shuffle(shuffle)
+            self.top_bar.set_shuffle(shuffle)
+            self.queue.set_context(ids, random.choice(ids) if shuffle else ids[0])
+            self._start(self.queue.current if shuffle else ids[0])
+
+    def _add_to_folder(self, folder_id: int, ids: list[int]) -> None:
+        tracks = self.db.tracks_by_ids(ids)
+        local = [t.location for t in tracks if t.is_local]
+        added = self.folders.add_paths(folder_id, local)
+        self.refresh_folders()
+        folder = self.folders.get(folder_id)
+        name = folder.name if folder else ""
+        self.notify(trn("msg.added_folder", len(added.files), name=name), 3500)
+        if len(local) < len(tracks):
+            self.notify(tr("msg.folder_local_only", n=len(tracks) - len(local)), 5000)
+        if self._view == ("ufolder", folder_id):
+            self._reload_view()
+            self._update_heading()
+
+    def _remove_from_folder(self, ids: list[int]) -> None:
+        if self._view[0] != "ufolder":
+            return
+        folder_id = int(self._view[1])
+        self.folders.remove_paths(folder_id, [t.location for t in self.db.tracks_by_ids(ids) if t.is_local])
+        self.refresh_folders()
+        self._reload_view()
+        self._update_heading()
+
+    # -- drag and drop: nothing to confirm, it just happens ------------------------------------------------
+    def _tracks_dropped(self, kind: str, target: int, ids: list[int]) -> None:
+        if kind == "playlist":
+            self._add_to_playlist(target, ids)
+        else:
+            self._add_to_folder(target, ids)
+
+    def _paths_dropped(self, target: int, paths: list[str]) -> None:
+        """Files and folders dragged in from the file manager. Folders keep their layout; the songs are
+        indexed in the background, without an import step."""
+        dirs = [p for p in paths if Path(p).is_dir()]
+        files = [p for p in paths if not Path(p).is_dir()]
+        found: list[str] = []
+        if target:
+            found = self.folders.add_paths(target, paths).files
+            landed = target
+        else:
+            found = self.folders.add_paths(None, dirs).files
+            landed = 0
+            if files:                                      # loose songs on the top level need a folder to sit in
+                landed = self.folders.create(tr("folder.default_name"))
+                found += self.folders.add_paths(landed, files).files
+        self.refresh_folders()
+        if landed:
+            self.sidebar.reveal_folder(landed)
+        self._index_files(found)
+        if found:
+            folder = self.folders.get(landed) if landed else None
+            self.notify(trn("msg.added_folder", len(found), name=folder.name if folder else tr("sidebar.folders")), 3500)
+
+    def _folder_moved(self, folder_id: int, new_parent: int) -> None:
+        if not self.folders.move(folder_id, new_parent or None):
+            self.notify(tr("folder.move_invalid"), 3500)
+            return
+        self.refresh_folders()
+        self.sidebar.reveal_folder(folder_id)
+
+    def _index_files(self, paths: list[str]) -> None:
+        """Songs dropped in from outside the music folders join the library (quietly, on a background thread)."""
+        self._pending_files.extend(p for p in paths if self.db.find_by_location(SOURCE_LOCAL, p) is None)
+        self._run_extra_scan()
+
+    def _run_extra_scan(self) -> None:
+        if not self._pending_files or (self._extra_scanner is not None and self._extra_scanner.isRunning()):
+            return                                        # nothing to do, or the running one will pick these up when it ends
+        batch, self._pending_files = self._pending_files, []
+        self._extra_scanner = LibraryScanner(self.db, [], self, extra_files=batch, prune=False)
+        self._extra_scanner.finished.connect(self._extra_scan_done)
+        self._extra_scanner.start(QThread.LowPriority)
+
+    def _extra_scan_done(self) -> None:
+        self.refresh_library()
+        self._run_extra_scan()
+
     # ------------------------------------------------------------------------------ playlists
     def refresh_playlists(self) -> None:
         self._playlists = self.db.playlists()
@@ -894,13 +1156,15 @@ class MainWindow(QMainWindow):
         else:
             self.table.track_model.invalidate_rows()
 
-    def _edit_metadata(self, track_id: int) -> None:
-        track = self.db.get_track(track_id)
-        if track is None or not track.is_local:
+    def _edit_metadata(self, ids: int | list[int]) -> None:
+        """Edit one song, or every local song of the selection at once."""
+        wanted = [ids] if isinstance(ids, int) else list(ids)
+        tracks = [t for t in self.db.tracks_by_ids(wanted) if t.is_local]
+        if not tracks:
             return
         from .meta_dialog import MetadataDialog
 
-        if MetadataDialog(track, self.db, self).exec():
+        if MetadataDialog(tracks, self.db, self).exec():
             self.refresh_library()
 
     # ------------------------------------------------------------------------------ covers
@@ -1015,31 +1279,43 @@ class MainWindow(QMainWindow):
         if self.config.get("scan_on_start") or self.db.count(SOURCE_LOCAL) == 0:
             self.start_scan()
         if integration.is_installed():
-            if integration.needs_refresh():
-                integration.install()  # the AppImage moved or was updated: keep the menu entry valid
+            if integration.appimage_path() and integration.needs_refresh():
+                integration.install()  # the AppImage moved or was updated: keep the menu entry valid (a run from source never rewrites it)
         elif integration.appimage_path() and not self.config.get("desktop_integration.asked"):
-            self._offer_integration()
+            self._integrate_first_time()
 
-    def start_scan(self) -> None:
+    def _app_state_changed(self, state) -> None:
+        self._update_activity()
+        # Back from the file manager (or anywhere else): songs and folders may have been deleted or moved meanwhile.
+        if (state == Qt.ApplicationActive and self.config.get("scan_on_start")
+                and time.monotonic() - getattr(self, "_last_scan_end", 0.0) > 15.0):
+            self.start_scan(quiet=True)
+
+    def start_scan(self, quiet: bool = False) -> None:
         if self._scanner is not None and self._scanner.isRunning():
             return
+        self._scan_quiet = quiet
         dirs = [d for d in self.config.get("music_dirs", []) if Path(d).is_dir()]
         if not dirs:
             self.notify(tr("msg.no_folders"))
             return
         self._live_refresh = self.db.count(SOURCE_LOCAL) == 0
         self._last_live_refresh = time.monotonic()
-        self._scanner = LibraryScanner(self.db, dirs, self)
+        self._scanner = LibraryScanner(self.db, dirs, self, folders=self.folders)
+        self._scanner.folders_synced.connect(self.refresh_folders)
         self._scanner.progress.connect(self._scan_progress)
         self._scanner.scan_finished.connect(self._scan_finished)
-        self._scanner.failed.connect(lambda msg: self.notify(tr("msg.scan_failed", error=msg)))
+        self._scanner.failed.connect(lambda msg: (log.error("Library scan failed: %s", msg), self.notify(tr("msg.scan_failed", error=msg))))
         self._scanner.finished.connect(self._scan_thread_done)
-        self.progress.setRange(0, 0)
-        self.progress.show()
-        self.status_label.setText(tr("status.scanning"))
+        if not quiet:
+            self.progress.setRange(0, 0)
+            self.progress.show()
+            self.status_label.setText(tr("status.scanning"))
         self._scanner.start(QThread.LowPriority)       # never compete with playback or the UI
 
     def _scan_progress(self, done: int, total: int) -> None:
+        if getattr(self, "_scan_quiet", False):
+            return
         if total:
             self.progress.setRange(0, total)
             self.progress.setValue(done)
@@ -1049,11 +1325,12 @@ class MainWindow(QMainWindow):
             self.refresh_library()
 
     def _scan_finished(self, changed: int, removed: int, seen: int) -> None:
-        self.refresh_library()
-        self.queue.discard_missing(set(self.db.query_ids()))
-        self.notify(tr("msg.scan_done", changed=f"{changed:,}", removed=f"{removed:,}"))
+        self._library_shrank()
+        if not getattr(self, "_scan_quiet", False) or changed or removed:
+            self.notify(tr("msg.scan_done", changed=f"{changed:,}", removed=f"{removed:,}"))
 
     def _scan_thread_done(self) -> None:
+        self._last_scan_end = time.monotonic()
         self.progress.hide()
         self.status_label.clear()
         self._scanner = None
@@ -1094,7 +1371,7 @@ class MainWindow(QMainWindow):
         if on_error:
             worker.failed.connect(on_error)
         elif not quiet:
-            worker.failed.connect(lambda msg: self.notify(tr("msg.airsonic_error", error=msg)))
+            worker.failed.connect(lambda msg: (log.warning("Server request failed: %s", msg), self.notify(tr("msg.airsonic_error", error=msg))))
         worker.finished.connect(lambda w=worker: (self._workers.discard(w), w.deleteLater()))
         worker.start()
         return worker
@@ -1188,9 +1465,11 @@ class MainWindow(QMainWindow):
             self.sync_airsonic()
         self._update_empty_text()
 
-    def _offer_integration(self) -> None:
+    def _integrate_first_time(self) -> None:
+        """The first time the AppImage runs it adds itself to the applications menu, with no question asked. It only
+        touches the user's own account, says so, and Settings can undo it (and it is then not added again)."""
         self.config.set("desktop_integration.asked", True)
-        self._set_integration(confirm(self, tr("integration.title"), tr("integration.text")))
+        self._set_integration(True)
         self.config.save()
 
     def _set_integration(self, enabled: bool) -> None:

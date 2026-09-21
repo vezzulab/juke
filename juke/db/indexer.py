@@ -12,7 +12,7 @@ import os
 import re
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Qt, Signal
+from PySide6.QtCore import QBuffer, QIODevice, QThread, Qt, Signal
 from PySide6.QtGui import QImage
 
 from ..config import AUDIO_EXTENSIONS, COVERS_DIR
@@ -111,6 +111,60 @@ def write_tags(path: str | os.PathLike, fields: dict) -> None:
     audio.save()
 
 
+def prepare_cover(data: bytes, limit: int = 1200) -> bytes | None:
+    """A picked image as a JPEG of at most ``limit`` pixels: what goes into the files and the cover cache."""
+    image = QImage.fromData(data)
+    if image.isNull():
+        return None
+    if max(image.width(), image.height()) > limit:
+        image = image.scaled(limit, limit, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    buffer = QBuffer()
+    buffer.open(QIODevice.WriteOnly)
+    return bytes(buffer.data()) if image.convertToFormat(QImage.Format_RGB32).save(buffer, "JPEG", 90) else None
+
+
+def write_cover(path: str | os.PathLike, data: bytes | None) -> None:
+    """Put ``data`` (a JPEG) in the file as its front cover; ``None`` takes the artwork out."""
+    import mutagen
+    from mutagen.flac import FLAC, Picture
+    from mutagen.id3 import APIC, ID3
+    from mutagen.mp4 import MP4, MP4Cover
+    from mutagen.ogg import OggFileType
+
+    audio = mutagen.File(path)
+    if audio is None:
+        raise ValueError("unsupported file")
+    if isinstance(audio, FLAC):
+        audio.clear_pictures()
+        if data:
+            audio.add_picture(_picture(Picture, data))
+    elif isinstance(audio, MP4):
+        if data:
+            audio["covr"] = [MP4Cover(data, imageformat=MP4Cover.FORMAT_JPEG)]
+        elif "covr" in audio:
+            del audio["covr"]
+    elif isinstance(audio, OggFileType):
+        if "metadata_block_picture" in (audio.tags or {}):
+            del audio["metadata_block_picture"]
+        if data:
+            audio["metadata_block_picture"] = [base64.b64encode(_picture(Picture, data).write()).decode("ascii")]
+    else:
+        if audio.tags is None:
+            audio.add_tags()
+        if not isinstance(audio.tags, ID3):
+            raise ValueError("unsupported file")
+        audio.tags.delall("APIC")
+        if data:
+            audio.tags.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="Cover", data=data))
+    audio.save()
+
+
+def _picture(cls, data: bytes):
+    picture = cls()
+    picture.type, picture.mime, picture.desc, picture.data = 3, "image/jpeg", "", data
+    return picture
+
+
 def cover_key_for(artist: str, album: str, path: str) -> str:
     """Album covers are shared between the tracks of an album."""
     base = f"{artist}|{album}" if album else path
@@ -185,7 +239,7 @@ def iter_audio_files(roots: list[str], should_stop=lambda: False):
                     for entry in entries:
                         try:
                             if entry.is_dir(follow_symlinks=True):
-                                if not entry.name.startswith("."):
+                                if not entry.name.startswith(".") and not entry.name.endswith(".juke"):
                                     stack.append(entry.path)
                             elif os.path.splitext(entry.name)[1].lower() in AUDIO_EXTENSIONS:
                                 st = entry.stat()
@@ -204,11 +258,21 @@ class LibraryScanner(QThread):
     failed = Signal(str)
 
     BATCH = 200
+    folders_synced = Signal()            # the mirrored folders (Music.juke) changed
 
-    def __init__(self, db: Database, roots: list[str], parent=None) -> None:
+    def __init__(self, db: Database, roots: list[str], parent=None, *, folders=None,
+                 extra_files: list[str] | None = None, prune: bool = True) -> None:
+        """``roots`` are walked; ``extra_files`` (songs dropped in from elsewhere) are indexed as well.
+
+        With ``prune`` False songs that are not under ``roots`` are left alone: that is how a few
+        dropped files are added without the scan treating the rest of the library as gone.
+        """
         super().__init__(parent)
         self._db = db
         self._roots = [r for r in roots if r]
+        self._folders = folders
+        self._extra = list(extra_files or [])
+        self._prune = prune
         self._stop = False
 
     def cancel(self) -> None:
@@ -221,11 +285,28 @@ class LibraryScanner(QThread):
             self.failed.emit(str(exc))
         finally:
             self._db.close_thread_connection()
+            if self._folders is not None:
+                self._folders.close_thread_connection()
 
     def _scan(self) -> None:
         known = self._db.local_index()
         files = list(iter_audio_files(self._roots, lambda: self._stop))
+        if self._folders is not None:                       # what the user removed from Juke stays out of it
+            skip = tuple(d.rstrip(os.sep) + os.sep for d in self._folders.hidden_dirs())
+            if skip:
+                files = [f for f in files if not f[0].startswith(skip)]
         present = {path for path, _, _ in files}
+        if self._folders is not None and self._prune and not self._stop:
+            # the folders that mirror the music directories follow the disk, before any tag is read
+            if self._folders.sync_roots(self._roots, present):
+                self.folders_synced.emit()
+        for extra in self._extra:
+            try:
+                st = os.stat(extra)
+            except OSError:
+                continue
+            if extra not in present:
+                files.append((extra, st.st_mtime, st.st_size))
         todo = [f for f in files if known.get(f[0]) != (f[1], f[2])]
         total = len(todo)
         batch: list[dict] = []
@@ -259,7 +340,7 @@ class LibraryScanner(QThread):
             self._db.upsert_many(batch)
         self.progress.emit(done, total)
         removed = 0
-        if not self._stop:
+        if not self._stop and self._prune:
             stale = [loc for loc in known if loc not in present]
             removed = self._db.delete_locations(SOURCE_LOCAL, stale)
         self.scan_finished.emit(done, removed, len(files))

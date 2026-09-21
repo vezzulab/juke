@@ -61,6 +61,7 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
                 showLocal()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                AppLog.w("library", "Scanning the card failed", e)
                 local = BrowseState.Failed(e.message ?: "error")
             }
         }
@@ -112,7 +113,7 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
         server = config; store.server = config; client = null; serverCrumbs.clear(); searchQuery = ""
         serverBusy = true; serverStatus = null
         viewModelScope.launch {
-            serverStatus = try { client()!!.ping(); "" } catch (e: Exception) { e.message ?: "error" }
+            serverStatus = try { client()!!.ping(); "" } catch (e: Exception) { AppLog.w("server", "Could not reach the server", e); e.message ?: "error" }
             serverBusy = false
             if (serverStatus == "") loadRemote() else remote = BrowseState.Failed(serverStatus.orEmpty())
         }
@@ -139,6 +140,7 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                AppLog.w("server", "Loading the server failed", e)
                 BrowseState.Failed(e.message ?: "error")
             }
         }
@@ -185,6 +187,9 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
             controller = c
             c.addListener(object : Player.Listener {
                 override fun onEvents(player: Player, events: Player.Events) { syncFrom(player) }
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    AppLog.e("player", "Playback failed (${error.errorCodeName}) for ${c.currentMediaItem?.mediaMetadata?.title}", error)
+                }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     val id = mediaItem?.mediaId
                     if (id != null && !id.startsWith("local:") && mediaItem.mediaMetadata.extras?.getBoolean("live") != true &&

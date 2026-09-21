@@ -11,6 +11,12 @@ import coil3.request.crossfade
 import okio.Path.Companion.toOkioPath
 
 class JukeApp : Application(), SingletonImageLoader.Factory {
+    override fun onCreate() {
+        super.onCreate()
+        AppLog.init(this)
+    }
+
+
     // Small caches: covers are tiny and the app must stay light on memory.
     override fun newImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)
         .components { add(OkHttpNetworkFetcherFactory()) }

@@ -1,9 +1,9 @@
-"""Left navigation: BIBLIOTECA / SERVIDORES / LISTAS with expandable artist, album, genre groups."""
+"""Left navigation: LIBRARY / SERVERS / RADIO / PLAYLISTS / FOLDERS, with expandable artist, album, genre groups."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QModelIndex, QPointF, QRect, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen
+from PySide6.QtCore import QEvent, QMimeData, QModelIndex, QPointF, QRect, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QDrag, QFont, QFontMetricsF, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QMenu, QStyle, QStyledItemDelegate, QToolTip, QTreeWidget,
                                QTreeWidgetItem)
 
@@ -15,7 +15,12 @@ KEY_ROLE = Qt.UserRole + 2      # (key, value)
 COUNT_ROLE = Qt.UserRole + 3    # int | None
 ACTION_ROLE = Qt.UserRole + 4   # "plus": header row with a "+" button on the right
 ICON_ROLE = Qt.UserRole + 5     # (glyph, size): lets the icons be rebuilt when the theme changes
+SOURCE_ROLE = Qt.UserRole + 6   # the directory a folder mirrors on disk, or None
+SORT_ROLE = Qt.UserRole + 7     # how the folders inside a folder are ordered
 PLUS = 26                       # size of that button, px
+
+MIME_TRACKS = "application/x-juke-tracks"    # JSON list of track ids, dragged out of the song table
+MIME_FOLDER = "application/x-juke-folder"    # the id of a folder of the sidebar, dragged onto another
 
 GROUPS = {"artists": "artist", "albums": "album", "genres": "genre"}
 
@@ -39,8 +44,12 @@ class SidebarDelegate(QStyledItemDelegate):
             painter.setFont(font)
             painter.setPen(QColor(styles.MUTED))
             painter.drawText(rect.adjusted(12, 8, 0, 0), Qt.AlignLeft | Qt.AlignVCenter, index.data(Qt.DisplayRole))
+            if getattr(option.widget, "drop_index", None) == index:
+                painter.setPen(QPen(QColor(styles.ACCENT), 1.4))
+                painter.setBrush(styles.qcolor(styles.ACCENT, 30))
+                painter.drawRoundedRect(rect.adjusted(6, 4, -6, -2), 9, 9)
             if index.data(ACTION_ROLE) == "plus":
-                hover = bool(getattr(option.widget, "plus_hover", False))
+                hover = getattr(option.widget, "plus_hover", "") == index.data(KEY_ROLE)
                 box = QRectF(rect.right() - PLUS - 10, rect.top() + 6, PLUS, PLUS)
                 if hover:
                     painter.setPen(Qt.NoPen)
@@ -66,6 +75,10 @@ class SidebarDelegate(QStyledItemDelegate):
             painter.setPen(Qt.NoPen)
             painter.setBrush(styles.qcolor(styles.SURFACE, 150))
             painter.drawRoundedRect(pill, 9, 9)
+        if getattr(option.widget, "drop_index", None) == index:
+            painter.setPen(QPen(QColor(styles.ACCENT), 1.6))
+            painter.setBrush(styles.qcolor(styles.ACCENT, 40))
+            painter.drawRoundedRect(pill.adjusted(1, 1, -1, -1), 9, 9)
 
         depth, parent = 0, index.parent()
         while parent.isValid():
@@ -119,6 +132,15 @@ class Sidebar(QTreeWidget):
     new_playlist_requested = Signal()
     rename_playlist_requested = Signal(int)
     delete_playlist_requested = Signal(int)
+    new_folder_requested = Signal(int)              # parent folder id, 0 for the top level
+    rename_folder_requested = Signal(int)
+    delete_folder_requested = Signal(int)
+    folder_action_requested = Signal(str, int)      # "play" | "shuffle" | "queue" | "reveal" | "duplicate", folder id
+    sort_folders_requested = Signal(int, str)       # parent folder id (0 = top level), mode
+    restore_removed_requested = Signal()
+    tracks_dropped = Signal(str, int, list)         # "playlist" | "folder", its id, track ids
+    paths_dropped = Signal(int, list)               # folder id (0 = top level), files and directories from outside
+    folder_moved = Signal(int, int)                 # folder id, new parent id (0 = top level)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -131,18 +153,30 @@ class Sidebar(QTreeWidget):
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setMouseTracking(True)
         self.setFixedWidth(250)
+        self.setAcceptDrops(True)
+        self.setDragEnabled(True)
+        self.setDropIndicatorShown(False)
+        self.drop_index = QModelIndex()                # the row a drag is hovering over
+        self._hover_expand = QTimer(self)
+        self._hover_expand.setSingleShot(True)
+        self._hover_expand.setInterval(650)
+        self._hover_expand.timeout.connect(self._expand_hovered)
         self.setItemDelegate(SidebarDelegate(self))
         self._groups_data: dict[str, list[tuple[str, int]]] = {"artists": [], "albums": [], "genres": []}
         self._filled: set[str] = set()
         self._headers: dict[str, QTreeWidgetItem] = {}
         self._items: dict[tuple[str, object], QTreeWidgetItem] = {}
         self._before_click: QTreeWidgetItem | None = None
-        self.plus_hover = False
+        self.plus_hover: tuple | None = None           # the header (key) whose "+" the mouse is on
         self._folder_tree: dict = {}   # nested {name: {subname: {...}}} of the server's folders
+        self._user_folders: dict[int | None, list] = {}    # parent id -> the folders (Music.juke) directly below it
+        self._folder_by_id: dict[int, object] = {}
+        self._root_sort = "name"
 
         def header(name: str) -> QTreeWidgetItem:
             item = QTreeWidgetItem(self, [""])
             item.setData(0, KIND_ROLE, "header")
+            item.setData(0, KEY_ROLE, ("header", name))
             item.setFlags(Qt.ItemIsEnabled)
             self._headers[name] = item
             return item
@@ -168,12 +202,13 @@ class Sidebar(QTreeWidget):
         entry(radio, "explore", "globe")
         lists = header("lists")
         lists.setData(0, ACTION_ROLE, "plus")
-        for key, glyph in (("favorites", "heart"), ("recent", "clock"), ("queue", "queue")):
-            entry(lists, key, glyph)
+        folders = header("folders")
+        folders.setData(0, ACTION_ROLE, "plus")
         self.expandItem(library)
         self.expandItem(servers)
         self.expandItem(radio)
         self.expandItem(lists)
+        self.expandItem(folders)
 
         self.itemClicked.connect(self._clicked)
         self.itemExpanded.connect(self._expanded)
@@ -277,18 +312,32 @@ class Sidebar(QTreeWidget):
             self.blockSignals(False)
             self.viewport().update()
 
+    def clear_selection(self) -> None:
+        """Nothing highlighted: the view on screen is not one of the sidebar's (a search for copies, say)."""
+        self.blockSignals(True)
+        self.setCurrentItem(None)
+        self.clearSelection()
+        self.blockSignals(False)
+        self.viewport().update()
+
     def _selection_changed(self) -> None:
         current = self.current_key()
         if current:
             self.selected.emit(*current)
 
-    # -- the "+" next to PLAYLISTS -----------------------------------------------------------
-    def _plus_rect(self) -> QRect:
-        header = self.visualItemRect(self._headers["lists"])
+    # -- the "+" next to PLAYLISTS and FOLDERS ---------------------------------------------------
+    _PLUS_HEADERS = ("lists", "folders")
+
+    def _plus_rect(self, name: str) -> QRect:
+        header = self.visualItemRect(self._headers[name])
         return QRect(header.right() - PLUS - 10, header.top() + 6, PLUS, PLUS)
 
+    def _plus_at(self, pos) -> str | None:
+        return next((n for n in self._PLUS_HEADERS if self._plus_rect(n).contains(pos)), None)
+
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
-        hover = self._plus_rect().contains(event.position().toPoint())
+        name = self._plus_at(event.position().toPoint())
+        hover = ("header", name) if name else None
         if hover != self.plus_hover:
             self.plus_hover = hover
             self.viewport().update()
@@ -296,24 +345,40 @@ class Sidebar(QTreeWidget):
 
     def leaveEvent(self, event) -> None:  # noqa: N802
         if self.plus_hover:
-            self.plus_hover = False
+            self.plus_hover = None
             self.viewport().update()
         super().leaveEvent(event)
 
     def viewportEvent(self, event) -> bool:  # noqa: N802
-        if event.type() == QEvent.ToolTip and self._plus_rect().contains(event.pos()):
-            QToolTip.showText(event.globalPos(), tr("playlist.new"), self.viewport())
-            return True
+        if event.type() == QEvent.ToolTip:
+            name = self._plus_at(event.pos())
+            if name:
+                QToolTip.showText(event.globalPos(), tr("playlist.new" if name == "lists" else "folder.new"), self.viewport())
+                return True
         return super().viewportEvent(event)
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
-        if event.button() == Qt.LeftButton and self._plus_rect().contains(event.position().toPoint()):
-            self.new_playlist_requested.emit()
-            event.accept()
-            return
+        if event.button() == Qt.LeftButton:
+            name = self._plus_at(event.position().toPoint())
+            if name:
+                (self.new_playlist_requested.emit() if name == "lists" else self.new_folder_requested.emit(0))
+                event.accept()
+                return
         self._before_click = self.currentItem()
         super().mousePressEvent(event)
 
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        key = self.current_key()
+        if key and key[0] in ("playlist", "ufolder"):
+            if event.key() == Qt.Key_F2:
+                (self.rename_playlist_requested if key[0] == "playlist" else self.rename_folder_requested).emit(int(key[1]))
+                return
+            if event.key() == Qt.Key_Delete:
+                (self.delete_playlist_requested if key[0] == "playlist" else self.delete_folder_requested).emit(int(key[1]))
+                return
+        super().keyPressEvent(event)
+
+    # -- right click ---------------------------------------------------------------------------------
     def contextMenuEvent(self, event) -> None:  # noqa: N802
         item = self.itemAt(event.pos())
         key = item.data(0, KEY_ROLE) if item else None
@@ -321,11 +386,229 @@ class Sidebar(QTreeWidget):
         if key and key[0] == "playlist":
             menu.addAction(tr("menu.rename"), lambda _c=False, pid=key[1]: self.rename_playlist_requested.emit(pid))
             menu.addAction(tr("menu.delete"), lambda _c=False, pid=key[1]: self.delete_playlist_requested.emit(pid))
-        elif item is self._headers["lists"] or (key and key[0] in ("favorites", "recent", "queue")):
+        elif key and key[0] == "ufolder":
+            self._folder_menu(menu, item, int(key[1]))
+        elif item is self._headers["folders"]:
+            menu.addAction(tr("menu.new_folder"), lambda: self.new_folder_requested.emit(0))
+            self._sort_menu(menu, 0, self._root_sort)
+            menu.addSeparator()
+            menu.addAction(tr("menu.restore_removed"), self.restore_removed_requested.emit)
+        elif item is self._headers["lists"]:
             menu.addAction(tr("menu.new_playlist"), self.new_playlist_requested.emit)
         else:
             return
         menu.exec(event.globalPos())
+
+    def _sort_menu(self, menu: QMenu, parent_id: int, current: str) -> None:
+        sort = menu.addMenu(tr("menu.sort_folders"))
+        for mode in ("name", "name_desc", "number", "number_desc", "newest", "oldest"):
+            action = sort.addAction(tr("sort." + mode), lambda _c=False, m=mode: self.sort_folders_requested.emit(parent_id, m))
+            action.setCheckable(True)
+            action.setChecked(mode == current)
+
+    def _folder_menu(self, menu: QMenu, item: QTreeWidgetItem, folder_id: int) -> None:
+        act = self.folder_action_requested.emit
+        menu.addAction(tr("menu.play"), lambda: act("play", folder_id))
+        menu.addAction(tr("menu.shuffle"), lambda: act("shuffle", folder_id))
+        menu.addAction(tr("menu.add_to_queue"), lambda: act("queue", folder_id))
+        menu.addSeparator()
+        menu.addAction(tr("menu.new_subfolder"), lambda: self.new_folder_requested.emit(folder_id))
+        menu.addAction(tr("menu.rename"), lambda: self.rename_folder_requested.emit(folder_id))
+        menu.addAction(tr("menu.duplicate"), lambda: act("duplicate", folder_id))
+        self._sort_menu(menu, folder_id, item.data(0, SORT_ROLE) or "name")
+        menu.addSeparator()
+        if item.data(0, SOURCE_ROLE):
+            menu.addAction(tr("menu.show_in_files"), lambda: act("reveal", folder_id))
+        menu.addAction(tr("menu.delete"), lambda: self.delete_folder_requested.emit(folder_id))
+
+    # -- the user's folders (Music.juke) ---------------------------------------------------------------
+    def set_user_folders(self, folders: list, root_sort: str = "name") -> None:
+        """``folders``: the tree of db.folders.Folder. Only the levels that are open are built."""
+        self._user_folders = {}
+        self._folder_by_id = {f.id: f for f in folders}
+        for f in folders:
+            self._user_folders.setdefault(f.parent_id, []).append(f)
+        self._root_sort = root_sort
+        header = self._headers["folders"]
+        expanded = {k[1] for k, it in self._items.items() if k[0] == "ufolder" and it.isExpanded()}
+        current = self.current_key()
+        self.setUpdatesEnabled(False)
+        self.blockSignals(True)
+        for child in header.takeChildren():
+            self._forget(child)
+        self._add_user_children(header, None)
+        self.blockSignals(False)
+
+        def reopen(parent: QTreeWidgetItem) -> None:
+            for i in range(parent.childCount()):
+                child = parent.child(i)
+                child_key = child.data(0, KEY_ROLE)
+                if child_key and child_key[1] in expanded and child.data(0, KIND_ROLE) == "folder":
+                    child.setExpanded(True)          # builds its own children
+                    reopen(child)
+
+        reopen(header)
+        self.setUpdatesEnabled(True)
+        if current in self._items:
+            self.select(*current)
+        self.viewport().update()
+
+    def _add_user_children(self, parent_item: QTreeWidgetItem, parent_id: int | None) -> None:
+        from ...db.folders import ordered
+
+        mode = self._root_sort if parent_id is None else self._folder_by_id[parent_id].sort_mode
+        icon = icons.icon("folder", styles.MUTED, active=styles.ACCENT, size=16)
+        for folder in ordered(self._user_folders.get(parent_id, []), mode):
+            item = QTreeWidgetItem(parent_item, [folder.name])
+            item.setData(0, KIND_ROLE, "folder" if self._user_folders.get(folder.id) else "folderleaf")
+            item.setData(0, KEY_ROLE, ("ufolder", folder.id))
+            item.setData(0, COUNT_ROLE, folder.count)
+            item.setData(0, SOURCE_ROLE, folder.source_path)
+            item.setData(0, SORT_ROLE, folder.sort_mode)
+            item.setIcon(0, icon)
+            item.setData(0, ICON_ROLE, ("folder", 16))
+            self._items[("ufolder", folder.id)] = item
+
+    def reveal_folder(self, folder_id: int) -> None:
+        """Open the branches above a folder so it is on screen, and select it."""
+        item = self._items.get(("ufolder", folder_id))
+        if item is None:
+            chain, node = [], self._folder_by_id.get(folder_id)
+            while node is not None and node.parent_id is not None:
+                chain.append(node.parent_id)
+                node = self._folder_by_id.get(node.parent_id)
+            for ancestor in reversed(chain):
+                parent = self._items.get(("ufolder", ancestor))
+                if parent is not None:
+                    parent.setExpanded(True)
+            item = self._items.get(("ufolder", folder_id))
+        if item is not None:
+            self.select("ufolder", folder_id)
+            self.scrollToItem(item)
+
+    # -- drag and drop ---------------------------------------------------------------------------------
+    def startDrag(self, supported_actions) -> None:  # noqa: N802
+        key = self.current_key()
+        if not key or key[0] != "ufolder":
+            return
+        mime = QMimeData()
+        mime.setData(MIME_FOLDER, str(int(key[1])).encode())
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        label = self.currentItem().text(0)
+        font = QFont(self.font())
+        font.setPixelSize(13)
+        width = QFontMetricsF(font).horizontalAdvance(label) + 34
+        pixmap = QPixmap(int(width), 30)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(styles.qcolor(styles.ACCENT, 235))
+        painter.drawRoundedRect(QRectF(0, 0, width, 30), 9, 9)
+        painter.setFont(font)
+        painter.setPen(QColor(styles.ON_ACCENT))
+        painter.drawText(QRectF(0, 0, width, 30), Qt.AlignCenter, label)
+        painter.end()
+        drag.setPixmap(pixmap)
+        drag.exec(Qt.MoveAction)
+
+    def _drop_kind(self, mime, item: QTreeWidgetItem | None) -> str | None:
+        """What a drag may do to ``item``: "playlist", "folder" or "top" (the FOLDERS heading); None if nothing."""
+        if item is None:
+            return None
+        key = item.data(0, KEY_ROLE)
+        kind = key[0] if key else None
+        top = item is self._headers["folders"]
+        if mime.hasFormat(MIME_TRACKS):
+            return "playlist" if kind == "playlist" else "folder" if kind == "ufolder" else None
+        if mime.hasFormat(MIME_FOLDER) or mime.hasUrls():
+            return "folder" if kind == "ufolder" else "top" if top else None
+        return None
+
+    def _set_drop_item(self, item: QTreeWidgetItem | None) -> None:
+        index = self.indexFromItem(item) if item is not None else QModelIndex()
+        if index != self.drop_index:
+            self.drop_index = index
+            self.viewport().update()
+        self._hover_expand.stop()
+        if item is not None and item.data(0, KIND_ROLE) == "folder" and not item.isExpanded():
+            self._hover_expand.start()
+
+    def _expand_hovered(self) -> None:
+        item = self.itemFromIndex(self.drop_index) if self.drop_index.isValid() else None
+        if item is not None:
+            item.setExpanded(True)
+
+    def _understands(self, mime) -> bool:
+        return mime.hasFormat(MIME_TRACKS) or mime.hasFormat(MIME_FOLDER) or mime.hasUrls()
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802
+        # The drag must be accepted on the way in whatever is under the pointer: a widget that refuses the
+        # enter never hears the moves or the drop, so a drag that happened to arrive over a heading would die
+        # there. Which row can take it is decided in dragMoveEvent.
+        if self._understands(event.mimeData()):
+            self.dragMoveEvent(event)               # lights the row under the pointer, if it can take the drag
+            event.acceptProposedAction()            # ...and the enter itself stays accepted either way
+        else:
+            event.ignore()
+
+    @staticmethod
+    def _action_for(event) -> Qt.DropAction | None:
+        """The action to answer with. Files dragged in from outside are only ever *copied*: answering "move"
+        would tell the file manager to delete the originals once they are dropped."""
+        mime = event.mimeData()
+        if mime.hasFormat(MIME_FOLDER):
+            return Qt.MoveAction
+        if mime.hasFormat(MIME_TRACKS):
+            return Qt.CopyAction
+        possible = event.possibleActions()
+        if possible & Qt.CopyAction:
+            return Qt.CopyAction
+        return Qt.LinkAction if possible & Qt.LinkAction else None
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802
+        item = self.itemAt(event.position().toPoint())
+        action = self._action_for(event)
+        if action is not None and self._drop_kind(event.mimeData(), item):
+            self._set_drop_item(item)
+            event.setDropAction(action)
+            event.accept()
+        else:
+            self._set_drop_item(None)
+            event.ignore()
+
+    def dragLeaveEvent(self, event) -> None:  # noqa: N802
+        self._set_drop_item(None)
+        event.accept()
+
+    def dropEvent(self, event) -> None:  # noqa: N802
+        item = self.itemAt(event.position().toPoint())
+        mime = event.mimeData()
+        kind = self._drop_kind(mime, item) if self._action_for(event) is not None else None
+        self._set_drop_item(None)
+        if not kind:
+            event.ignore()
+            return
+        key = item.data(0, KEY_ROLE)
+        target = int(key[1]) if kind in ("folder", "playlist") else 0
+        if mime.hasFormat(MIME_TRACKS):
+            import json
+
+            try:
+                ids = [int(i) for i in json.loads(bytes(mime.data(MIME_TRACKS)).decode())]
+            except (ValueError, TypeError):
+                ids = []
+            if ids:
+                self.tracks_dropped.emit(kind, target, ids)
+        elif mime.hasFormat(MIME_FOLDER):
+            self.folder_moved.emit(int(bytes(mime.data(MIME_FOLDER)).decode()), target)
+        else:
+            paths = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
+            if paths:
+                self.paths_dropped.emit(target, paths)
+        event.setDropAction(self._action_for(event) or Qt.CopyAction)
+        event.accept()
 
     def set_playlists(self, playlists: list[tuple[int, str, int]]) -> None:
         """(id, name, count) of the user's playlists, shown under PLAYLISTS after Current Queue."""
@@ -365,6 +648,10 @@ class Sidebar(QTreeWidget):
             self._fill_folders()
         elif key[0] == "folder" and item.childCount() == 0:
             self._add_folder_items(item, self._subtree_for(key[1]), key[1] + "/")
+        elif key[0] == "ufolder" and item.childCount() == 0:
+            self.blockSignals(True)
+            self._add_user_children(item, int(key[1]))
+            self.blockSignals(False)
 
     def apply_theme(self) -> None:
         for item in self._items.values():
@@ -375,12 +662,12 @@ class Sidebar(QTreeWidget):
         self.viewport().update()
 
     def retranslate(self) -> None:
-        titles = {"library": "sidebar.library", "servers": "sidebar.servers", "radio": "sidebar.radio", "lists": "sidebar.lists"}
+        titles = {"library": "sidebar.library", "servers": "sidebar.servers", "radio": "sidebar.radio",
+                  "lists": "sidebar.lists", "folders": "sidebar.folders"}
         for name, item in self._headers.items():
             item.setText(0, tr(titles[name]).upper())
         names = {"all": "sidebar.all", "artists": "sidebar.artists", "albums": "sidebar.albums",
-                 "genres": "sidebar.genres", "airsonic": "sidebar.airsonic", "favorites": "sidebar.favorites",
-                 "recent": "sidebar.recent", "queue": "sidebar.queue", "stations": "sidebar.stations",
+                 "genres": "sidebar.genres", "airsonic": "sidebar.airsonic", "stations": "sidebar.stations",
                  "explore": "sidebar.explore"}
         for key, label in names.items():
             self._items[(key, None)].setText(0, tr(label))

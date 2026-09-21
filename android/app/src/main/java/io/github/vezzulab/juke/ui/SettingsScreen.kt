@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -17,6 +18,10 @@ import io.github.vezzulab.juke.R
 @Composable
 fun SettingsScreen(vm: JukeViewModel, onLanguage: (String) -> Unit, onEqualizer: () -> Unit, onRescan: () -> Unit) {
     var language by remember { mutableStateOf(vm.store.language) }
+    var page by rememberSaveable { mutableStateOf("") }               // "", "feedback" or "log"
+    androidx.activity.compose.BackHandler(enabled = page != "") { page = "" }
+    if (page == "feedback") { FeedbackScreen(vm) { page = "" }; return }
+    if (page == "log") { LogScreen(vm) { page = "" }; return }
     Column(Modifier.fillMaxSize().padding(horizontal = 10.dp)) {
         Crumb(stringResource(R.string.nav_settings), "", canGoUp = false, onUp = {})
         Column(
@@ -40,6 +45,14 @@ fun SettingsScreen(vm: JukeViewModel, onLanguage: (String) -> Unit, onEqualizer:
             }
             Block(stringResource(R.string.nav_library)) {
                 ActionKey(stringResource(R.string.rescan), onRescan, icon = R.drawable.ic_refresh, accent = false)
+            }
+            Block(stringResource(R.string.support)) {
+                SupportKey(Modifier.fillMaxWidth())
+            }
+            Block(stringResource(R.string.feedback_block)) {
+                ActionKey(stringResource(R.string.feedback_title), { page = "feedback" }, Modifier.fillMaxWidth(), icon = R.drawable.ic_playlist, accent = false)
+                Spacer(Modifier.height(8.dp))
+                ActionKey(stringResource(R.string.log_title), { page = "log" }, Modifier.fillMaxWidth(), icon = R.drawable.ic_queue, accent = false)
             }
             Block(stringResource(R.string.about)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

@@ -107,6 +107,7 @@ QWidget#central {{ background: {BASE}; }}
 QToolTip {{ background: {PANEL}; color: {TEXT}; border: 1px solid {OVERLAY}; border-radius: 6px; padding: 5px 8px; }}
 QLabel {{ background: transparent; }}
 QLabel#muted {{ color: {SUBTEXT}; }}
+QLabel#metaArt {{ background: {PANEL}; border: 1px solid {BORDER}; border-radius: 12px; color: {SUBTEXT}; }}
 QLabel#heading {{ font-size: 15px; font-weight: 600; }}
 QLabel#eqValue {{ font-family: {MONO_FAMILY}; font-size: 11px; color: {ACCENT}; }}
 QWidget#eqDivider {{ background: {BORDER}; }}
@@ -173,6 +174,12 @@ QToolButton#sidebarSettings {{
     text-align: left; padding: 9px 12px; border-radius: 9px; color: {SUBTEXT}; font-weight: 500;
 }}
 QToolButton#sidebarSettings:hover {{ background: {SURFACE}; color: {TEXT}; }}
+QToolButton#sidebarSupport {{
+    text-align: left; padding: 10px 14px; border-radius: 11px; font-weight: 600; color: {ACCENT};
+    background: {rgba(ACCENT, 0.13)}; border: 1px solid {rgba(ACCENT, 0.42)};
+}}
+QToolButton#sidebarSupport:hover {{ background: {rgba(ACCENT, 0.24)}; border-color: {ACCENT}; color: {ACCENT_HOVER}; }}
+QToolButton#sidebarSupport:pressed {{ background: {rgba(ACCENT, 0.32)}; }}
 
 /* Track table ---------------------------------------------------------------------- */
 QWidget#mainView {{ background: {BASE}; }}

@@ -48,9 +48,9 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        session?.run { player.release(); release() }
+        EqualizerHub.release()                      // detach the effect before the audio session goes away
+        session?.run { release(); player.release() } // release the session first: it still calls into the player while tearing down
         session = null
-        EqualizerHub.release()
         super.onDestroy()
     }
 }

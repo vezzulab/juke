@@ -102,6 +102,20 @@ English and Spanish, switchable live. Qt 6 HiDPI scaling (fractional too), Wayla
 </tr>
 </table>
 
+## Your music, in your folders
+
+Under **Folders** in the sidebar Juke keeps your music the way you arrange it. There is no import step: whatever you do, it just happens.
+
+- **Music.juke** sits in your Music folder like a library. Open it and you find `folders.db` (how things are organized), a `Folders` directory with the same tree as shortcuts to your songs, and a short README. Your files stay where they are: Juke never moves, renames or deletes them.
+- Make folders, put folders inside folders, drag songs into them from the list, or drop files and whole folders from your file manager onto the sidebar. Dropped folders keep their layout.
+- Right-click a folder to rename, duplicate or delete it, sort what is inside (A→Z, Z→A, by number, newest, oldest), play it, shuffle it or add it to the queue.
+- Deleting a folder takes its songs out of Juke; the files stay on disk. If you delete or move a folder in your file manager, Juke notices as soon as you come back to it.
+- **Find duplicates** is in the ⋯ menu, next to *Show* for Favorites, Recently played and the queue.
+- **Edit metadata** works on one song or many. Select with `Ctrl` + `A`, `Ctrl` + click or `Shift` + click, right-click ▸ *Edit metadata…*, and only the fields you change are written. Add, replace or remove the cover, or just drop an image on the window; it is stored in the file itself.
+- The update window says which version you are on, which one is out and what changed, and you accept or cancel.
+- **Send feedback…** and **View log…** are in the ⋯ menu. A report opens as a new issue on GitHub for you to review. Your home folder, passwords and server address are hidden first.
+- The AppImage adds itself to your applications menu the first time it runs.
+
 ## Screenshots
 
 <div align="center">
@@ -140,6 +154,7 @@ Compose and Media3.
 - Radio: the directory, or paste an address. If a page has several stations, it offers all of them.
 - Keeps playing with the screen off, with the usual controls in the notification.
 - 10-band equalizer, English and Spanish, dark and light.
+- *Settings ▸ Help* has **Send feedback** and the app's **log**, with private details hidden, and a **Support on Ko-fi** button.
 
 Get `Juke-<version>.apk` from the [latest release](https://github.com/vezzulab/juke/releases/latest).
 It needs Android 8 or newer and weighs about 3 MB. To build it you need the Android SDK and JDK 17:
@@ -161,9 +176,15 @@ cd android
    ./Juke-x86_64.AppImage
    ```
 
-3. On first launch Juke offers to add itself to your **applications menu with its icon**. It only touches your own user account (`~/.local/share/applications` and `~/.local/share/icons`) and you can undo it any time in *Settings*.
+3. That is all. The first time it runs, Juke adds itself to your **applications menu with its icon**. It only touches your own user account (`~/.local/share/applications` and `~/.local/share/icons`) and you can undo it any time in *Settings*.
 
-Everything Juke needs — Python, Qt, libVLC and yt-dlp — is inside the file. You only need:
+Or in one line, which downloads it, makes it executable and starts it:
+
+```sh
+curl -fsSL https://vezzulab.github.io/juke/install.sh | sh
+```
+
+Everything Juke needs — Python, Qt, libVLC and yt-dlp — is inside the file; there is nothing else to install. It expects:
 
 - x86_64 Linux with **glibc 2.35 or newer** (Ubuntu 22.04, Debian 12, Fedora 36 or newer)
 - PulseAudio or PipeWire for sound (present on practically every desktop)
@@ -196,12 +217,13 @@ To add the launcher and icon of a source install to your menu: `juke --install-d
 | | |
 | --- | --- |
 | **Library** | Add your music folders in *Settings ▸ Library* (or the button on the empty library). Juke indexes them in a low-priority background thread and only re-reads files that changed. |
-| **Airsonic** | Click **Settings** at the bottom of the sidebar (or *Set up Airsonic…* on the empty Airsonic view) ▸ *Airsonic* tab: server address (e.g. `http://your-server:4040`), user and password, then *Test connection*. *Sync Airsonic* imports the server; browse it under **Servers**. Finished songs are scrobbled to the server. Servers that cannot check salted tokens (Airsonic-Advanced with hashed passwords) are supported: Juke then signs in with the password and tells you to prefer `https://`. |
+| **Airsonic** | Open **Settings** from the ⋯ menu (or use *Set up Airsonic…* on the empty Airsonic view) ▸ *Airsonic* tab: server address (e.g. `http://your-server:4040`), user and password, then *Test connection*. *Sync Airsonic* imports the server; browse it under **Servers**. Finished songs are scrobbled to the server. Servers that cannot check salted tokens (Airsonic-Advanced with hashed passwords) are supported: Juke then signs in with the password and tells you to prefer `https://`. |
 | **Radio** | Under **Radio**: *My Stations* (yours) and *Explore Radio* (search by name or pick a tag). ♥ saves a station, ▶ tunes in. *Add station by URL…* takes any web address. See below. |
-| **Queue** | Right-click ▸ **Play next** / **Add to queue**. The *Current Queue* list shows what is playing, what you queued, and what follows. |
+| **Queue** | Right-click ▸ **Play next** / **Add to queue**. ⋯ ▸ *Show* ▸ *Current Queue* lists what is playing, what you queued, and what follows. |
 | **Playlists** | Click the **+** next to *Playlists* (or `Ctrl` + `N`). Right-click songs ▸ *Add to playlist*; right-click a playlist to rename or delete it. Playlists survive rescans and Airsonic re-syncs. |
-| **Favorites** | Right-click ▸ *Mark as favorite*. |
-| **Tags** | Right-click ▸ *Edit metadata…* writes to the file (local songs). |
+| **Favorites** | Right-click ▸ *Mark as favorite*. Show them from ⋯ ▸ *Show*. |
+| **Folders** | Click the **+** next to *Folders*, or drag songs and folders in. Right-click a folder for the rest. |
+| **Tags and cover** | Right-click ▸ *Edit metadata…* writes to the files (local songs), one or many at once, cover included. |
 | **Theme** | *Settings ▸ Theme* (match the system / dark / light) or `Ctrl` + `T`. |
 
 | Shortcut | Action |
@@ -239,6 +261,7 @@ Juke has no telemetry, no accounts and no analytics. It bundles its font and ico
 | Your Airsonic / Subsonic server | Only if you configure one. |
 | `api.github.com` | When it opens and every 30 minutes while open, to look for a new release, if you leave *Check for updates automatically* on. Only the program name and version are sent. |
 | Radio Browser (`*.api.radio-browser.info`) and the stations themselves | Only when you open *Explore Radio*, add a station, or tune in. |
+| `github.com` (the issues page) | Only when you press *Open on GitHub* in *Send feedback…*. Juke sends nothing itself; the report opens in your browser. |
 
 ## Performance
 
@@ -305,7 +328,7 @@ The suite has over a hundred tests, including real playback through libVLC (skip
 - The spectrum in the LCD is an **animated meter, not an analyser** — libVLC does not expose FFT data.
 - Stereo **balance** needs PulseAudio or PipeWire (`pactl`) and a stereo stream; it is disabled otherwise.
 - No MPRIS / global media keys yet, no gapless playback, no drag-and-drop reordering inside playlists, one Airsonic server at a time.
-- Folder browsing is available for Airsonic; the local library is browsed by artist, album and genre.
+- Your own folders live in Juke (*Folders*), the Airsonic server is browsed by its folders, and the local library by artist, album and genre.
 - Radio: stations that need a login or use protected streams are not supported. The song on air needs the station to send ICY metadata.
 
 ## Credits

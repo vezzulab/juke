@@ -8,7 +8,7 @@ from . import helpers
 
 from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 from juke.audio.engine import AudioEngine
 from juke.audio.equalizer import BUILTIN_PRESETS, Equalizer
@@ -181,7 +181,7 @@ class GuiTests(unittest.TestCase):
         main_window_module.ask_text = lambda *a, **k: next(names)
         main_window_module.confirm = lambda *a, **k: True
         try:
-            box = sidebar._plus_rect()
+            box = sidebar._plus_rect("lists")
             self.assertEqual((box.width(), box.height()), (26, 26))
             QTest.mouseClick(sidebar.viewport(), Qt.LeftButton, pos=box.center())  # the visible "+"
             self.assertEqual(fired, [1])
@@ -206,11 +206,11 @@ class GuiTests(unittest.TestCase):
             main_window_module.ask_text, main_window_module.confirm = original
             window.close()
 
-    def test_empty_states_offer_a_button_and_settings_is_always_visible(self):
+    def test_empty_states_offer_a_button_and_the_sidebar_footer_only_has_support(self):
         translator.set_language("en")
         window, cfg, db, engine, eq = make_window("gui9", n=0)
-        self.assertTrue(window.settings_button.isVisible())
-        self.assertEqual(window.settings_button.text().strip("\u2002"), tr("sidebar.settings"))
+        self.assertFalse(hasattr(window, "settings_button"))              # Settings lives only in the ⋯ menu
+        self.assertEqual(window.support_button.text().strip("\u2002"), tr("sidebar.support"))
         table = window.table
         self.assertTrue(table.empty_button.isVisible())
         self.assertEqual(table.empty_button.text(), tr("empty.library.action"))
@@ -780,10 +780,20 @@ class UpdateFlowTests(unittest.TestCase):
 
     def test_dialog_lets_the_user_decide(self):
         from juke.gui.update_dialog import UpdateDialog
-        for button, expected in (("skip_button", "skip"), ("later_button", "later"), ("primary_button", "update")):
-            dialog = UpdateDialog(self.newer, "0.1.0", True)
-            getattr(dialog, button).click()
-            self.assertEqual(dialog.choice, expected)
+        dialog = UpdateDialog(self.newer, "0.1.0", True)                             # two answers: Update or Cancel
+        self.assertEqual({b.text() for b in dialog.findChildren(QPushButton)}, {tr("update.accept"), tr("dialog.cancel")})
+        dialog.cancel_button.click()
+        self.assertEqual(dialog.choice, "later")
+        dialog = UpdateDialog(self.newer, "0.1.0", True)
+        dialog.dont_ask.setChecked(True)                                             # ...and Cancel can mean "not this version"
+        dialog.cancel_button.click()
+        self.assertEqual(dialog.choice, "skip")
+        dialog = UpdateDialog(self.newer, "0.1.0", True)
+        dialog.reject()                                                              # Esc is a Cancel too
+        self.assertEqual(dialog.choice, "later")
+        dialog = UpdateDialog(self.newer, "0.1.0", True)
+        dialog.primary_button.click()
+        self.assertEqual(dialog.choice, "update")
         manual = UpdateDialog(self.newer, "0.1.0", False)                            # source install: cannot self-update
         self.assertEqual(manual.primary_button.text(), tr("update.open_page"))
         manual.primary_button.click()
@@ -793,6 +803,7 @@ class UpdateFlowTests(unittest.TestCase):
         from PySide6.QtWidgets import QLabel
         texts = [label.text() for label in shown.findChildren(QLabel)]
         self.assertTrue(any("9.0.0" in t for t in texts) and any("0.1.0" in t for t in texts))
+        self.assertTrue(any("Update to Juke 9.0.0?" in t for t in texts))            # the question names the version
 
     def test_skipped_version_stays_quiet_until_asked_manually(self):
         self.answer = "skip"

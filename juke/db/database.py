@@ -10,6 +10,7 @@ The GUI never holds the whole library in memory: it asks for ordered id lists
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
 import time
@@ -175,6 +176,8 @@ class Scope:
     album: str | None = None
     genre: str | None = None
     folder: str | None = None  # server-side folder path; includes its sub-folders
+    ufolders: tuple[int, ...] | None = None  # ids of the user's folders (Music.juke): the folder and everything below it
+    duplicates: str | None = None  # "same": same title, artist and album; "exact": and the same length and size
     favorites: bool = False
     recent: bool = False
 
@@ -186,9 +189,16 @@ class Database:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()
+        self._folders_file: Path | None = None
         conn = self.connect()
         conn.executescript(SCHEMA)
         self._migrate(conn)
+
+    def attach_folders(self, path: Path | None) -> None:
+        """Make the user's folders file (Music.juke) visible to every query as schema ``mj``."""
+        self._folders_file = Path(path) if path else None
+        self.close_thread_connection()
+        self.connect()
 
     @staticmethod
     def _migrate(conn: sqlite3.Connection) -> None:
@@ -211,6 +221,9 @@ class Database:
             conn.execute("PRAGMA synchronous=NORMAL")
             conn.execute("PRAGMA temp_store=MEMORY")
             conn.execute("PRAGMA foreign_keys=ON")  # songs removed from the library leave their playlists
+            if self._folders_file is not None:
+                conn.execute("ATTACH DATABASE ? AS mj", (str(self._folders_file),))
+                conn.execute("PRAGMA mj.journal_mode=DELETE")      # Music.juke stays a single file
             self._local.conn = conn
         return conn
 
@@ -249,6 +262,17 @@ class Database:
         with conn:
             conn.executemany(sql, params)
 
+    def delete_local_under(self, directories: Iterable[str]) -> int:
+        """Take every local song below these directories out of the library (the files stay on the disk)."""
+        conn = self.connect()
+        removed = 0
+        with conn:
+            for directory in directories:
+                prefix = directory.rstrip(os.sep) + os.sep
+                removed += conn.execute("DELETE FROM tracks WHERE source_type=? AND substr(location, 1, ?)=?",
+                                        (SOURCE_LOCAL, len(prefix), prefix)).rowcount
+        return removed
+
     def delete_locations(self, source_type: str, locations: Iterable[str]) -> int:
         conn = self.connect()
         removed = 0
@@ -278,7 +302,7 @@ class Database:
             self.upsert_many(rows)
 
     def update_tags(self, track_id: int, **fields) -> None:
-        allowed = {"title", "artist", "album", "genre", "year", "track_no"}
+        allowed = {"title", "artist", "album", "genre", "year", "track_no", "cover_key"}
         fields = {k: v for k, v in fields.items() if k in allowed}
         if not fields:
             return
@@ -345,8 +369,7 @@ class Database:
         by_id = {row[0]: Track.from_row(row) for row in cur}
         return [by_id[i] for i in ids if i in by_id]
 
-    @staticmethod
-    def _where(scope: Scope, text: str) -> tuple[str, list]:
+    def _where(self, scope: Scope, text: str) -> tuple[str, list]:
         clauses: list[str] = []
         args: list = []
         if scope.source_type:
@@ -365,6 +388,18 @@ class Database:
             like = scope.folder.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%"
             clauses.append("(folder = ? COLLATE NOCASE OR folder LIKE ? ESCAPE '\\')")
             args.extend([scope.folder, like])
+        if scope.ufolders is not None:
+            if self._folders_file is None or not scope.ufolders:
+                clauses.append("0")
+            else:
+                marks = ",".join("?" * len(scope.ufolders))
+                clauses.append(f"(source_type = 'local' AND location IN (SELECT path FROM mj.folder_items WHERE folder_id IN ({marks})))")
+                args.extend(scope.ufolders)
+        if scope.duplicates:
+            key = "lower(title), lower(artist), lower(album)"
+            if scope.duplicates == "exact":
+                key += ", CAST(ROUND(duration) AS INTEGER), size"
+            clauses.append(f"title != '' AND ({key}) IN (SELECT {key} FROM tracks WHERE title != '' GROUP BY {key} HAVING COUNT(*) > 1)")
         if scope.favorites:
             clauses.append("favorite = 1")
         if scope.recent:
@@ -378,7 +413,10 @@ class Database:
                   descending: bool = False, limit: int | None = None) -> list[int]:
         """Ordered ids for a view. ``sort`` is a key of SORT_EXPRESSIONS or None (natural order)."""
         where, args = self._where(scope, text)
-        if scope.recent and sort is None:
+        if scope.duplicates and sort is None:
+            # the copies of a song sit together, the best-sounding one first
+            order = "lower(title), lower(artist), lower(album), bitrate DESC, size DESC, id"
+        elif scope.recent and sort is None:
             order = "last_played DESC"
         elif scope.folder is not None and sort is None:
             order = "folder COLLATE NOCASE, track_no, title COLLATE NOCASE"

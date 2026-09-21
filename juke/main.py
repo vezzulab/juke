@@ -43,8 +43,9 @@ def main(argv: list[str] | None = None) -> int:
     from .assets import FONTS_DIR
     from .audio.engine import AudioEngine
     from .audio.equalizer import Equalizer
-    from .config import CONFIG_PATH, DB_PATH, Config, ensure_dirs
+    from .config import CONFIG_PATH, DATA_DIR, DB_PATH, Config, ensure_dirs
     from .db.database import Database
+    from .db.folders import FolderStore, default_path
     from .gui import icons, styles
     from .gui.main_window import MainWindow
     from .gui.theme import ThemeManager
@@ -60,14 +61,19 @@ def main(argv: list[str] | None = None) -> int:
     app.setWindowIcon(icons.app_icon())
 
     ensure_dirs()
+    from . import applog
+
+    applog.setup()                    # juke.log: what a person can read or send along with a problem
+    applog.qt_messages()
     config = Config(CONFIG_PATH)
     theme = ThemeManager(app, config.get("theme"))
     theme.apply()                     # dark, light, or whatever the desktop is using
     translator.set_language(config.get("language"))
     db = Database(DB_PATH)
+    folders = FolderStore(default_path(DATA_DIR))       # Music/Music.juke/folders.db
     engine = AudioEngine()
     equalizer = Equalizer(config)
-    window = MainWindow(config, db, engine, equalizer, theme)
+    window = MainWindow(config, db, engine, equalizer, theme, folders)
     window.show()
     if args.files:
         QTimer.singleShot(600, lambda: window.open_paths(args.files))

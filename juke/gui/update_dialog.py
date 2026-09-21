@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QProgressBar, QPushButton, QTextBrowser, QVBoxLayout)
+from PySide6.QtWidgets import (QCheckBox, QDialog, QHBoxLayout, QLabel, QProgressBar, QPushButton, QTextBrowser,
+                               QVBoxLayout)
 
 from .. import updater
 from ..assets import ICON_SVG
@@ -15,23 +16,28 @@ from . import icons
 
 
 class UpdateDialog(QDialog):
-    """Tells the user a newer release exists and lets *them* decide. ``choice`` afterwards is one of
-    "update" (download and install), "page" (open the release page), "later" or "skip"."""
+    """"You are on X. Do you want to update to Y?", with what is new and two answers: update or cancel.
+
+    ``choice`` afterwards is "update" (download and install), "page" (open the release page when this
+    install cannot replace itself), "later" (Cancel: ask again tomorrow) or "skip" (Cancel with the
+    "don't ask again about this version" box ticked).
+    """
 
     def __init__(self, release: updater.ReleaseInfo, current: str, can_update: bool, parent=None) -> None:
         super().__init__(parent)
         self.choice = "later"
         self.setWindowTitle(tr("update.title"))
-        self.setMinimumWidth(520)
+        self.setMinimumWidth(540)
 
         picture = QLabel()
         picture.setPixmap(icons.render_svg(ICON_SVG.read_bytes(), 56))
-        headline = QLabel(tr("update.headline", version=release.version))
+        headline = QLabel(tr("update.question", version=release.version))
         headline.setObjectName("heading")
-        current_label = QLabel(tr("update.current", current=current))
+        headline.setWordWrap(True)
+        current_label = QLabel(tr("update.current", current=current, version=release.version))
         current_label.setObjectName("muted")
         titles = QVBoxLayout()
-        titles.setSpacing(2)
+        titles.setSpacing(3)
         titles.addWidget(headline)
         titles.addWidget(current_label)
         head = QHBoxLayout()
@@ -39,29 +45,28 @@ class UpdateDialog(QDialog):
         head.addWidget(picture, 0, Qt.AlignTop)
         head.addLayout(titles, 1)
 
-        notes_title = QLabel(tr("update.notes").upper())
+        notes_title = QLabel(tr("update.notes_for", version=release.version).upper())
         notes_title.setObjectName("muted")
         self.notes = QTextBrowser()
         self.notes.setOpenExternalLinks(True)
-        self.notes.setMinimumHeight(170)
+        self.notes.setMinimumHeight(190)
         if release.notes:
             self.notes.setMarkdown(release.notes[:8000])
         else:
             self.notes.setPlainText(tr("update.no_notes"))
 
-        self.skip_button = QPushButton(tr("update.skip"))
-        self.later_button = QPushButton(tr("update.later"))
-        self.primary_button = QPushButton(tr("update.now") if can_update else tr("update.open_page"))
+        self.dont_ask = QCheckBox(tr("update.dont_ask"))
+        self.cancel_button = QPushButton(tr("dialog.cancel"))
+        self.primary_button = QPushButton(tr("update.accept") if can_update else tr("update.open_page"))
         self.primary_button.setObjectName("primary")
         self.primary_button.setDefault(True)
-        self.skip_button.clicked.connect(lambda: self._choose("skip"))
-        self.later_button.clicked.connect(lambda: self._choose("later"))
+        self.cancel_button.clicked.connect(lambda: self._choose("skip" if self.dont_ask.isChecked() else "later"))
         self.primary_button.clicked.connect(lambda: self._choose("update" if can_update else "page"))
         buttons = QHBoxLayout()
         buttons.setSpacing(8)
-        buttons.addWidget(self.skip_button)
+        buttons.addWidget(self.dont_ask)
         buttons.addStretch(1)
-        buttons.addWidget(self.later_button)
+        buttons.addWidget(self.cancel_button)
         buttons.addWidget(self.primary_button)
 
         layout = QVBoxLayout(self)
@@ -73,6 +78,9 @@ class UpdateDialog(QDialog):
         layout.addWidget(self.notes, 1)
         layout.addSpacing(6)
         layout.addLayout(buttons)
+
+    def reject(self) -> None:       # Esc or the window's close button is a Cancel
+        self._choose("skip" if self.dont_ask.isChecked() else "later")
 
     def _choose(self, choice: str) -> None:
         self.choice = choice

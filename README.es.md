@@ -102,6 +102,20 @@ Inglés y español, con cambio en vivo. Escalado HiDPI de Qt 6 (también fraccio
 </tr>
 </table>
 
+## Tu música, en tus carpetas
+
+Bajo **Carpetas** en el panel lateral, Juke guarda tu música como tú la organizas. No hay paso de importar: lo que hagas simplemente pasa.
+
+- **Music.juke** está en tu carpeta Música como una biblioteca. Al abrirla encuentras `folders.db` (cómo está organizado todo), una carpeta `Folders` con el mismo árbol como accesos directos a tus canciones, y un README corto. Tus archivos se quedan donde están: Juke nunca los mueve, renombra ni borra.
+- Crea carpetas, mete carpetas dentro de carpetas, arrastra canciones desde la lista, o suelta archivos y carpetas enteras desde tu explorador de archivos sobre el panel lateral. Las carpetas soltadas conservan su estructura.
+- Clic derecho en una carpeta para renombrarla, duplicarla o borrarla, ordenar lo que tiene dentro (A→Z, Z→A, por número, más nuevo, más antiguo), reproducirla, mezclarla o añadirla a la cola.
+- Borrar una carpeta saca sus canciones de Juke; los archivos siguen en el disco. Si borras o mueves una carpeta desde el explorador, Juke lo nota en cuanto vuelves a él.
+- **Buscar duplicados** está en el menú ⋯, junto a *Mostrar* para Favoritos, Reproducidas recientemente y la cola.
+- **Editar metadatos** sirve para una canción o para muchas. Selecciona con `Ctrl` + `A`, `Ctrl` + clic o `Mayús` + clic, clic derecho ▸ *Editar metadatos…*, y solo se escriben los campos que cambies. Añade, cambia o quita la carátula, o suelta una imagen sobre la ventana; se guarda en el propio archivo.
+- La ventana de actualización dice en qué versión estás, cuál salió y qué cambió, y aceptas o cancelas.
+- **Enviar comentarios…** y **Ver registro…** están en el menú ⋯. El reporte se abre como un problema nuevo en GitHub para que lo revises. Antes se ocultan tu carpeta personal, contraseñas y la dirección de tu servidor.
+- El AppImage se añade solo a tu menú de aplicaciones la primera vez que se ejecuta.
+
 ## Capturas
 
 <div align="center">
@@ -141,6 +155,7 @@ con Jetpack Compose y Media3.
 - Tu servidor Airsonic / Subsonic en su propia pestaña, también por carpetas.
 - Radio: el directorio, o pega una dirección. Si una página tiene varias emisoras, te las ofrece todas.
 - Sigue sonando con la pantalla apagada, con los controles de siempre en la notificación.
+- *Ajustes ▸ Ayuda* tiene **Enviar comentarios** y el **registro** de la app, con los datos privados ocultos, y un botón para **apoyar en Ko-fi**.
 - Ecualizador de 10 bandas, español e inglés, oscuro y claro.
 
 Descarga `Juke-<versión>.apk` de la [última versión](https://github.com/vezzulab/juke/releases/latest).
@@ -163,9 +178,15 @@ cd android
    ./Juke-x86_64.AppImage
    ```
 
-3. En el primer arranque Juke se ofrece a añadirse a tu **menú de aplicaciones con su icono**. Solo toca tu propia cuenta de usuario (`~/.local/share/applications` y `~/.local/share/icons`) y puedes deshacerlo cuando quieras en *Ajustes*.
+3. Eso es todo. La primera vez que se ejecuta, Juke se añade a tu **menú de aplicaciones con su icono**. Solo toca tu propia cuenta de usuario (`~/.local/share/applications` y `~/.local/share/icons`) y puedes deshacerlo cuando quieras en *Ajustes*.
 
-Todo lo que Juke necesita — Python, Qt, libVLC y yt-dlp — va dentro del archivo. Solo necesitas:
+O en una sola línea, que lo descarga, lo hace ejecutable y lo abre:
+
+```sh
+curl -fsSL https://vezzulab.github.io/juke/install.sh | sh
+```
+
+Todo lo que Juke necesita — Python, Qt, libVLC y yt-dlp — va dentro del archivo; no hay nada más que instalar. Espera:
 
 - Linux x86_64 con **glibc 2.35 o superior** (Ubuntu 22.04, Debian 12, Fedora 36 o más reciente)
 - PulseAudio o PipeWire para el sonido (presentes en prácticamente todo escritorio)
@@ -198,12 +219,13 @@ Para añadir al menú el lanzador y el icono de una instalación desde fuente: `
 | | |
 | --- | --- |
 | **Biblioteca** | Añade tus carpetas de música en *Ajustes ▸ Biblioteca* (o con el botón de la biblioteca vacía). Juke las indexa en un hilo de baja prioridad y solo relee los archivos que cambiaron. |
-| **Airsonic** | Pulsa **Ajustes** al final del panel lateral (o *Configurar Airsonic…* en la vista vacía de Airsonic) ▸ pestaña *Airsonic*: dirección del servidor (p. ej. `http://tu-servidor:4040`), usuario y contraseña, luego *Probar conexión*. *Sincronizar Airsonic* importa el servidor; recórrelo en **Servidores**. Las canciones terminadas se registran (scrobble) en el servidor. Se admiten servidores que no pueden comprobar tokens con sal (Airsonic-Advanced con contraseñas con hash): Juke entra entonces con la contraseña y te recomienda usar `https://`. |
+| **Airsonic** | Abre **Ajustes** desde el menú ⋯ (o *Configurar Airsonic…* en la vista vacía de Airsonic) ▸ pestaña *Airsonic*: dirección del servidor (p. ej. `http://tu-servidor:4040`), usuario y contraseña, luego *Probar conexión*. *Sincronizar Airsonic* importa el servidor; recórrelo en **Servidores**. Las canciones terminadas se registran (scrobble) en el servidor. Se admiten servidores que no pueden comprobar tokens con sal (Airsonic-Advanced con contraseñas con hash): Juke entra entonces con la contraseña y te recomienda usar `https://`. |
 | **Radio** | En **Radio**: *Mis Emisoras* (las tuyas) y *Explorar Radio* (busca por nombre o elige una etiqueta). ♥ guarda una emisora, ▶ la sintoniza. *Añadir emisora por URL…* acepta cualquier dirección web. Detalles abajo. |
-| **Cola** | Clic derecho ▸ **Reproducir a continuación** / **Añadir a la cola**. La lista *Cola actual* muestra lo que suena, lo que encolaste y lo que sigue. |
+| **Cola** | Clic derecho ▸ **Reproducir a continuación** / **Añadir a la cola**. ⋯ ▸ *Mostrar* ▸ *Cola actual* lista lo que suena, lo que encolaste y lo que sigue. |
 | **Listas** | Pulsa el **+** junto a *Listas* (o `Ctrl` + `N`). Clic derecho en canciones ▸ *Añadir a la lista*; clic derecho en una lista para renombrarla o eliminarla. Las listas sobreviven a los reescaneos y a las resincronizaciones de Airsonic. |
-| **Favoritos** | Clic derecho ▸ *Marcar como favorita*. |
-| **Etiquetas** | Clic derecho ▸ *Editar metadatos…* escribe en el archivo (canciones locales). |
+| **Favoritos** | Clic derecho ▸ *Marcar como favorita*. Se ven desde ⋯ ▸ *Mostrar*. |
+| **Carpetas** | Pulsa el **+** junto a *Carpetas*, o arrastra canciones y carpetas. Clic derecho en una carpeta para el resto. |
+| **Etiquetas y carátula** | Clic derecho ▸ *Editar metadatos…* escribe en los archivos (canciones locales), una o varias a la vez, carátula incluida. |
 | **Tema** | *Ajustes ▸ Tema* (igual que el sistema / oscuro / claro) o `Ctrl` + `T`. |
 
 | Atajo | Acción |
@@ -241,6 +263,7 @@ Juke no tiene telemetría, ni cuentas, ni analítica. Lleva incluidas su tipogra
 | Tu servidor Airsonic / Subsonic | Solo si configuras uno. |
 | `api.github.com` | Al abrirse y cada 30 minutos mientras está abierto, para buscar una versión nueva, si dejas activada *Buscar actualizaciones automáticamente*. Solo se envían el nombre y la versión del programa. |
 | Radio Browser (`*.api.radio-browser.info`) y las propias emisoras | Solo cuando abres *Explorar Radio*, añades una emisora o la sintonizas. |
+| `github.com` (la página de problemas) | Solo cuando pulsas *Abrir en GitHub* en *Enviar comentarios…*. Juke no envía nada por sí mismo; el reporte se abre en tu navegador. |
 
 ## Rendimiento
 
@@ -307,7 +330,7 @@ La suite tiene más de cien pruebas, incluida reproducción real con libVLC (se 
 - El espectro de la pantalla LCD es un **medidor animado, no un analizador** — libVLC no expone datos FFT.
 - El **balance** estéreo necesita PulseAudio o PipeWire (`pactl`) y un flujo estéreo; si no, se desactiva.
 - Aún no hay MPRIS / teclas multimedia globales, ni reproducción sin pausas, ni reordenar canciones arrastrando dentro de las listas, y solo un servidor Airsonic a la vez.
-- La navegación por carpetas está disponible para Airsonic; la biblioteca local se recorre por artista, álbum y género.
+- Tus propias carpetas viven en Juke (*Carpetas*), el servidor Airsonic se recorre por sus carpetas y la biblioteca local por artista, álbum y género.
 - Radio: no se admiten emisoras que pidan inicio de sesión o usen transmisiones protegidas. La canción en el aire requiere que la emisora envíe metadatos ICY.
 
 ## Créditos

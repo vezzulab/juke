@@ -31,10 +31,11 @@ fun JukeField(
     value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier, enabled: Boolean = true,
     placeholder: String = "", password: Boolean = false, keyboard: KeyboardOptions = KeyboardOptions.Default,
     actions: KeyboardActions = KeyboardActions.Default, leading: (@Composable () -> Unit)? = null,
+    singleLine: Boolean = true, minLines: Int = 1, maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
 ) {
     val colors = MaterialTheme.colorScheme
     OutlinedTextField(
-        value, onChange, modifier, enabled = enabled, singleLine = true,
+        value, onChange, modifier, enabled = enabled, singleLine = singleLine, minLines = minLines, maxLines = maxLines,
         label = { Text(label) }, placeholder = if (placeholder.isBlank()) null else ({ Text(placeholder) }),
         leadingIcon = leading, shape = RoundedCornerShape(14.dp),
         visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,

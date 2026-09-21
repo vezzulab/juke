@@ -10,13 +10,17 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QRect, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QFontMetrics, QPainter
+import json
+
+from PySide6.QtCore import QAbstractTableModel, QMimeData, QModelIndex, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import QAction, QColor, QDrag, QFont, QFontMetrics, QFontMetricsF, QPainter, QPixmap
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QMenu, QPushButton, QTableView
 
 from ...db.database import SOURCE_AIRSONIC, Database, Scope, Track
-from ...i18n import tr
+from ...db.folders import ordered
+from ...i18n import tr, trn
 from .. import styles
+from .sidebar import MIME_TRACKS
 from .widgets import format_duration
 
 COLUMNS = ("title", "artist", "album", "duration", "genre", "bitrate", "source")
@@ -146,7 +150,18 @@ class TrackModel(QAbstractTableModel):
         self.headerDataChanged.emit(Qt.Horizontal, 0, len(COLUMNS) - 1)
 
     def flags(self, index: QModelIndex):
-        return Qt.ItemIsEnabled | Qt.ItemIsSelectable
+        return Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsDragEnabled
+
+    def mimeTypes(self) -> list[str]:  # noqa: N802
+        return [MIME_TRACKS]
+
+    def mimeData(self, indexes) -> QMimeData:  # noqa: N802
+        """The dragged songs as a list of ids: a playlist or a folder of the sidebar takes them."""
+        rows = sorted({i.row() for i in indexes})
+        ids = [i for i in (self.id_at(r) for r in rows) if i is not None]
+        mime = QMimeData()
+        mime.setData(MIME_TRACKS, json.dumps(ids).encode())
+        return mime
 
     def data(self, index: QModelIndex, role=Qt.DisplayRole):
         if not index.isValid():
@@ -188,11 +203,14 @@ class TrackTable(QTableView):
     play_next_requested = Signal(list)
     queue_requested = Signal(list)
     favorite_requested = Signal(list, bool)
-    edit_requested = Signal(int)
+    edit_requested = Signal(list)
     remove_from_queue_requested = Signal(list)
     add_to_playlist_requested = Signal(int, list)   # playlist id, track ids
     new_playlist_requested = Signal(list)           # create a playlist holding these tracks
     remove_from_playlist_requested = Signal(list)
+    add_to_folder_requested = Signal(int, list)     # folder id, track ids
+    new_folder_requested = Signal(list)             # create a folder holding these tracks
+    remove_from_folder_requested = Signal(list)
     action_requested = Signal()                     # the button of an empty-state message
 
     def __init__(self, db: Database, parent=None) -> None:
@@ -201,7 +219,10 @@ class TrackTable(QTableView):
         self.setModel(self.track_model)
         self.queue_mode = False
         self.playlist_mode = False
+        self.folder_mode = False                    # showing one of the user's folders: songs can be taken out of it
+        self.duplicate_mode: str | None = None      # showing copies of songs ("same" | "exact")
         self.playlists: list[tuple[int, str]] = []
+        self._folder_children: dict[int | None, list] = {}
         self.empty_title = ""
         self.empty_hint = ""
         self.empty_action = ""
@@ -223,6 +244,9 @@ class TrackTable(QTableView):
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setContextMenuPolicy(Qt.DefaultContextMenu)
+        self.setDragEnabled(True)
+        self.setDragDropMode(QAbstractItemView.DragOnly)
+        self.setDefaultDropAction(Qt.CopyAction)
         self.verticalHeader().hide()
         self.verticalHeader().setDefaultSectionSize(36)
         self.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
@@ -262,6 +286,31 @@ class TrackTable(QTableView):
         self._sort_desc = False
         self.horizontalHeader().setSortIndicator(self._sort_column, Qt.AscendingOrder)
         self.track_model.set_view(scope, fixed_ids, sort, False)
+
+    def startDrag(self, supported_actions) -> None:  # noqa: N802
+        ids = self.selected_ids()
+        if not ids:
+            return
+        drag = QDrag(self)
+        drag.setMimeData(self.track_model.mimeData(self.selectionModel().selectedRows()))
+        label = trn("summary.songs", len(ids))
+        font = QFont(self.font())
+        font.setPixelSize(13)
+        font.setBold(True)
+        width = QFontMetricsF(font).horizontalAdvance(label) + 30
+        pixmap = QPixmap(int(width), 30)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(styles.qcolor(styles.ACCENT, 235))
+        painter.drawRoundedRect(QRectF(0, 0, width, 30), 9, 9)
+        painter.setFont(font)
+        painter.setPen(QColor(styles.ON_ACCENT))
+        painter.drawText(QRectF(0, 0, width, 30), Qt.AlignCenter, label)
+        painter.end()
+        drag.setPixmap(pixmap)
+        drag.exec(Qt.CopyAction)
 
     # -- selection helpers -----------------------------------------------------------------------------
     def selected_ids(self) -> list[int]:
@@ -305,15 +354,46 @@ class TrackTable(QTableView):
         playlists.addAction(tr("menu.new_playlist"), lambda: self.new_playlist_requested.emit(ids))
         if self.playlist_mode:
             menu.addAction(tr("menu.remove_from_playlist"), lambda: self.remove_from_playlist_requested.emit(ids))
+        self._add_folder_menu(menu, ids)
+        if self.folder_mode:
+            menu.addAction(tr("menu.remove_from_folder"), lambda: self.remove_from_folder_requested.emit(ids))
         menu.addSeparator()
         all_favorites = bool(tracks) and all(t.favorite for t in tracks)
         label = tr("menu.unfavorite") if all_favorites else tr("menu.favorite")
         menu.addAction(label, lambda: self.favorite_requested.emit(ids, not all_favorites))
         edit = QAction(tr("menu.edit_metadata"), menu)
-        edit.setEnabled(len(tracks) == 1 and tracks[0].is_local)
-        edit.triggered.connect(lambda: self.edit_requested.emit(ids[0]))
+        edit.setEnabled(any(t.is_local for t in tracks))
+        edit.triggered.connect(lambda: self.edit_requested.emit(list(ids)))
         menu.addAction(edit)
         menu.exec(event.globalPos())
+
+    def set_folders(self, folders: list) -> None:
+        self._folder_children = {}
+        for folder in folders:
+            self._folder_children.setdefault(folder.parent_id, []).append(folder)
+
+    def _add_folder_menu(self, menu: QMenu, ids: list[int]) -> None:
+        """"Add to Folder": the tree of folders as nested menus, each level built only when it is opened."""
+        root = menu.addMenu(tr("menu.add_to_folder"))
+
+        def fill(target: QMenu, parent_id: int | None) -> None:
+            target.clear()
+            if parent_id is not None:
+                target.addAction(tr("menu.this_folder"), lambda _c=False, fid=parent_id: self.add_to_folder_requested.emit(fid, ids))
+                target.addSeparator()
+            for folder in ordered(self._folder_children.get(parent_id, []), "name"):
+                if self._folder_children.get(folder.id):
+                    sub = target.addMenu(folder.name)
+                    sub.aboutToShow.connect(lambda m=sub, fid=folder.id: fill(m, fid))
+                    sub.addAction("…")                    # so the entry opens; replaced when it does
+                else:
+                    target.addAction(folder.name, lambda _c=False, fid=folder.id: self.add_to_folder_requested.emit(fid, ids))
+            if parent_id is None:
+                if self._folder_children.get(None):
+                    target.addSeparator()
+                target.addAction(tr("menu.new_folder"), lambda: self.new_folder_requested.emit(ids))
+
+        fill(root, None)
 
     # -- empty state ---------------------------------------------------------------------------------------
     def set_playlists(self, playlists: list[tuple[int, str]]) -> None:

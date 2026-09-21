@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
@@ -215,6 +216,30 @@ fun ActionKey(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, 
         val content = if (accent) Color(0xFF0A0C14) else colors.onSurface
         if (icon != null) { JIcon(icon, tint = content.copy(alpha = if (enabled) 1f else 0.4f), size = 18.dp); Spacer(Modifier.width(8.dp)) }
         Text(text, color = content.copy(alpha = if (enabled) 1f else 0.4f), style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+const val KOFI_URL = "https://ko-fi.com/S1K526XVUI"
+
+/** "Support on Ko-fi": tinted with the accent so it stands out without leaving the theme. [compact] is the tall key for the rail. */
+@Composable
+fun SupportKey(modifier: Modifier = Modifier, compact: Boolean = false) {
+    val links = androidx.compose.ui.platform.LocalUriHandler.current
+    val shape = RoundedCornerShape(if (compact) 16.dp else 14.dp)
+    val label = stringResource(if (compact) R.string.support_kofi_short else R.string.support_kofi)
+    val body = modifier.clip(shape).background(AccentSoft).border(1.dp, AccentA.copy(alpha = 0.45f), shape)
+        .clickable(remember { MutableInteractionSource() }, null) { links.openUri(KOFI_URL) }
+    if (compact) {
+        Column(body.padding(horizontal = 12.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            JIcon(R.drawable.ic_heart, tint = AccentA, size = 22.dp)
+            Text(label, Modifier.padding(top = 5.dp), color = AccentA, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        }
+    } else {
+        Row(body.heightIn(min = 46.dp).padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            JIcon(R.drawable.ic_heart, tint = AccentA, size = 18.dp)
+            Spacer(Modifier.width(8.dp))
+            Text(label, color = AccentA, style = MaterialTheme.typography.labelLarge)
+        }
     }
 }
 
