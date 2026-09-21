@@ -7,10 +7,15 @@ do nothing. Links are opened with the environment the desktop gave the AppImage 
 
 from __future__ import annotations
 
+import logging
 import os
 
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QUrl, Slot
 from PySide6.QtGui import QDesktopServices
+
+from .i18n import tr
+
+log = logging.getLogger(__name__)
 
 # set by AppRun for Juke's own use; nothing else should see them
 _PRIVATE = ("PYTHONHOME", "PYTHONPATH", "PYTHONNOUSERSITE", "PYTHONDONTWRITEBYTECODE", "VLC_PLUGIN_PATH",
@@ -36,20 +41,68 @@ def desktop_environment(source: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 
-def open_url(url: QUrl | str) -> bool:
-    """Open ``url`` in the default browser or file manager. False if nothing on the system could."""
-    target = url.toString() if isinstance(url, QUrl) else str(url)
+def _via_portal(target: str) -> bool:
+    """Ask the desktop itself to open the address (the freedesktop portal, over D-Bus). Nothing is launched from here, so
+    what the AppImage put in the environment cannot get in the way."""
+    if not target.startswith(("http:", "https:", "mailto:")):
+        return False
+    try:
+        from PySide6.QtDBus import QDBus, QDBusConnection, QDBusMessage
+
+        bus = QDBusConnection.sessionBus()
+        if not bus.isConnected():
+            return False
+        message = QDBusMessage.createMethodCall("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop",
+                                                "org.freedesktop.portal.OpenURI", "OpenURI")
+        message.setArguments(["", target, {}])
+        reply = bus.call(message, QDBus.CallMode.Block, 4000)
+        if reply.type() == QDBusMessage.MessageType.ReplyMessage:
+            return True
+        log.info("The desktop portal did not open %s: %s", target, reply.errorMessage())
+    except Exception as exc:                                   # no D-Bus, no portal: the next way is tried
+        log.info("The desktop portal is not available: %s", exc)
+    return False
+
+
+def _started(result) -> bool:
+    """``QProcess.startDetached()`` gives (started, pid) in some PySide6 builds and just ``started`` in others."""
+    return bool(result[0] if isinstance(result, tuple) else result)
+
+
+def _via_program(target: str) -> bool:
     environment = QProcessEnvironment()
     for key, value in desktop_environment().items():
         environment.insert(key, value)
-    for program, args in (("xdg-open", [target]), ("gio", ["open", target]), ("kde-open", [target])):
+    for program, args in (("xdg-open", [target]), ("gio", ["open", target]), ("kde-open", [target]), ("kde-open5", [target])):
         process = QProcess()
         process.setProcessEnvironment(environment)
         process.setProgram(program)
         process.setArguments(args)
-        started, _pid = process.startDetached()
+        started = _started(process.startDetached())
         if started:
+            log.info("Opened %s with %s", target, program)
             return True
+    return False
+
+
+def open_url(url: QUrl | str) -> bool:
+    """Open ``url`` in the default browser or file manager. If nothing on the system can, the address is copied to the
+    clipboard and the person is told, so the click is never silent."""
+    target = url.toString() if isinstance(url, QUrl) else str(url)
+    if _via_portal(target):
+        log.info("Opened %s through the desktop portal", target)
+        return True
+    if _via_program(target):
+        return True
+    log.warning("Could not open %s: no portal, xdg-open, gio or kde-open answered", target)
+    try:
+        from PySide6.QtGui import QGuiApplication
+        from PySide6.QtWidgets import QMessageBox
+
+        QGuiApplication.clipboard().setText(target)
+        QMessageBox.information(QGuiApplication.focusWindow() and None, tr("links.title"), tr("links.copied", url=target))
+    except Exception:
+        pass
     return False
 
 

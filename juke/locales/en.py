@@ -65,6 +65,8 @@ STRINGS = {
     "menu.sync_airsonic": "Sync Airsonic",
     "menu.settings": "Settings…",
     "menu.about": "About Juke",
+    "links.title": "Open link",
+    "links.copied": "Juke could not open your browser. The address was copied, so you can paste it there:\n{url}",
     "menu.lyrics": "Add lyrics…",
     "menu.find_lyrics": "Find lyrics…",
     "menu.lyrics_panel": "Show lyrics",
