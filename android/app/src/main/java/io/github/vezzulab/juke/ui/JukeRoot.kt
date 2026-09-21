@@ -91,6 +91,7 @@ fun JukeRoot(vm: JukeViewModel, onLanguage: (String) -> Unit, onGrantAudio: () -
                 KaraokeScreen(vm, onClose = { showKaraoke = false }, onLyrics = { showKaraoke = false; showLyrics = true })
             }
         }
+        UpdateDialog(vm)
         AddStationSheet(vm, showAdd) { showAdd = false }
         EqualizerSheet(showEq) { showEq = false }
         androidx.compose.animation.AnimatedVisibility(opening, exit = androidx.compose.animation.fadeOut()) { Splash { opening = false } }

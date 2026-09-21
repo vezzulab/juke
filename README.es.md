@@ -82,7 +82,7 @@ Elige un tema, o deja que Juke siga a tu escritorio. Las dos paletas están comp
 <td valign="top">
 
 ### Actualizaciones a tu manera
-Al abrirse, y cada 30 minutos mientras está abierto (desactivable), Juke pregunta a GitHub si hay una versión más reciente. Si la hay, muestra qué cambió y **tú** eliges *Actualizar ahora*, *Más tarde* u *Omitir esta versión*. Las descargas se verifican con su SHA-256 antes de reemplazar nada.
+Al abrirse, y cada 30 minutos mientras está abierto (desactivable), Juke pregunta a GitHub si hay una versión más reciente. Si la hay, muestra qué cambió y **tú** eliges *Actualizar ahora*, *Más tarde* u *Omitir esta versión*. Las descargas se verifican con su SHA-256 antes de reemplazar nada. **La app de Android hace lo mismo**: muestra qué cambió, descarga el APK, lo verifica y lo entrega al instalador de Android (permites *Instalar apps desconocidas* para Juke una sola vez). Un arreglo publicado con el mismo número de versión también se reconoce por su SHA-256.
 
 </td>
 </tr>

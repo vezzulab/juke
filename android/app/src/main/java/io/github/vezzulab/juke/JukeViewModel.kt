@@ -235,7 +235,67 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
     var shuffle by mutableStateOf(false); private set
     var repeat by mutableStateOf(Player.REPEAT_MODE_OFF); private set
 
+    // ---- updates from GitHub ---------------------------------------------------------------------
+    var updatesAuto by mutableStateOf(store.updatesAuto); private set
+    fun changeUpdatesAuto(on: Boolean) { updatesAuto = on; store.updatesAuto = on; if (on) checkForUpdate(manual = false) }
+
+    /** The release being offered right now (the pop-up shows while this is set), or null. */
+    var update by mutableStateOf<UpdateRelease?>(null); private set
+    /** null: nothing going on; 0..100: downloading; -1: the file could not be fetched or did not match its checksum; -2: waiting for permission to install. */
+    var updateProgress by mutableStateOf<Int?>(null); private set
+    /** Result of the "Check now" key in Settings: null until asked, then "checking", "current" or "failed". */
+    var updateStatus by mutableStateOf<String?>(null); private set
+    private var updateJob: Job? = null
+
+    /** Looks at GitHub. The automatic look honours "Later" (24 h) and "Skip"; the manual one from Settings always answers. */
+    fun checkForUpdate(manual: Boolean) {
+        if (updateProgress != null && updateProgress != -1 && updateProgress != -2) return        // busy downloading
+        viewModelScope.launch {
+            if (manual) updateStatus = "checking"
+            val release = try { Updater.latest(getApplication()) } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                AppLog.w("update", "Could not look for updates", e)
+                if (manual) updateStatus = "failed"
+                return@launch
+            }
+            if (!Updater.isUpdate(release)) { if (manual) updateStatus = "current"; return@launch }
+            release!!
+            val hidden = !manual && (store.updateSkipped == release.key || (store.updateSnoozeKey == release.key && System.currentTimeMillis() < store.updateSnoozeUntil))
+            if (manual) updateStatus = null
+            if (!hidden && update == null) { update = release; updateProgress = null }
+        }
+    }
+
+    fun updateLater() { update?.let { store.updateSnoozeKey = it.key; store.updateSnoozeUntil = System.currentTimeMillis() + Updater.SNOOZE_MS }; dismissUpdate() }
+    fun updateSkip() { update?.let { store.updateSkipped = it.key }; dismissUpdate() }
+    fun dismissUpdate() { updateJob?.cancel(); update = null; updateProgress = null }
+
+    /** Downloads the file, checks it and hands it to Android's installer. */
+    fun updateNow() {
+        val release = update ?: return
+        updateJob?.cancel()
+        if (!Updater.canInstall(getApplication())) { Updater.askPermission(getApplication()); updateProgress = -2; return }   // ask first: no point downloading before Android allows it
+        updateProgress = 0
+        updateJob = viewModelScope.launch {
+            try {
+                val file = Updater.download(getApplication(), release) { updateProgress = it }
+                if (Updater.install(getApplication(), file)) dismissUpdate() else updateProgress = -2
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                AppLog.w("update", "The update could not be downloaded", e)
+                updateProgress = -1
+            }
+        }
+    }
+
     init {
+        viewModelScope.launch {                       // a few seconds after opening, then every 30 minutes for as long as the app lives
+            kotlinx.coroutines.delay(6_000)
+            while (true) {
+                if (updatesAuto) checkForUpdate(manual = false)
+                kotlinx.coroutines.delay(Updater.RECHECK_MS)
+            }
+        }
         EqualizerHub.init(store)
         stations.addAll(store.stations)
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))

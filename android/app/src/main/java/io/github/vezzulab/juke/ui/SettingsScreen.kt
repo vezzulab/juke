@@ -56,6 +56,20 @@ fun SettingsScreen(vm: JukeViewModel, onLanguage: (String) -> Unit, onEqualizer:
                 }
                 Text(stringResource(R.string.lyrics_auto_hint), Modifier.padding(top = 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
+            Block(stringResource(R.string.updates)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.updates_auto), Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
+                    androidx.compose.material3.Switch(vm.updatesAuto, vm::changeUpdatesAuto)
+                }
+                Text(stringResource(R.string.updates_hint), Modifier.padding(top = 4.dp, bottom = 10.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                ActionKey(stringResource(R.string.updates_check), { vm.checkForUpdate(manual = true) }, Modifier.fillMaxWidth(), icon = R.drawable.ic_refresh, accent = false)
+                vm.updateStatus?.let {
+                    Text(
+                        stringResource(when (it) { "checking" -> R.string.updates_checking; "current" -> R.string.updates_current; else -> R.string.updates_failed }),
+                        Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
             Block(stringResource(R.string.equalizer)) {
                 ActionKey(stringResource(R.string.equalizer), onEqualizer, icon = R.drawable.ic_sliders, accent = false)
             }

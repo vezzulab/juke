@@ -145,4 +145,21 @@
     <string name="close">Close</string>
     <string name="on_air">On air</string>
     <string name="tagline">Music, your way</string>
+    <string name="updates">Updates</string>
+    <string name="updates_auto">Look for a new Juke when the app opens and every 30 minutes</string>
+    <string name="updates_hint">Only asks GitHub for the newest release. Nothing about you or your music is sent, and nothing installs until you say so.</string>
+    <string name="updates_check">Check for updates now</string>
+    <string name="updates_checking">Looking…</string>
+    <string name="updates_current">You already have the latest Juke.</string>
+    <string name="updates_failed">Could not reach GitHub. Try again in a moment.</string>
+    <string name="update_title">A new Juke is ready</string>
+    <string name="update_body">You are on %1$s. Update to %2$s?</string>
+    <string name="update_body_rebuild">You are on %1$s. A fix for this same version is ready: update it?</string>
+    <string name="update_changes">What changed</string>
+    <string name="update_now">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_skip">Skip this one</string>
+    <string name="update_downloading">Downloading… %1$d%%</string>
+    <string name="update_failed">The download did not finish or did not match its checksum, so nothing was installed. Try again.</string>
+    <string name="update_permission">Android needs your OK for Juke to install apps. Allow it in the page that opened, come back and press Update again.</string>
 </resources>

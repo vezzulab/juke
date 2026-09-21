@@ -145,4 +145,21 @@
     <string name="close">Cerrar</string>
     <string name="on_air">Al aire</string>
     <string name="tagline">La música, a tu manera</string>
+    <string name="updates">Actualizaciones</string>
+    <string name="updates_auto">Buscar un Juke nuevo al abrir la app y cada 30 minutos</string>
+    <string name="updates_hint">Solo le pregunta a GitHub cuál es la versión más nueva. No se envía nada tuyo ni de tu música, y nada se instala hasta que lo digas.</string>
+    <string name="updates_check">Buscar actualizaciones ahora</string>
+    <string name="updates_checking">Buscando…</string>
+    <string name="updates_current">Ya tienes el Juke más reciente.</string>
+    <string name="updates_failed">No se pudo conectar con GitHub. Prueba de nuevo en un momento.</string>
+    <string name="update_title">Hay un Juke nuevo</string>
+    <string name="update_body">Estás en la %1$s. ¿Actualizar a la %2$s?</string>
+    <string name="update_body_rebuild">Estás en la %1$s. Hay un arreglo de esta misma versión: ¿actualizar?</string>
+    <string name="update_changes">Qué cambió</string>
+    <string name="update_now">Actualizar</string>
+    <string name="update_later">Luego</string>
+    <string name="update_skip">Omitir esta</string>
+    <string name="update_downloading">Descargando… %1$d%%</string>
+    <string name="update_failed">La descarga no terminó o no coincidió con su suma de verificación, así que no se instaló nada. Inténtalo de nuevo.</string>
+    <string name="update_permission">Android necesita tu permiso para que Juke instale apps. Actívalo en la página que se abrió, vuelve y pulsa Actualizar otra vez.</string>
 </resources>

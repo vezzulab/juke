@@ -24,6 +24,22 @@ class Store(context: Context) {
         get() = prefs.getBoolean("lyrics_auto", false)
         set(v) { prefs.edit().putBoolean("lyrics_auto", v).apply() }
 
+    var updatesAuto: Boolean              // look for a new Juke on GitHub while the app is open
+        get() = prefs.getBoolean("updates_auto", true)
+        set(v) { prefs.edit().putBoolean("updates_auto", v).apply() }
+
+    var updateSkipped: String             // "Skip this version": what was skipped (see UpdateRelease.key)
+        get() = prefs.getString("update_skipped", "").orEmpty()
+        set(v) { prefs.edit().putString("update_skipped", v).apply() }
+
+    var updateSnoozeKey: String           // "Later": which version, and until when
+        get() = prefs.getString("update_snooze_key", "").orEmpty()
+        set(v) { prefs.edit().putString("update_snooze_key", v).apply() }
+
+    var updateSnoozeUntil: Long
+        get() = prefs.getLong("update_snooze_until", 0L)
+        set(v) { prefs.edit().putLong("update_snooze_until", v).apply() }
+
     var sortOrder: String                 // "Original" | "AZ" | "ZA": how folders and songs are listed
         get() = prefs.getString("sort", "Original").orEmpty()
         set(v) { prefs.edit().putString("sort", v).apply() }

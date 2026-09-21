@@ -82,7 +82,7 @@ Pick a theme, or let Juke match your desktop. Both palettes are checked for legi
 <td valign="top">
 
 ### Updates on your terms
-When it opens, and every 30 minutes while it is open (switchable), Juke asks GitHub whether a newer release exists. If so it shows what changed and **you** choose *Update now*, *Later* or *Skip this version*. Downloads are verified against their SHA-256 before anything is replaced.
+When it opens, and every 30 minutes while it is open (switchable), Juke asks GitHub whether a newer release exists. If so it shows what changed and **you** choose *Update now*, *Later* or *Skip this version*. Downloads are verified against their SHA-256 before anything is replaced. **The Android app does the same**: it shows what changed, downloads the APK, checks it and hands it to Android's installer (you allow *Install unknown apps* for Juke once). A fix published under the same version number is recognised by its SHA-256 too.
 
 </td>
 </tr>
