@@ -292,6 +292,8 @@ STRINGS = {
     "radio.saved_n_other": "{n} stations saved to My Stations",
     "update.question": "Update to Juke {version}?",
     "update.current": "You are using Juke {current}. Do you want to update to Juke {version}?",
+    "update.question_build": "A revised build of Juke {version} is ready",
+    "update.current_build": "You are using Juke {current} (build {old}). The same version was updated with fixes (build {new}). Do you want to update?",
     "update.notes_for": "What's new in Juke {version}",
     "update.accept": "Update",
     "update.dont_ask": "Don't ask again about this version",

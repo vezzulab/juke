@@ -31,10 +31,12 @@ class UpdateDialog(QDialog):
 
         picture = QLabel()
         picture.setPixmap(icons.render_svg(ICON_SVG.read_bytes(), 56))
-        headline = QLabel(tr("update.question", version=release.version))
+        headline = QLabel(tr("update.question_build" if release.is_rebuild else "update.question", version=release.version))
         headline.setObjectName("heading")
         headline.setWordWrap(True)
-        current_label = QLabel(tr("update.current", current=current, version=release.version))
+        current_label = QLabel(
+            tr("update.current_build", current=current, old=release.installed_sha256[:8], new=release.asset_sha256[:8]) if release.is_rebuild
+            else tr("update.current", current=current, version=release.version))
         current_label.setObjectName("muted")
         titles = QVBoxLayout()
         titles.setSpacing(3)

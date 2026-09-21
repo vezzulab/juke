@@ -1228,21 +1228,21 @@ class MainWindow(QMainWindow):
         return dialog.choice
 
     def _update_checked(self, release: updater.ReleaseInfo | None, manual: bool) -> None:
-        if release is None or not updater.is_newer(release.version):
+        if not updater.is_update(release):
             if manual:
                 notice(self, tr("update.title"), tr("update.uptodate", version=__version__))
             return
         if not manual:
-            if release.version == self.config.get("update.skipped"):
+            if release.key == self.config.get("update.skipped"):
                 return                 # "skip this version": stay quiet until the next one
-            if release.version == self.config.get("update.snoozed") and time.time() < float(self.config.get("update.snooze_until") or 0):
+            if release.key == self.config.get("update.snoozed") and time.time() < float(self.config.get("update.snooze_until") or 0):
                 return                 # "later": ask again tomorrow, or as soon as a newer version appears
         choice = self._ask_update(release)
         if choice == "skip":
-            self.config.set("update.skipped", release.version)
+            self.config.set("update.skipped", release.key)
             self.config.save()
         elif choice == "later":
-            self.config.set("update.snoozed", release.version)
+            self.config.set("update.snoozed", release.key)
             self.config.set("update.snooze_until", time.time() + updater.SNOOZE_S)
             self.config.save()
         elif choice == "update":

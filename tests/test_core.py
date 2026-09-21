@@ -752,3 +752,32 @@ class LocaleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RebuildUpdateTests(unittest.TestCase):
+    """A fix published under the same version is recognised by the file's SHA-256, not by the number."""
+
+    def release(self, version, published, installed):
+        from juke.updater import ReleaseInfo
+        return ReleaseInfo(tag="v" + version, version=version, notes="", page_url="", asset_sha256=published, installed_sha256=installed)
+
+    def test_same_version_different_file_is_an_update(self):
+        from juke import __version__
+        from juke.updater import is_update
+        rebuilt = self.release(__version__, "b" * 64, "a" * 64)
+        self.assertTrue(rebuilt.is_rebuild and is_update(rebuilt))
+        self.assertTrue(rebuilt.key.startswith(__version__ + "+bbbbbbbb"))          # "Later"/"Skip" remember this build only
+
+    def test_same_file_or_unknown_file_is_not(self):
+        from juke import __version__
+        from juke.updater import is_update
+        self.assertFalse(is_update(self.release(__version__, "a" * 64, "a" * 64)))    # already the published one
+        self.assertFalse(is_update(self.release(__version__, "b" * 64, "")))          # not an AppImage: nothing to compare
+        self.assertFalse(is_update(self.release(__version__, "", "a" * 64)))          # release without a checksum
+        self.assertFalse(is_update(None))
+
+    def test_a_newer_version_still_wins_and_keeps_its_plain_key(self):
+        from juke.updater import is_update
+        newer = self.release("99.0.0", "b" * 64, "a" * 64)
+        self.assertTrue(is_update(newer))
+        self.assertEqual(newer.key, "99.0.0")

@@ -7,6 +7,7 @@ version in the User-Agent.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import re
@@ -35,6 +36,45 @@ class ReleaseInfo:
     asset_url: str = ""
     asset_size: int = 0
     asset_sha256: str = ""
+    installed_sha256: str = ""      # the AppImage running now ("" when not running from one)
+
+    @property
+    def is_rebuild(self) -> bool:
+        """Same version number, different file: a fix published without raising the version."""
+        return bool(self.asset_sha256 and self.installed_sha256 and self.asset_sha256 != self.installed_sha256
+                    and not is_newer(self.version))
+
+    @property
+    def key(self) -> str:
+        """What "Later" and "Skip" remember: the version, plus the build when it is a rebuild of the same version."""
+        return f"{self.version}+{self.asset_sha256[:8]}" if self.is_rebuild else self.version
+
+
+def is_update(release: ReleaseInfo | None) -> bool:
+    """A newer version, or a new build of this very version (told apart by the file's SHA-256, its signature)."""
+    return release is not None and (is_newer(release.version) or (parse_version(release.version) == parse_version(__version__) and release.is_rebuild))
+
+
+_build_cache: dict[tuple, str] = {}
+
+
+def running_build_sha256() -> str:
+    """SHA-256 of the AppImage this Juke is running from ("" when it is not an AppImage). Hashed once per run."""
+    path = integration.appimage_path()
+    if path is None:
+        return ""
+    try:
+        stat = path.stat()
+        identity = (str(path), stat.st_mtime_ns, stat.st_size)
+        if identity not in _build_cache:
+            digest = hashlib.sha256()
+            with open(path, "rb") as image:
+                for chunk in iter(lambda: image.read(1 << 20), b""):
+                    digest.update(chunk)
+            _build_cache[identity] = digest.hexdigest()
+        return _build_cache[identity]
+    except OSError:
+        return ""
 
 
 def parse_version(text: str) -> tuple[int, ...] | None:
@@ -81,7 +121,10 @@ async def fetch_latest(*, transport=None, timeout: float = 10.0) -> ReleaseInfo 
         if response.status_code == 404:
             return None
         response.raise_for_status()
-        return release_from_json(response.json())
+        release = release_from_json(response.json())
+    if release is not None:
+        release.installed_sha256 = await asyncio.to_thread(running_build_sha256)
+    return release
 
 
 async def download_asset(release: ReleaseInfo, directory: Path, progress: Callable[[int], None] | None = None,
