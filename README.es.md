@@ -341,6 +341,10 @@ La suite tiene más de cien pruebas, incluida reproducción real con libVLC (se 
 - Tus propias carpetas viven en Juke (*Carpetas*), el servidor Airsonic se recorre por sus carpetas y la biblioteca local por artista, álbum y género.
 - Radio: no se admiten emisoras que pidan inicio de sesión o usen transmisiones protegidas. La canción en el aire requiere que la emisora envíe metadatos ICY.
 
+## Licencia
+
+Juke es gratis para usarlo con cualquier fin, en todos los ordenadores y dispositivos que tengas, de uso personal o comercial. No puedes modificarlo ni redistribuirlo: para compartirlo, envía a la gente a las [descargas oficiales](https://github.com/vezzulab/juke/releases). El código está publicado para poder leerlo y comprobarlo. Tu música, tus listas y tus ajustes siempre son tuyos. Los términos completos están en la [Licencia de Juke 1.0](LICENSE), los mismos que los de [Piklin](https://github.com/vezzulab/Piklin), y el software de otros que Juke incluye conserva su propia licencia, indicada en [NOTICE.md](NOTICE.md).
+
 ## Créditos
 
 [libVLC](https://www.videolan.org/) para la reproducción, [Qt for Python](https://doc.qt.io/qtforpython-6/) para la interfaz, [yt-dlp](https://github.com/yt-dlp/yt-dlp), [httpx](https://www.python-httpx.org/) y [mutagen](https://mutagen.readthedocs.io/), el directorio comunitario [radio-browser.info](https://www.radio-browser.info/) y la tipografía [Inter](https://rsms.me/inter/) (licencia SIL Open Font, incluida).

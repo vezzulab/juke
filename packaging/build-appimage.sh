@@ -80,6 +80,8 @@ install -m 755 "$ROOT/packaging/AppRun" "$APPDIR/AppRun"
 install -m 644 "$ROOT/packaging/juke.desktop" "$APPDIR/juke.desktop"
 mkdir -p "$APPDIR/usr/share/applications"
 install -m 644 "$ROOT/packaging/juke.desktop" "$APPDIR/usr/share/applications/juke.desktop"
+mkdir -p "$APPDIR/usr/share/doc/juke"
+for doc in LICENSE NOTICE.md; do [ -f "$ROOT/$doc" ] && install -m 644 "$ROOT/$doc" "$APPDIR/usr/share/doc/juke/$doc"; done || true
 QT_QPA_PLATFORM=offscreen PYTHONPATH="$SITE" LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
     "$PYBIN" "$ROOT/packaging/make_icons.py" "$APPDIR"
 ln -sf juke.png "$APPDIR/.DirIcon"
