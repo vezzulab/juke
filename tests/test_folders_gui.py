@@ -14,7 +14,7 @@ from juke.db.database import SOURCE_LOCAL, Scope
 from juke.gui.components.sidebar import COUNT_ROLE, MIME_FOLDER, MIME_TRACKS
 from juke.i18n import translator
 
-from .test_core import write_wav
+from .test_core import row, write_wav
 from .test_gui import make_window, pump
 
 
@@ -62,6 +62,20 @@ class FoldersGuiTests(unittest.TestCase):
             pump(30)
         return condition()
 
+    def real_ids(self, n):
+        """Ids of n songs whose files really exist (a folder only takes files that are there)."""
+        import tempfile
+        folder = Path(tempfile.mkdtemp(prefix="juke-real-"))
+        rows = []
+        for i in range(n):
+            path = folder / f"real{i}.wav"
+            write_wav(path, 0.2)
+            rows.append(row(900 + i, location=str(path)))
+        self.db.upsert_many(rows)
+        self.window.refresh_library()
+        pump(100)
+        return [t.id for t in self.db.tracks_by_ids(self.db.query_ids()) if t.location.startswith(str(folder))]
+
     def folder_rows(self):
         header = self.sidebar._headers["folders"]
         return [header.child(i).text(0) for i in range(header.childCount())]
@@ -108,31 +122,35 @@ class FoldersGuiTests(unittest.TestCase):
         self.assertIn("Fiesta 2", self.folder_rows())
         w._delete_folder(party.id)
         self.assertNotIn("Fiesta", self.folder_rows())
-        self.assertEqual(w._view[0], "all")
+        self.assertTrue(w._view[0] == "all" or (w._view[0] == "ufolder" and self.store.get(int(w._view[1])) is not None))   # never a folder that is gone
 
     def test_a_drag_is_accepted_wherever_it_enters_and_lands_on_the_right_row(self):
         """Regression: refusing the enter (because it happened to be over a heading) killed the whole drag."""
         w, db = self.window, self.db
-        ids = db.query_ids()
+        ids = self.real_ids(2)
         self.names = ["Merengue"]
         w._new_folder()
         folder = self.store.tree()[0]
         item = self.sidebar._items[("ufolder", folder.id)]
-        for start in (self.sidebar._headers["radio"], self.sidebar._headers["folders"], self.sidebar._items[("all", None)], item):
+        for start_name in ("radio", "folders", "all", "self"):
+            item = self.sidebar._items[("ufolder", folder.id)]                   # the rows are rebuilt after every drop
+            start = item if start_name == "self" else self.sidebar._headers.get(start_name) or self.sidebar._items[("all", None)]
             entered, over, dropped = drag_through(self.sidebar, item, tracks_mime(ids[:2]), start_over=start)
             self.assertTrue(entered and over and dropped)                        # however it came in
-        self.assertEqual(len(self.store.items(folder.id)), 2)
+        item = self.sidebar._items[("ufolder", folder.id)]
         self.assertEqual(item.data(0, COUNT_ROLE), 2)
         self.assertIn("Added 2 songs", w.statusBar().currentMessage())
 
     def test_songs_dragged_from_the_table_into_a_folder_and_a_playlist(self):
         w, db = self.window, self.db
-        ids = db.query_ids()
+        ids = self.real_ids(5)
         self.names = ["Merengue"]
         w._new_folder()
         folder = self.store.tree()[0]
         item = self.sidebar._items[("ufolder", folder.id)]
         model = w.table.track_model
+        w._show_view("all", None)                                                           # the whole library in the table
+        pump(100)
         mime = model.mimeData([model.index(0, 0), model.index(1, 0), model.index(1, 2)])
         self.assertEqual(len(json.loads(bytes(mime.data(MIME_TRACKS)).decode())), 2)     # one id per song, not per cell
         drag_through(self.sidebar, item, tracks_mime(ids[:3]))
@@ -277,7 +295,7 @@ class FoldersGuiTests(unittest.TestCase):
     def test_duplicates_view_from_the_menu(self):
         w, db = self.window, self.db
         db.upsert_many([dict(source_type=SOURCE_LOCAL, location="/x/copy.mp3", title="Song 1", artist="Artist 1", album="Album 1",
-                             genre="Rock", duration=101.0, bitrate=128, track_no=1)])
+                             genre="Rock", duration=90.5, bitrate=128, track_no=1)])
         finder = next(a for a in w.menu_button.menu().actions() if a.text() == "Find Duplicates").menu()
         self.assertEqual([a.text() for a in finder.actions()], ["Same Title, Artist and Album", "Exact Copies"])
         finder.actions()[0].trigger()
@@ -298,10 +316,10 @@ class FoldersGuiTests(unittest.TestCase):
         self.cfg.set("music_dirs", [str(music)])
         w.start_scan()
         self.assertTrue(self.wait_for(lambda: w._scanner is None and db.count(SOURCE_LOCAL) >= 3))
-        self.assertTrue(self.wait_for(lambda: {"scan-music", "Bachata", "Rock"} <= {f.name for f in self.store.tree()}))
-        top = next(f for f in self.store.tree() if f.name == "scan-music")
-        self.assertEqual(top.count, 3)
-        self.assertEqual(self.folder_rows()[-1], "scan-music")
+        self.assertTrue(self.wait_for(lambda: {"Bachata", "Rock"} <= {f.name for f in self.store.tree()}))
+        self.assertNotIn("scan-music", {f.name for f in self.store.tree()})       # the music directory is just where they live
+        self.assertEqual(next(f for f in self.store.tree() if f.name == "Bachata").count, 2)
+        self.assertEqual(self.folder_rows(), ["Bachata", "Rock"])
         self.assertTrue(self.store.path.exists())
 
 

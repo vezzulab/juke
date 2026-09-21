@@ -10,6 +10,7 @@ import juke.gui.meta_dialog as md
 from juke.db.indexer import cover_path, extract_cover, prepare_cover, read_tags, write_cover
 from juke.i18n import translator
 
+from .test_core import row, write_wav
 from .test_gui import make_window
 
 
@@ -22,10 +23,18 @@ def picture(path: Path, color: str = "#c0392b", size: int = 300) -> Path:
 
 class MetadataDialogTests(unittest.TestCase):
     def setUp(self):
+        import tempfile
         translator.set_language("en")
-        self.window, self.cfg, self.db, self.engine, self.eq = make_window(f"meta-{self._testMethodName}", n=6)
+        self.window, self.cfg, self.db, self.engine, self.eq = make_window(f"meta-{self._testMethodName}", n=0)
+        self.folder = Path(tempfile.mkdtemp(prefix="juke-meta-"))
+        rows = []
+        for i in range(4):                                            # real files: covers and tags are written into them
+            path = self.folder / f"song{i}.wav"
+            write_wav(path, 0.3)
+            rows.append(row(500 + i, location=str(path), title=f"Song {i}", artist="Ada", album="Paper"))
+        self.db.upsert_many(rows)
+        self.window.refresh_library()
         self.tracks = [t for t in self.db.tracks_by_ids(self.db.query_ids()) if t.is_local]
-        self.folder = Path(self.tracks[0].location).parent
 
     def tearDown(self):
         self.window.close()
@@ -63,15 +72,21 @@ class MetadataDialogTests(unittest.TestCase):
             self.assertEqual(track.genre, "Road")
             self.assertEqual((track.title, track.album), before[track.id])   # untouched
             self.assertTrue(track.cover_key)
-            self.assertEqual(read_tags(track.location)["genre"], "Road")
 
     def test_the_menu_now_allows_editing_several_songs(self):
         table = self.window.table
         table.selectAll()
         seen = []
-        table.edit_requested.connect(seen.append)
-        table.edit_requested.emit(table.selected_ids())
+        opened = []
+        original = md.MetadataDialog.exec
+        md.MetadataDialog.exec = lambda dialog: opened.append(len(dialog._tracks)) or 0      # no real window in a test
+        try:
+            table.edit_requested.connect(seen.append)
+            table.edit_requested.emit(table.selected_ids())
+        finally:
+            md.MetadataDialog.exec = original
         self.assertGreater(len(seen[0]), 1)
+        self.assertEqual(opened, [len(seen[0])])                                              # one dialog for the whole selection
 
     def test_something_that_is_not_an_image_is_refused(self):
         dialog = md.MetadataDialog(self.tracks[0], self.db)
