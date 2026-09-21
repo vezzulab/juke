@@ -341,7 +341,7 @@ The suite has over a hundred tests, including real playback through libVLC (skip
 
 ## License
 
-Juke is free to use, for any purpose, on as many computers and devices as you own, personal or commercial. You may not modify it or redistribute it: to share it, point people to the [official downloads](https://github.com/vezzulab/juke/releases). The source is published so it can be read and checked. Your music, playlists and settings are always yours. The full terms are in the [Juke License 1.0](LICENSE), the same terms as [Piklin](https://github.com/vezzulab/Piklin), and the software made by others that Juke includes keeps its own licence, listed in [NOTICE.md](NOTICE.md).
+Juke is free to use, for any purpose, on as many computers and devices as you own, personal or commercial. You may not modify it or redistribute it: to share it, point people to the [official downloads](https://github.com/vezzulab/juke/releases). The source is published so it can be read and checked. Your music, playlists and settings are always yours. The full terms are in the [Juke License 1.0](LICENSE). The software made by others that Juke includes keeps its own licence, listed in [NOTICE.md](NOTICE.md).
 
 ## Credits
 

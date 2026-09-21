@@ -343,7 +343,7 @@ La suite tiene más de cien pruebas, incluida reproducción real con libVLC (se 
 
 ## Licencia
 
-Juke es gratis para usarlo con cualquier fin, en todos los ordenadores y dispositivos que tengas, de uso personal o comercial. No puedes modificarlo ni redistribuirlo: para compartirlo, envía a la gente a las [descargas oficiales](https://github.com/vezzulab/juke/releases). El código está publicado para poder leerlo y comprobarlo. Tu música, tus listas y tus ajustes siempre son tuyos. Los términos completos están en la [Licencia de Juke 1.0](LICENSE), los mismos que los de [Piklin](https://github.com/vezzulab/Piklin), y el software de otros que Juke incluye conserva su propia licencia, indicada en [NOTICE.md](NOTICE.md).
+Juke es gratis para usarlo con cualquier fin, en todos los ordenadores y dispositivos que tengas, de uso personal o comercial. No puedes modificarlo ni redistribuirlo: para compartirlo, envía a la gente a las [descargas oficiales](https://github.com/vezzulab/juke/releases). El código está publicado para poder leerlo y comprobarlo. Tu música, tus listas y tus ajustes siempre son tuyos. Los términos completos están en la [Licencia de Juke 1.0](LICENSE). El software de otros que Juke incluye conserva su propia licencia, indicada en [NOTICE.md](NOTICE.md).
 
 ## Créditos
 
