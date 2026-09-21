@@ -62,6 +62,9 @@ def main(argv: list[str] | None = None) -> int:
 
     ensure_dirs()
     from . import applog
+    from .links import install_handlers
+
+    install_handlers(app)             # links open with the desktop's environment, not the AppImage's
 
     applog.setup()                    # juke.log: what a person can read or send along with a problem
     applog.qt_messages()
