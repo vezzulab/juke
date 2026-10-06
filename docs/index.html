@@ -131,12 +131,24 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
 .phone img { width: 100%; max-width: 300px; border-radius: 22px; border: 1px solid var(--border); background: #06070a; box-shadow: 0 24px 60px rgba(0,0,0,.42); }
 .phone span { display: block; margin-top: 12px; font-size: 13.5px; color: var(--muted); }
 .two-up { display: grid; grid-template-columns: 1.1fr 1fr; gap: 34px; align-items: center; }
+/* the features, in groups */
+.fgroup { margin-top: 62px; } .fgroup:first-of-type { margin-top: 0; }
+.gh { font-size: 24px; letter-spacing: -.015em; margin: 0 0 4px; } .gp { color: var(--sub); margin: 0 0 22px; }
+.fgroup.new .card { border-color: color-mix(in srgb, var(--accent2) 38%, var(--border)); background: linear-gradient(180deg, color-mix(in srgb, var(--accent2) 9%, var(--panel)), var(--panel)); }
+.fgroup.new .gh::after { content: "1.0"; margin-left: 12px; vertical-align: middle; font-size: 13px; font-weight: 800; letter-spacing: 0; padding: 3px 11px; border-radius: 99px; color: var(--crust); background: var(--grad); }
+.two-up.one { grid-template-columns: 1fr; }
+#android .cta { margin-top: 30px; } #android .reqs { margin-top: 26px; }
+.step pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.two-up.one .reqs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 /* phones: the essentials first, the rest one tap away */
 .m-only { display: none; }
 .m-toggle { display: none; margin: 22px auto 0; color: var(--text); font: inherit; font-weight: 650; cursor: pointer; }
 @media (max-width: 720px) {
   .m-hide { display: none !important; } .m-only { display: inline-flex !important; }
   .card.m-more { display: none; } body.all-features .card.m-more { display: grid; }
+  .fgroup.g-more { display: none; } body.all-features .fgroup.g-more { display: block; }
+  .gh, .gp { display: none; } .fgroup { margin-top: 0; } .fgroup + .fgroup .grid { margin-top: 10px; }
+  .two-up.one .reqs { grid-template-columns: 1fr; }
   .m-toggle { display: flex; }
   nav .links { gap: 6px; } nav .links a { padding: 8px 8px; font-size: 15px; }
   section { padding: 46px 0; }
@@ -169,9 +181,9 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
     <div class="links">
       <a class="hide-sm" href="#features" data-i18n="nav_features">Features</a>
       <a class="hide-sm" href="#screens" data-i18n="nav_screens">Screenshots</a>
+      <a class="m-hide hide-sm" href="#install" data-i18n="nav_install">Install</a>
       <a class="hide-sm" href="#android" data-i18n="nav_android">Android</a>
       <a href="manual.html" data-i18n="nav_manual">Manual</a>
-      <a class="m-hide" href="#install" data-i18n="nav_install">Install</a>
       <a class="m-only" href="#android" data-i18n="nav_android">Android</a>
       <a class="hide-sm" href="https://github.com/vezzulab/juke">GitHub</a>
       <button class="tool" id="lang" type="button" aria-label="Language">ES</button>
@@ -221,53 +233,66 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
     <p class="eyebrow" data-i18n="f_eyebrow">Features</p>
     <h2 data-i18n="f_title">Everything a music player should do — fast.</h2>
     <p class="intro" data-i18n="f_intro">A classic three-pane layout, rebuilt with a dark or light, rounded, Libadwaita-flavoured interface and an audio engine you can tune.</p>
-    <div class="grid">
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16M9 9h12"/></svg></div>
-        <h3 data-i18n="c1_t">Classic three panes</h3><p data-i18n="c1_p">Sources on the left, songs in the middle, an LCD display with cover art, seek bar and level meter on top.</p></div>
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></div>
-        <h3 data-i18n="c2_t">Instant with 50,000+ tracks</h3><p data-i18n="c2_p">A virtual, lazy table and an indexed SQLite database: search, sort and filter never wait for your whole library.</p></div>
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M6 4v16M12 4v16M18 4v16"/><circle cx="6" cy="15" r="2" fill="currentColor"/><circle cx="12" cy="8" r="2" fill="currentColor"/><circle cx="18" cy="13" r="2" fill="currentColor"/></svg></div>
-        <h3 data-i18n="c3_t">10-band equalizer</h3><p data-i18n="c3_p">60 Hz to 16 kHz with 35 presets and your own. Every bar says in plain words what it changes — Deep bass, Voice, Clarity, Sparkle — so you do not need to be a sound engineer.</p></div>
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="2.5" y="3" width="19" height="7.5" rx="2"/><rect x="2.5" y="13.5" width="19" height="7.5" rx="2"/><path d="M6.5 6.8h.01M6.5 17.3h.01"/></svg></div>
-        <h3 data-i18n="c4_t">Airsonic by folders</h3><p data-i18n="c4_p">Browse your Subsonic server the way you organised it — folder by folder — or by artist, album and genre. A 6,000-song library syncs in about 8 seconds.</p></div>
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h12M4 12h12M4 18h7"/><path d="M17.5 14.5v6l4.5-3z" fill="currentColor"/></svg></div>
-        <h3 data-i18n="c5_t">Queue & playlists</h3><p data-i18n="c5_p">Play next drops a song right after the current one; Add to queue goes to the end. Playlists tell you when a song is already in them, and the same menu takes it out again.</p></div>
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c3 3 3 16 0 19M12 2.5c-3 3-3 16 0 19"/></svg></div>
-        <h3 data-i18n="c6_t">English & Español</h3><p data-i18n="c6_p">The whole interface switches language live. This page too.</p></div>
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
-        <h3 data-i18n="c7_t">Wayland & HiDPI</h3><p data-i18n="c7_p">Qt 6 scaling, fractional included. Every icon is an SVG drawn at your screen's exact scale — no blurry pixels.</p></div>
-      <div class="card m-hide"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg></div>
-        <h3 data-i18n="c8_t">One file, in your menu</h3><p data-i18n="c8_p">An AppImage with Python, Qt and libVLC inside, so there is nothing else to install. The first time it runs it adds itself to your applications menu, icon included.</p></div>
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg></div>
-        <h3 data-i18n="c9_t">Internet radio</h3><p data-i18n="c9_p">Explore the community directory or paste any web page or stream: Juke finds the audio, shows LIVE and the song on air, and follows stations when they change address.</p></div>
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><rect x="2.5" y="7" width="16" height="10" rx="2.5"/><path d="M22 11v2M6 10.5v3M10 10.5v3"/></svg></div>
-        <h3 data-i18n="c10_t">Light on the battery</h3><p data-i18n="c10_p">An idle Juke makes no wake-ups; playing on battery it uses about 1 % of one core. The level meter rests when you unplug.</p></div>
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 2.5v19" /><path d="M12 2.5a9.5 9.5 0 0 1 0 19z" fill="currentColor"/></svg></div>
-        <h3 data-i18n="c11_t">Dark and light</h3><p data-i18n="c11_p">Pick a theme or match your desktop. Both are checked for legibility and switch instantly with Ctrl+T.</p></div>
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12A9 9 0 0 1 18.5 5.8M3 4v5h5M21 20v-5h-5"/></svg></div>
-        <h3 data-i18n="c12_t">Updates on your terms</h3><p data-i18n="c12_p">Juke tells you which version you are on, which one is out and what changed, and you accept or cancel. One click and it replaces itself; downloads are checksum-verified.</p></div>
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M21.5 18.5a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h4.5l2 3h8.5a2 2 0 0 1 2 2z"/></svg></div>
-        <h3 data-i18n="c13_t">Your music, in your folders</h3><p data-i18n="c13_p">Make folders, nest them, drag songs in or drop whole folders from your file manager. No import step. It all lives in Music.juke, a library folder inside Music; your files are never moved.</p></div>
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></div>
-        <h3 data-i18n="c14_t">Edit songs, cover art too</h3><p data-i18n="c14_p">Change tags and the cover of one song, or select many with Ctrl+A or Ctrl+click and edit them together. Only what you change is written.</p></div>
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></div>
-        <h3 data-i18n="c15_t">Sorting and duplicates</h3><p data-i18n="c15_p">Sort any folder A→Z, Z→A, by number, newest or oldest, and find duplicate songs from the ⋯ menu.</p></div>
-      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-        <h3 data-i18n="c17_t">Twenty colour themes</h3><p data-i18n="c17_p">Ten light and ten dark, from soft pastels to deep forest and neon, one click from the palette button. All of them checked for legibility.</p></div>
-      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 11h11M4 16h16M4 21h8"/></svg></div>
-        <h3 data-i18n="c18_t">Lyrics that follow the song</h3><p data-i18n="c18_p">Search several free lyrics services at once — English, Spanish, Portuguese, Chinese, Japanese, Korean, Arabic and more — or paste them. A column opens by itself when the song has lyrics and lights up the line being sung.</p></div>
+    <div class="fgroup new">
+      <h3 class="gh" data-i18n="g1_t">New in Juke 1.0</h3><p class="gp" data-i18n="g1_p">The biggest update so far.</p>
+      <div class="grid">
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M5 5v14M19 5v14M9 12l6-5v10z"/></svg></div>
         <h3 data-i18n="c19_t">Media keys that work</h3><p data-i18n="c19_p">Play, pause, next and back on your keyboard, headset or the desktop's media widget — on GNOME, KDE and the rest. The volume slider is the computer's own volume, in both directions.</p></div>
       <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M3 14c3 0 3-4 6-4s3 4 6 4 3-4 6-4M3 19c3 0 3-4 6-4s3 4 6 4 3-4 6-4"/></svg></div>
         <h3 data-i18n="c20_t">Crossfade</h3><p data-i18n="c20_p">Choose how many seconds before a song ends the next one comes in. A green light under the volume shows it is on; one click turns it off.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M6 4v16M12 4v16M18 4v16"/><circle cx="6" cy="15" r="2" fill="currentColor"/><circle cx="12" cy="8" r="2" fill="currentColor"/><circle cx="18" cy="13" r="2" fill="currentColor"/></svg></div>
+        <h3 data-i18n="c3_t">10-band equalizer</h3><p data-i18n="c3_p">60 Hz to 16 kHz with 35 presets and your own. Every bar says in plain words what it changes — Deep bass, Voice, Clarity, Sparkle — so you do not need to be a sound engineer.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 11h11M4 16h16M4 21h8"/></svg></div>
+        <h3 data-i18n="c18_t">Lyrics that follow the song</h3><p data-i18n="c18_p">Search several free lyrics services at once — English, Spanish, Portuguese, Chinese, Japanese, Korean, Arabic and more — or paste them. A column opens by itself when the song has lyrics and lights up the line being sung.</p></div>
       <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M12 19h.01M4 4l16 16"/></svg></div>
         <h3 data-i18n="c21_t">Knows what can play</h3><p data-i18n="c21_p">Songs on a server that is offline, or on a drive that is not connected, turn grey with a note, and playback skips them instead of failing.</p></div>
       <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
         <h3 data-i18n="c22_t">See what already played</h3><p data-i18n="c22_p">A green check marks every song that has played since you opened Juke, and bars dance beside the one playing now.</p></div>
       <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5zM4 21.5V5.5M8 7h8"/></svg></div>
         <h3 data-i18n="c23_t">A manual inside the app</h3><p data-i18n="c23_p">A complete guide with an index, in English and Spanish, one key away: F1 on Linux, Settings ▸ Manual on Android. Also <a href="manual.html">on this website</a>.</p></div>
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12A9 9 0 0 1 18.5 5.8M3 4v5h5M21 20v-5h-5"/></svg></div>
+        <h3 data-i18n="c12_t">Updates on your terms</h3><p data-i18n="c12_p">Juke tells you which version you are on, which one is out and what changed, and you accept or cancel. One click and it replaces itself; downloads are checksum-verified.</p></div>
+      </div>
+    </div>
+    <div class="fgroup ">
+      <h3 class="gh" data-i18n="g2_t">Your music, the way you keep it</h3><p class="gp" data-i18n="g2_p">Files, servers and radio in one library.</p>
+      <div class="grid">
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16M9 9h12"/></svg></div>
+        <h3 data-i18n="c1_t">Classic three panes</h3><p data-i18n="c1_p">Sources on the left, songs in the middle, an LCD display with cover art, seek bar and level meter on top.</p></div>
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg></div>
+        <h3 data-i18n="c2_t">Instant with 50,000+ tracks</h3><p data-i18n="c2_p">A virtual, lazy table and an indexed SQLite database: search, sort and filter never wait for your whole library.</p></div>
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M21.5 18.5a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h4.5l2 3h8.5a2 2 0 0 1 2 2z"/></svg></div>
+        <h3 data-i18n="c13_t">Your music, in your folders</h3><p data-i18n="c13_p">Make folders, nest them, drag songs in or drop whole folders from your file manager. No import step. It all lives in Music.juke, a library folder inside Music; your files are never moved.</p></div>
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></div>
+        <h3 data-i18n="c14_t">Edit songs, cover art too</h3><p data-i18n="c14_p">Change tags and the cover of one song, or select many with Ctrl+A or Ctrl+click and edit them together. Only what you change is written.</p></div>
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></div>
+        <h3 data-i18n="c15_t">Sorting and duplicates</h3><p data-i18n="c15_p">Sort any folder A→Z, Z→A, by number, newest or oldest, and find duplicate songs from the ⋯ menu.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="2.5" y="3" width="19" height="7.5" rx="2"/><rect x="2.5" y="13.5" width="19" height="7.5" rx="2"/><path d="M6.5 6.8h.01M6.5 17.3h.01"/></svg></div>
+        <h3 data-i18n="c4_t">Airsonic by folders</h3><p data-i18n="c4_p">Browse your Subsonic server the way you organised it — folder by folder — or by artist, album and genre. A 6,000-song library syncs in about 8 seconds.</p></div>
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg></div>
+        <h3 data-i18n="c9_t">Internet radio</h3><p data-i18n="c9_p">Explore the community directory or paste any web page or stream: Juke finds the audio, shows LIVE and the song on air, and follows stations when they change address.</p></div>
+      <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h12M4 12h12M4 18h7"/><path d="M17.5 14.5v6l4.5-3z" fill="currentColor"/></svg></div>
+        <h3 data-i18n="c5_t">Queue & playlists</h3><p data-i18n="c5_p">Play next drops a song right after the current one; Add to queue goes to the end. Playlists tell you when a song is already in them, and the same menu takes it out again.</p></div>
+      </div>
+    </div>
+    <div class="fgroup desk g-more">
+      <h3 class="gh" data-i18n="g3_t">Built for your desktop</h3><p class="gp" data-i18n="g3_p">Quick, light and good-looking.</p>
+      <div class="grid">
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 2.5v19" /><path d="M12 2.5a9.5 9.5 0 0 1 0 19z" fill="currentColor"/></svg></div>
+        <h3 data-i18n="c11_t">Dark and light</h3><p data-i18n="c11_p">Pick a theme or match your desktop. Both are checked for legibility and switch instantly with Ctrl+T.</p></div>
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <h3 data-i18n="c17_t">Twenty colour themes</h3><p data-i18n="c17_p">Ten light and ten dark, from soft pastels to deep forest and neon, one click from the palette button. All of them checked for legibility.</p></div>
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c3 3 3 16 0 19M12 2.5c-3 3-3 16 0 19"/></svg></div>
+        <h3 data-i18n="c6_t">English & Español</h3><p data-i18n="c6_p">The whole interface switches language live. This page too.</p></div>
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
+        <h3 data-i18n="c7_t">Wayland & HiDPI</h3><p data-i18n="c7_p">Qt 6 scaling, fractional included. Every icon is an SVG drawn at your screen's exact scale — no blurry pixels.</p></div>
+      <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><rect x="2.5" y="7" width="16" height="10" rx="2.5"/><path d="M22 11v2M6 10.5v3M10 10.5v3"/></svg></div>
+        <h3 data-i18n="c10_t">Light on the battery</h3><p data-i18n="c10_p">An idle Juke makes no wake-ups; playing on battery it uses about 1 % of one core. The level meter rests when you unplug.</p></div>
+      <div class="card m-hide"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg></div>
+        <h3 data-i18n="c8_t">One file, in your menu</h3><p data-i18n="c8_p">An AppImage with Python, Qt and libVLC inside, so there is nothing else to install. The first time it runs it adds itself to your applications menu, icon included.</p></div>
       <div class="card m-more"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z"/></svg></div>
         <h3 data-i18n="c16_t">Tell us what is wrong</h3><p data-i18n="c16_p">Send feedback and read the log from the ⋯ menu. The report opens as a GitHub issue for you to review, with your folders, passwords and server address hidden.</p></div>
+      </div>
     </div>
     <button class="btn m-toggle" id="more-features" type="button" data-i18n="more_features">Show all features</button>
   </div>
@@ -293,42 +318,6 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
   </div>
 </section>
 
-
-<section class="alt" id="android">
-  <div class="wrap">
-    <p class="eyebrow" data-i18n="a_eyebrow">Android</p>
-    <div class="two-up">
-      <div>
-        <h2 data-i18n="a_title">Juke on your phone.</h2>
-        <p class="intro" data-i18n="a_intro">Juke also runs on a phone or a tablet: your files, your server and your stations, in a player that uses the whole screen.</p>
-    <ul class="reqs">
-          <li data-i18n="a_r1">Your card or the phone's own storage, listed by folders</li>
-          <li data-i18n="a_r2">Airsonic / Subsonic on its own tab, by folders too</li>
-          <li data-i18n="a_r3">Radio: the directory, or paste an address. A page with several stations offers all of them</li>
-          <li data-i18n="a_r4">Keeps playing with the screen off, with the controls in the notification</li>
-          <li class="m-hide" data-i18n="a_r5">10-band equalizer, English and Spanish, dark and light</li>
-          <li class="m-hide" data-i18n="a_r6">Twenty colour themes, lyrics that follow the song, karaoke, and phones and tablets you can fill over USB</li>
-          <li class="m-hide" data-i18n="a_r7">Sort folders and songs A to Z or Z to A; lock-screen controls that work</li>
-        </ul>
-        <div class="cta" style="justify-content:flex-start">
-          <a class="btn primary" href="https://github.com/vezzulab/juke/releases/latest">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg>
-            <span data-i18n="cta_apk">Download the APK</span>
-          </a>
-        </div>
-        <p class="fine" data-i18n="a_fine">Android 8 and newer · phones and tablets · about 3 MB</p>
-      </div>
-      <div class="phones" style="grid-template-columns:1fr">
-        <div class="phone"><img src="assets/android-player.png" alt="Juke playing a live station on Android" loading="lazy"></div>
-      </div>
-    </div>
-    <div class="phones m-hide">
-      <div class="phone"><img src="assets/android-library.png" alt="Music folders on the card" loading="lazy"><span data-i18n="a_c1">Your folders, as you filed them</span></div>
-      <div class="phone"><img src="assets/android-radio.png" alt="Radio directory on Android" loading="lazy"><span data-i18n="a_c2">Stations from the directory or from any page</span></div>
-      <div class="phone"><img src="assets/android-player.png" alt="Juke player on Android" loading="lazy"><span data-i18n="a_c3">A full-screen player, phone or tablet</span></div>
-    </div>
-  </div>
-</section>
 
 <section id="install" class="m-hide">
   <div class="wrap">
@@ -381,6 +370,40 @@ juke</code><button class="copy" type="button" data-copy="git clone https://githu
   </div>
 </section>
 
+<section class="alt" id="android">
+  <div class="wrap">
+    <p class="eyebrow" data-i18n="a_eyebrow">Android</p>
+    <div class="two-up one">
+      <div>
+        <h2 data-i18n="a_title">Juke on your phone.</h2>
+        <p class="intro" data-i18n="a_intro">Juke also runs on a phone or a tablet: your files, your server and your stations, in a player that uses the whole screen.</p>
+    <ul class="reqs">
+          <li data-i18n="a_r1">Your card or the phone's own storage, listed by folders</li>
+          <li data-i18n="a_r2">Airsonic / Subsonic on its own tab, by folders too</li>
+          <li data-i18n="a_r3">Radio: the directory, or paste an address. A page with several stations offers all of them</li>
+          <li data-i18n="a_r4">Keeps playing with the screen off, with the controls in the notification</li>
+          <li class="m-hide" data-i18n="a_r5">10-band equalizer, English and Spanish, dark and light</li>
+          <li class="m-hide" data-i18n="a_r6">Twenty colour themes, lyrics that follow the song, karaoke, and phones and tablets you can fill over USB</li>
+          <li class="m-hide" data-i18n="a_r7">Sort folders and songs A to Z or Z to A; lock-screen controls that work</li>
+        </ul>
+        <div class="cta" style="justify-content:flex-start">
+          <a class="btn primary" href="https://github.com/vezzulab/juke/releases/latest">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 20h16"/></svg>
+            <span data-i18n="cta_apk">Download the APK</span>
+          </a>
+        </div>
+        <p class="fine" data-i18n="a_fine">Android 8 and newer · phones and tablets · about 3 MB</p>
+      </div>
+    </div>
+    <div class="phones m-hide">
+      <div class="phone"><img src="assets/android-library.png" alt="Music folders on the card" loading="lazy"><span data-i18n="a_c1">Your folders, as you filed them</span></div>
+      <div class="phone"><img src="assets/android-radio.png" alt="Radio directory on Android" loading="lazy"><span data-i18n="a_c2">Stations from the directory or from any page</span></div>
+      <div class="phone"><img src="assets/android-player.png" alt="Juke player on Android" loading="lazy"><span data-i18n="a_c3">A full-screen player, phone or tablet</span></div>
+    </div>
+  </div>
+</section>
+
+
 <footer>
   <div class="wrap">
     <span>Juke · <span data-i18n="foot">A modern music player for Linux</span></span>
@@ -418,6 +441,12 @@ const T = {
     c23_p: "Una guía completa con índice, en español e inglés, a una tecla de distancia: F1 en Linux, Ajustes ▸ Manual en Android. También <a href=\"manual.html\">en este sitio web</a>.",
     more_features: "Ver todas las características",
     less_features: "Ver menos",
+    g1_t: "Nuevo en Juke 1.0",
+    g1_p: "La mayor actualización hasta ahora.",
+    g2_t: "Tu música, como la guardas",
+    g2_p: "Archivos, servidores y radio en una sola biblioteca.",
+    g3_t: "Hecho para tu escritorio",
+    g3_p: "Rápido, ligero y bonito.",
     lead: "Un reproductor de música moderno para Linux",
     sublead: "Tres paneles, un ecualizador de 10 bandas, streaming Airsonic y radio por Internet — instantáneo con más de 50.000 pistas y amable con la batería.",
     cta_download: "Descargar AppImage", cta_github: "Ver en GitHub",
