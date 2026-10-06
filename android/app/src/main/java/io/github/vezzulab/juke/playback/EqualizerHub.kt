@@ -32,6 +32,17 @@ object EqualizerHub {
         "Dembow" to listOf(7, 5, 2, -1, 0, 2, 4, 4, 4, 3), "Reggaeton" to listOf(6, 5, 2, 0, 1, 2, 3, 3, 3, 2),
         "Salsa" to listOf(2, 2, 0, 1, 2, 3, 4, 3, 3, 2), "Merengue" to listOf(4, 3, 0, 1, 2, 3, 4, 4, 4, 3),
         "Bachata" to listOf(3, 2, -1, 0, 2, 4, 4, 3, 3, 2),
+        // Everyday listening: a preset for the speaker or the room, a few for the way the music is mixed.
+        "Loudness" to listOf(6, 4, 1, 0, 0, 0, 1, 3, 4, 4), "Bass Reducer" to listOf(-6, -4, -2, 0, 0, 0, 0, 0, 0, 0),
+        "Treble Boost" to listOf(0, 0, 0, 0, 0, 1, 3, 5, 6, 6), "Treble Reducer" to listOf(0, 0, 0, 0, 0, 0, -2, -4, -6, -6),
+        "Hip-Hop" to listOf(6, 5, 2, 0, 0, 1, 1, 2, 2, 2), "R&B" to listOf(5, 4, 2, 0, 1, 2, 1, 1, 2, 2),
+        "Dance" to listOf(6, 5, 3, 0, 0, 1, 2, 3, 3, 2), "Acoustic" to listOf(3, 2, 1, 1, 1, 2, 3, 3, 3, 2),
+        "Latin" to listOf(4, 3, 1, 0, 1, 3, 4, 4, 3, 2), "Cumbia" to listOf(4, 3, 1, 0, 2, 3, 3, 3, 2, 1),
+        "Afrobeat" to listOf(5, 4, 2, 0, 1, 2, 3, 3, 3, 2), "Reggae" to listOf(4, 3, 0, -2, -1, 1, 3, 3, 2, 2),
+        "K-Pop" to listOf(4, 3, 1, 0, 2, 4, 4, 3, 3, 2), "Country" to listOf(2, 1, 1, 1, 2, 3, 3, 3, 2, 1),
+        "Blues" to listOf(3, 2, 1, 0, 0, 1, 2, 2, 1, 0), "Speech" to listOf(-4, -3, -1, 1, 3, 4, 3, 0, -2, -3),
+        "Night" to listOf(-3, -2, 0, 1, 2, 2, 1, 0, -1, -2), "Small Speakers" to listOf(6, 5, 3, 1, 0, 0, 1, 2, 2, 2),
+        "Headphones" to listOf(3, 3, 2, 0, -1, -1, 0, 2, 3, 3), "Live" to listOf(-2, 0, 2, 3, 3, 3, 2, 2, 2, 1),
     ).mapValues { (_, v) -> v.map { it.toFloat() } }
 
     /**

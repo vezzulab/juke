@@ -6,7 +6,8 @@ import math
 
 from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QStackedWidget, QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractButton, QFrame, QHBoxLayout, QLabel, QStackedWidget, QToolButton, QVBoxLayout,
+                               QWidget)
 
 from ...db.database import Station, Track
 from ...i18n import tr
@@ -319,6 +320,51 @@ class LcdDisplay(QFrame):
             self.set_track(self._track, self._cover)
 
 
+class CrossfadeLight(QAbstractButton):
+    """The word "Crossfade" with a light beside it: green when the next song is brought in before this one ends, grey
+    when it is off. A click turns it on or off."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._seconds = 0
+        self.setCheckable(False)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFocusPolicy(Qt.NoFocus)
+        font = QFont(self.font())
+        font.setPixelSize(11)
+        font.setWeight(QFont.DemiBold)
+        self.setFont(font)
+        self.setFixedHeight(18)
+        self.setFixedWidth(self.fontMetrics().horizontalAdvance("Crossfade") + 34)
+
+    @property
+    def on(self) -> bool:
+        return self._seconds > 0
+
+    def set_seconds(self, seconds: int) -> None:
+        self._seconds = max(0, int(seconds))
+        self.setToolTip(tr("tip.crossfade_on", n=self._seconds) if self.on else tr("tip.crossfade_off"))
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        light = QColor(styles.GREEN if self.on else styles.MUTED)
+        centre = QRectF(2, 2, 14, 14).center()
+        if self.on:                                           # a soft glow round the green light
+            glow = QColor(light)
+            glow.setAlpha(60)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(glow)
+            painter.drawEllipse(centre, 7.0, 7.0)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(light)
+        painter.drawEllipse(centre, 4.2, 4.2)
+        painter.setPen(QColor(styles.TEXT if self.on else styles.SUBTEXT))
+        painter.setFont(self.font())
+        painter.drawText(QRectF(22, 0, self.width() - 22, self.height()), Qt.AlignVCenter | Qt.AlignLeft, "Crossfade")
+
+
 class TopBar(QWidget):
     prev_clicked = Signal()
     play_clicked = Signal()
@@ -330,6 +376,7 @@ class TopBar(QWidget):
     eq_clicked = Signal()
     shuffle_toggled = Signal(bool)
     repeat_changed = Signal(str)
+    crossfade_toggled = Signal(bool)
 
     REPEAT_CYCLE = ("off", "all", "one")
 
@@ -351,6 +398,8 @@ class TopBar(QWidget):
         self.volume = JumpSlider(0, 100)
         self.volume.setFixedWidth(112)
         self.btn_eq = self._button("eq", 36, checkable=True)
+        self.crossfade = CrossfadeLight()
+        self.crossfade.clicked.connect(lambda: self.crossfade_toggled.emit(not self.crossfade.on))
 
         self.btn_prev.clicked.connect(self.prev_clicked)
         self.btn_play.clicked.connect(self.play_clicked)
@@ -375,8 +424,15 @@ class TopBar(QWidget):
         layout.addSpacing(14)
         layout.addWidget(self.lcd, 1)
         layout.addSpacing(14)
-        layout.addWidget(self.btn_mute, 0, Qt.AlignVCenter)
-        layout.addWidget(self.volume, 0, Qt.AlignVCenter)
+        volume_box = QVBoxLayout()                    # the volume, and under it whether crossfade is on
+        volume_box.setSpacing(4)
+        volume_row = QHBoxLayout()
+        volume_row.setSpacing(6)
+        volume_row.addWidget(self.btn_mute, 0, Qt.AlignVCenter)
+        volume_row.addWidget(self.volume, 0, Qt.AlignVCenter)
+        volume_box.addLayout(volume_row)
+        volume_box.addWidget(self.crossfade, 0, Qt.AlignHCenter)
+        layout.addLayout(volume_box)
         layout.addSpacing(6)
         layout.addWidget(self.btn_eq, 0, Qt.AlignVCenter)
         self.retranslate()
@@ -429,6 +485,9 @@ class TopBar(QWidget):
 
     def set_now_playing(self, text: str) -> None:
         self.lcd.set_now_playing(text)
+
+    def set_crossfade(self, seconds: int) -> None:
+        self.crossfade.set_seconds(seconds)
 
     def set_volume(self, volume: int, muted: bool) -> None:
         self.volume.blockSignals(True)
@@ -485,6 +544,7 @@ class TopBar(QWidget):
         self.btn_stop.setToolTip(tr("tip.stop"))
         self.btn_shuffle.setToolTip(tr("tip.shuffle"))
         self.btn_eq.setToolTip(tr("tip.equalizer"))
+        self.crossfade.set_seconds(self.crossfade._seconds)
         self.set_state(self._state)
         self.set_repeat(self._repeat)
         self._refresh_volume_icon()

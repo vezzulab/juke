@@ -12,6 +12,9 @@ from ..config import Config
 
 BANDS_HZ = (60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000)
 BAND_LABELS = ("60", "170", "310", "600", "1K", "3K", "6K", "12K", "14K", "16K")
+# What each band changes, in plain words: (group, name, what it is, what too much does). The texts are in the locales as
+# "eq.band.<hz>.name" / ".about" and "eq.group.<group>".
+BAND_GROUPS = ("bass", "bass", "bass", "mids", "mids", "mids", "treble", "treble", "treble", "treble")
 MIN_DB = -20.0
 MAX_DB = 20.0
 
@@ -36,6 +39,27 @@ BUILTIN_PRESETS: dict[str, tuple[float, ...]] = {
     "Salsa":       (2, 2, 0, 1, 2, 3, 4, 3, 3, 2),
     "Merengue":    (4, 3, 0, 1, 2, 3, 4, 4, 4, 3),
     "Bachata":     (3, 2, -1, 0, 2, 4, 4, 3, 3, 2),
+    # Everyday listening: a preset for the speaker or the room, a few for the way the music is mixed.
+    "Loudness": (6, 4, 1, 0, 0, 0, 1, 3, 4, 4),
+    "Bass Reducer": (-6, -4, -2, 0, 0, 0, 0, 0, 0, 0),
+    "Treble Boost": (0, 0, 0, 0, 0, 1, 3, 5, 6, 6),
+    "Treble Reducer": (0, 0, 0, 0, 0, 0, -2, -4, -6, -6),
+    "Hip-Hop": (6, 5, 2, 0, 0, 1, 1, 2, 2, 2),
+    "R&B": (5, 4, 2, 0, 1, 2, 1, 1, 2, 2),
+    "Dance": (6, 5, 3, 0, 0, 1, 2, 3, 3, 2),
+    "Acoustic": (3, 2, 1, 1, 1, 2, 3, 3, 3, 2),
+    "Latin": (4, 3, 1, 0, 1, 3, 4, 4, 3, 2),
+    "Cumbia": (4, 3, 1, 0, 2, 3, 3, 3, 2, 1),
+    "Afrobeat": (5, 4, 2, 0, 1, 2, 3, 3, 3, 2),
+    "Reggae": (4, 3, 0, -2, -1, 1, 3, 3, 2, 2),
+    "K-Pop": (4, 3, 1, 0, 2, 4, 4, 3, 3, 2),
+    "Country": (2, 1, 1, 1, 2, 3, 3, 3, 2, 1),
+    "Blues": (3, 2, 1, 0, 0, 1, 2, 2, 1, 0),
+    "Speech": (-4, -3, -1, 1, 3, 4, 3, 0, -2, -3),
+    "Night": (-3, -2, 0, 1, 2, 2, 1, 0, -1, -2),
+    "Small Speakers": (6, 5, 3, 1, 0, 0, 1, 2, 2, 2),
+    "Headphones": (3, 3, 2, 0, -1, -1, 0, 2, 3, 3),
+    "Live": (-2, 0, 2, 3, 3, 3, 2, 2, 2, 1),
 }
 
 

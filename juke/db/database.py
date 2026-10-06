@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
     playlist_id INTEGER NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
     track_id    INTEGER NOT NULL REFERENCES tracks (id) ON DELETE CASCADE,
     position    INTEGER NOT NULL,
+    added_at    REAL    NOT NULL DEFAULT 0,
     PRIMARY KEY (playlist_id, position)
 );
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks_track ON playlist_tracks (track_id);
@@ -216,6 +217,9 @@ class Database:
         station_columns = {row[1] for row in conn.execute("PRAGMA table_info(stations)")}
         if station_columns and "source_url" not in station_columns:
             conn.execute("ALTER TABLE stations ADD COLUMN source_url TEXT NOT NULL DEFAULT ''")
+        playlist_columns = {row[1] for row in conn.execute("PRAGMA table_info(playlist_tracks)")}
+        if playlist_columns and "added_at" not in playlist_columns:
+            conn.execute("ALTER TABLE playlist_tracks ADD COLUMN added_at REAL NOT NULL DEFAULT 0")   # 0 = added before Juke kept the date
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tracks_folder ON tracks (folder COLLATE NOCASE)")
         conn.commit()
 
@@ -528,19 +532,81 @@ class Database:
             "SELECT track_id FROM playlist_tracks WHERE playlist_id=? ORDER BY position", (playlist_id,))
         return [r[0] for r in cur]
 
-    def add_to_playlist(self, playlist_id: int, track_ids: Sequence[int]) -> None:
+    def playlist_entries(self, playlist_id: int) -> list[tuple[int, int, float]]:
+        """(track id, position, added at) of every entry, in playlist order. A song added twice has two entries."""
+        cur = self.connect().execute(
+            "SELECT track_id, position, added_at FROM playlist_tracks WHERE playlist_id=? ORDER BY position", (playlist_id,))
+        return [(r[0], r[1], r[2]) for r in cur]
+
+    def playlists_containing(self, track_ids: Sequence[int]) -> set[int]:
+        """Ids of the playlists that hold at least one of these songs."""
+        found: set[int] = set()
+        wanted = list(track_ids)
+        for start in range(0, len(wanted), 500):
+            chunk = wanted[start:start + 500]
+            marks = ",".join("?" * len(chunk))
+            found.update(r[0] for r in self.connect().execute(
+                f"SELECT DISTINCT playlist_id FROM playlist_tracks WHERE track_id IN ({marks})", chunk))
+        return found
+
+    def playlist_coverage(self, track_ids: Sequence[int]) -> dict[int, int]:
+        """For each playlist, how many of these (different) songs it holds; playlists holding none are left out."""
+        counts: dict[int, int] = {}
+        wanted = list(dict.fromkeys(track_ids))
+        for start in range(0, len(wanted), 500):
+            chunk = wanted[start:start + 500]
+            marks = ",".join("?" * len(chunk))
+            for playlist_id, n in self.connect().execute(
+                    f"SELECT playlist_id, COUNT(DISTINCT track_id) FROM playlist_tracks WHERE track_id IN ({marks}) GROUP BY playlist_id", chunk):
+                counts[playlist_id] = counts.get(playlist_id, 0) + n
+        return counts
+
+    def playlist_names(self, track_ids: Sequence[int]) -> dict[int, list[str]]:
+        """For each of these songs, the names of the playlists that hold it (alphabetically); songs in none are left out."""
+        names: dict[int, list[str]] = {}
+        wanted = list(track_ids)
+        for start in range(0, len(wanted), 500):
+            chunk = wanted[start:start + 500]
+            marks = ",".join("?" * len(chunk))
+            for track_id, name in self.connect().execute(
+                    f"SELECT DISTINCT t.track_id, p.name FROM playlist_tracks t JOIN playlists p ON p.id = t.playlist_id "
+                    f"WHERE t.track_id IN ({marks}) ORDER BY p.name COLLATE NOCASE", chunk):
+                names.setdefault(track_id, []).append(name)
+        return names
+
+    def add_to_playlist(self, playlist_id: int, track_ids: Sequence[int], allow_duplicates: bool = False) -> int:
+        """Add songs at the end; a song that is already in the playlist is not added again. Returns how many went in."""
         conn = self.connect()
+        now = time.time()
         with conn:
             start = conn.execute(
                 "SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_tracks WHERE playlist_id=?", (playlist_id,)).fetchone()[0]
-            conn.executemany("INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)",
-                             [(playlist_id, tid, start + i) for i, tid in enumerate(track_ids)])
+            if allow_duplicates:
+                fresh = list(track_ids)
+            else:
+                have = {r[0] for r in conn.execute("SELECT track_id FROM playlist_tracks WHERE playlist_id=?", (playlist_id,))}
+                fresh = []
+                for tid in track_ids:
+                    if tid not in have:
+                        have.add(tid)
+                        fresh.append(tid)
+            conn.executemany("INSERT INTO playlist_tracks (playlist_id, track_id, position, added_at) VALUES (?, ?, ?, ?)",
+                             [(playlist_id, tid, start + i, now) for i, tid in enumerate(fresh)])
+        return len(fresh)
 
     def remove_from_playlist(self, playlist_id: int, track_ids: Sequence[int]) -> None:
+        """Take every copy of these songs out of the playlist."""
         conn = self.connect()
         with conn:
             conn.executemany("DELETE FROM playlist_tracks WHERE playlist_id=? AND track_id=?",
                              [(playlist_id, tid) for tid in track_ids])
+
+    def remove_playlist_entries(self, playlist_id: int, positions: Sequence[int]) -> None:
+        """Take out exactly these entries (by position): the other copy of a song added twice stays."""
+        conn = self.connect()
+        with conn:
+            conn.executemany("DELETE FROM playlist_tracks WHERE playlist_id=? AND position=?",
+                             [(playlist_id, pos) for pos in positions])
 
     def folders(self, source_type: str) -> list[str]:
         """Every distinct folder path of a source ("Artist/Album", ...)."""

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import random
@@ -16,7 +17,9 @@ from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMa
                                QProgressBar, QPushButton, QSizePolicy, QSplitter, QStackedWidget, QToolButton, QVBoxLayout,
                                QWidget)
 
-from .. import REPO_URL, __version__, integration, updater
+from .. import REPO_URL, __version__, integration, mpris, updater
+from ..availability import Availability
+from ..sysvolume import SystemVolume
 from ..api import radio as radio_api
 from ..api.airsonic import AirsonicClient, normalize_base_url
 from ..audio.engine import AudioEngine
@@ -92,6 +95,12 @@ class MainWindow(QMainWindow):
         self._playlists: list[tuple[int, str, int]] = []
         self._update_worker: AsyncWorker | None = None
         self.current_station: Station | None = None
+        self._follow = False                    # the slider is the computer's volume (see _configure_volume_mode)
+        self.avail = Availability(self)         # which songs cannot be played right now (server or drive not connected)
+        self._pinging = False
+        self._last_ping = -1e9
+        self._context: tuple[str, object] | None = None   # the view the queue is playing from: ("playlist", id)...
+        self._fade_next = False                 # the next _start comes from a crossfade: the old song fades out
         self._station_token = 0            # bumps on every station change so late answers can be ignored
         self._station_refreshed = False
         self._radio_workers: set[AsyncWorker] = set()
@@ -248,12 +257,14 @@ class MainWindow(QMainWindow):
         tb.prev_clicked.connect(self._previous)
         tb.stop_clicked.connect(self._stop)
         tb.seek_requested.connect(eng.seek)
-        tb.volume_changed.connect(eng.set_volume)
-        tb.mute_toggled.connect(eng.set_muted)
+        tb.volume_changed.connect(self._volume_chosen)
+        tb.crossfade_toggled.connect(self._crossfade_toggled)
+        tb.mute_toggled.connect(self._mute_chosen)
         tb.eq_clicked.connect(self.toggle_equalizer)
         tb.shuffle_toggled.connect(self._set_shuffle)
         tb.repeat_changed.connect(self._set_repeat)
         eng.state_changed.connect(tb.set_state)
+        eng.state_changed.connect(self.table.track_model.set_state)
         eng.state_changed.connect(lambda _s: self._update_activity())
         eng.position_changed.connect(tb.set_position)
         eng.position_changed.connect(lambda elapsed, _total: self.lyrics_panel.set_position(elapsed))
@@ -263,6 +274,7 @@ class MainWindow(QMainWindow):
         self.table.lyrics_requested.connect(self._edit_lyrics)
         self.table.find_lyrics_requested.connect(self._find_lyrics)
         eng.track_finished.connect(self._track_finished)
+        eng.ending_soon.connect(self._crossfade_next)
         eng.error.connect(self._engine_error)
         self.sidebar.selected.connect(self._show_view)
         t = self.table
@@ -275,6 +287,7 @@ class MainWindow(QMainWindow):
         t.add_to_playlist_requested.connect(self._add_to_playlist)
         t.new_playlist_requested.connect(self._new_playlist)
         t.remove_from_playlist_requested.connect(self._remove_from_playlist)
+        t.remove_songs_from_playlist_requested.connect(self._remove_songs_from_playlist)
         t.action_requested.connect(self._run_empty_action)
         rv = self.radio_view
         rv.play_requested.connect(lambda station: self._play_station(station))
@@ -326,12 +339,188 @@ class MainWindow(QMainWindow):
         styles.signals.changed.connect(self._theme_slot)
 
         for keys, slot in (("Space", self._play_pressed), ("Ctrl+F", lambda: (self.search.setFocus(), self.search.selectAll())),
-                           ("Ctrl+E", self.toggle_equalizer), ("Ctrl+,", self.open_settings),
+                           ("Ctrl+E", self.toggle_equalizer), ("Ctrl+,", self.open_settings), ("F1", self.open_manual),
                            ("Ctrl+Right", lambda: self._advance(auto=False)), ("Ctrl+Left", self._previous),
                            ("Ctrl+Q", self.close), ("Ctrl+N", lambda: self._new_playlist()),
                            ("Ctrl+Shift+N", lambda: self._new_folder()), ("Ctrl+T", self.toggle_theme),
-                           ("Ctrl+L", self.toggle_lyrics)):
+                           ("Ctrl+L", self.toggle_lyrics),
+                           # the keys of a keyboard, headset or remote when the desktop hands them to the focused window
+                           ("Media Play", self._play_pressed), ("Media Pause", self.engine.pause),
+                           ("Media Toggle Play/Pause", self._play_pressed), ("Media Stop", self._stop),
+                           ("Media Next", lambda: self._advance(auto=False)), ("Media Previous", self._previous)):
             QShortcut(QKeySequence(keys), self).activated.connect(slot)
+        self._wire_mpris()
+
+    def _wire_mpris(self) -> None:
+        """Media keys, the shell's media widget and ``playerctl``: the desktop talks to us over the session bus."""
+        c = self.media = mpris.Controls(self)
+        c.play.connect(self._media_play)
+        c.pause.connect(self.engine.pause)
+        c.play_pause.connect(self._play_pressed)
+        c.stop.connect(self._stop)
+        c.next.connect(lambda: self._advance(auto=False))
+        c.previous.connect(self._previous)
+        c.raise_window.connect(self._bring_forward)
+        c.quit.connect(self.close)
+        c.shuffle.connect(lambda on: (self._set_shuffle(on), self.top_bar.set_shuffle(on)))
+        c.repeat.connect(lambda mode: (self._set_repeat(mode), self.top_bar.set_repeat(mode)))
+        c.volume.connect(lambda v: (self._volume_chosen(v), self.top_bar.set_volume(v, self._shown_muted())))
+        c.open_uri.connect(lambda uri: self.open_paths([uri]))
+        self.engine.state_changed.connect(lambda _s: self._sync_media())
+        self.engine.now_playing_changed.connect(lambda _s: self._sync_media())
+        if os.environ.get("JUKE_NO_MPRIS") or not c.register():       # (the tests must not show up in the desktop's player list)
+            log.info("No session bus: media keys only work while Juke has focus")
+        self._sync_media()
+
+    def _media_play(self) -> None:
+        """The Play key of a keyboard or headset also pauses: it is the same button, whatever the desktop calls it."""
+        self._play_pressed()
+
+    def _bring_forward(self) -> None:
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _sync_media(self) -> None:
+        """Tell the desktop what is playing (it shows it, and routes the media keys to us)."""
+        if not hasattr(self, "media"):
+            return
+        track, station = self.current_track, self.current_station
+        if station is not None:
+            title, artist, album, length, ident, url = station.name, self.engine.now_playing, "", 0, 0, station.stream_url
+        elif track is not None:
+            title, artist, album = track.title or tr("unknown_title"), track.artist, track.album
+            length, ident, url = int(track.duration * 1_000_000), track.id, ""
+            if track.is_local:
+                url = Path(track.location).as_uri()
+        else:
+            title = artist = album = url = ""
+            length = ident = 0
+        self.media.update(status=self.engine.state, title=title, artist=artist, album=album, length_us=length,
+                          track=ident, url=url, can_next=True, can_previous=True, shuffle=self.queue.shuffle,
+                          repeat=self.queue.repeat, volume=self._shown_volume() / 100)
+
+    # ------------------------------------------------------------------------------ what can be played now
+    def _watch_network(self) -> None:
+        """Qt tells us when the computer goes on or off the network: no polling."""
+        try:
+            from PySide6.QtNetwork import QNetworkInformation
+
+            if QNetworkInformation.loadDefaultBackend():
+                info = QNetworkInformation.instance()
+                info.reachabilityChanged.connect(self._reachability_changed)
+        except (ImportError, RuntimeError):
+            pass
+
+    def _reachability_changed(self, reachability) -> None:
+        from PySide6.QtNetwork import QNetworkInformation
+
+        if reachability == QNetworkInformation.Reachability.Disconnected:
+            self._server_checked(False)
+        else:
+            self._check_server(force=True)
+
+    def _check_server(self, force: bool = False) -> None:
+        """Ask the Airsonic server whether it answers (only if there are songs of it, and not more than every 45 s)."""
+        if self.db.count(SOURCE_AIRSONIC) == 0:
+            self.avail.set_server(None)
+            return
+        if self.airsonic is None:
+            self._server_checked(False)
+            return
+        now = time.monotonic()
+        if self._pinging or (not force and now - self._last_ping < 45):
+            return
+        self._pinging, self._last_ping = True, now
+        cfg = self.config.get("airsonic")
+
+        async def look(_progress):
+            client = AirsonicClient(cfg["url"], cfg["username"], cfg["password"], timeout=6.0, auth=cfg.get("auth", "auto"))
+            try:
+                await asyncio.wait_for(client.ping(), 8)
+                return True
+            except Exception:                              # no network, server down, wrong address: the same for the list
+                return False
+            finally:
+                await client.aclose()
+
+        worker = AsyncWorker(look, self)
+        self._workers.add(worker)
+        worker.result.connect(self._server_checked)
+        worker.failed.connect(lambda _m: self._server_checked(False))
+        worker.finished.connect(lambda w=worker: (self._workers.discard(w), w.deleteLater()))
+        worker.start()
+
+    def _server_checked(self, online: bool) -> None:
+        self._pinging = False
+        before = self.avail.server_online
+        if self.avail.set_server(bool(online)) and self.db.count(SOURCE_AIRSONIC):
+            if not online:
+                self.notify(tr("avail.server_down"), 9000)
+            elif before is False:
+                self.notify(tr("avail.server_up"), 4000)
+
+    def _why_unavailable(self, track: Track | None) -> str | None:
+        return self.avail.reason(track) if track is not None else None
+
+    def _tell_unavailable(self, track: Track, why: str) -> None:
+        self.notify(tr("msg.unavailable_server" if why == "server" else "msg.unavailable_file", title=track.title), 8000)
+        if why == "server":
+            self._check_server(force=True)                 # maybe it is back: the grey goes away by itself
+
+    # ------------------------------------------------------------------------------ crossfade
+    def _apply_crossfade(self, seconds: int) -> None:
+        self.engine.set_crossfade(seconds)
+        self.top_bar.set_crossfade(self.engine.crossfade)
+        if self.engine.crossfade:
+            self.config.set("crossfade_last", self.engine.crossfade)
+
+    def _crossfade_toggled(self, on: bool) -> None:
+        """The light under the volume: off, or on again with the seconds it had last."""
+        seconds = int(self.config.get("crossfade_last") or 5) if on else 0
+        self.config.set("crossfade", seconds)
+        self._apply_crossfade(seconds)
+        self.config.save()
+
+    # ------------------------------------------------------------------------------ volume
+    def _configure_volume_mode(self) -> None:
+        """Slider = the computer's volume (keys, panel and mixer move it, and it moves them), or Juke's own."""
+        follow = bool(self.config.get("volume_follows_system")) and self.sysvol.available
+        if follow:
+            self._follow = True
+            self.engine.set_volume(100)                # the stream is left open, the sound card's volume does the work
+            self.engine.set_muted(False)
+            self.sysvol.start()
+            state = self.sysvol.read()
+            if state is not None:
+                self.sysvol.refresh()
+                self.top_bar.set_volume(*state)
+        else:
+            self._follow = False
+            self.sysvol.stop()
+            volume, muted = int(self.config.get("volume")), bool(self.config.get("muted"))
+            self.engine.set_volume(volume)
+            self.engine.set_muted(muted)
+            self.top_bar.set_volume(volume, muted)
+        self._sync_media()
+
+    def _volume_chosen(self, value: int) -> None:
+        (self.sysvol.set_volume if self._follow else self.engine.set_volume)(value)
+        self._sync_media()
+
+    def _mute_chosen(self, muted: bool) -> None:
+        (self.sysvol.set_muted if self._follow else self.engine.set_muted)(muted)
+
+    def _system_volume_changed(self, volume: int, muted: bool) -> None:
+        if self._follow:
+            self.top_bar.set_volume(volume, muted)
+            self._sync_media()
+
+    def _shown_volume(self) -> int:
+        return self.top_bar.volume.value() if self._follow else self.engine.volume
+
+    def _shown_muted(self) -> bool:
+        return self.top_bar._muted if self._follow else self.engine.muted
 
     def _restore_state(self) -> None:
         window = self.config.get("window")
@@ -342,6 +531,15 @@ class MainWindow(QMainWindow):
             self.splitter.setSizes([int(s) for s in sizes])
         volume, muted = int(self.config.get("volume")), bool(self.config.get("muted"))
         self.engine.volume, self.engine.muted = volume, muted
+        self._apply_crossfade(int(self.config.get("crossfade") or 0))
+        self.table.track_model.availability = self.avail
+        self.avail.changed.connect(self.table.track_model.repaint_rows)
+        self._watch_network()
+        self.sysvol = SystemVolume(self)
+        self.sysvol.changed.connect(self._system_volume_changed)
+        self._follow = False
+        self._configure_volume_mode()
+        self.engine.set_crossfade(int(self.config.get("crossfade") or 0))
         self.top_bar.set_volume(volume, muted)
         self.top_bar.set_shuffle(self.queue.shuffle)
         self.top_bar.set_repeat(self.queue.repeat)
@@ -352,8 +550,9 @@ class MainWindow(QMainWindow):
         self.config.set("window.geometry", bytes(self.saveGeometry()).hex())
         sizes = self.splitter.sizes()
         self.config.set("window.splitter", [sizes[0], sizes[1] + (sizes[2] if len(sizes) > 2 else 0)])
-        self.config.set("volume", self.engine.volume)
-        self.config.set("muted", self.engine.muted)
+        if not self._follow:                         # following the computer: Juke's own volume stays what it was
+            self.config.set("volume", self.engine.volume)
+            self.config.set("muted", self.engine.muted)
         self.config.set("shuffle", self.queue.shuffle)
         self.config.set("repeat", self.queue.repeat)
         self.config.save()
@@ -528,6 +727,7 @@ class MainWindow(QMainWindow):
             QGuiApplication.applicationState() == Qt.ApplicationActive
         self.engine.set_ui_active(active)
         self.top_bar.set_animating(active and self._meter_allowed())
+        self.table.track_model.set_animating(active and self.config.get("meter") != "off", slow=on_battery())
         self.devices.set_active(active)
         if active and self.config.get("meter") == "auto" and self.engine.state == "playing":
             self._power_timer.start()     # the charger may be plugged in or out while we play
@@ -548,6 +748,8 @@ class MainWindow(QMainWindow):
         self._update_activity()
 
     def closeEvent(self, event) -> None:  # noqa: N802
+        self.media.unregister()
+        self.sysvol.stop()
         self.devices.shutdown()
         self.radio_view.cancel()
         for worker in list(self._radio_workers):
@@ -619,11 +821,24 @@ class MainWindow(QMainWindow):
         add(tr("menu.check_updates"), lambda: self.check_for_updates(manual=True))
         add(tr("menu.feedback"), self.send_feedback)
         add(tr("menu.view_log"), self.show_log)
+        add(tr("menu.manual"), self.open_manual, "F1")
         add(tr("menu.about"), self.show_about)
         menu.addSeparator()
         add(tr("menu.quit"), self.close, "Ctrl+Q")
         self.menu_button.setMenu(menu)
         self._menu = menu
+
+    def open_manual(self) -> None:
+        """The manual, a book with an index (F1). One window: asking again brings it forward."""
+        from .manual_dialog import ManualDialog
+
+        if getattr(self, "_manual", None) is None:
+            self._manual = ManualDialog(self)
+            self._manual.setAttribute(Qt.WA_DeleteOnClose)
+            self._manual.destroyed.connect(lambda *_: setattr(self, "_manual", None))
+        self._manual.show()
+        self._manual.raise_()
+        self._manual.activateWindow()
 
     def send_feedback(self) -> None:
         from .feedback_dialog import FeedbackDialog
@@ -816,7 +1031,7 @@ class MainWindow(QMainWindow):
         """Re-run the current view (playlists and the queue hold explicit id lists)."""
         key, value = self._view
         if key == "playlist":
-            self.table.track_model.set_fixed_ids(self.db.playlist_track_ids(value))
+            self.table.track_model.set_entries(self.db.playlist_entries(value))
         elif key == "queue":
             self.table.track_model.set_fixed_ids(self.queue.view())
         else:
@@ -901,7 +1116,10 @@ class MainWindow(QMainWindow):
         self.table.duplicate_mode = str(value) if key == "duplicates" else None
         if key in ("duplicates", "favorites", "recent", "queue"):
             self.sidebar.clear_selection()             # these are reached from the menu, not from the sidebar
-        self.table.show_view(scope, fixed, sort)
+        if key == "playlist":
+            self.table.show_playlist(self.db.playlist_entries(int(value)))
+        else:
+            self.table.show_view(scope, fixed, sort)
         self.table.track_model.set_current(self.current_track.id if self.current_track else None)
         self._update_heading()
         if key == "airsonic" and self.airsonic and self.db.count(SOURCE_AIRSONIC) == 0 and self._sync_worker is None:
@@ -1004,13 +1222,25 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------------------ playback
     def _play_from_table(self, track_id: int) -> None:
-        self.queue.set_context(self.table.track_model.ids(), track_id)
+        track = self.db.get_track(track_id)
+        why = self._why_unavailable(track)
+        if why:                                         # grey in the list: say why instead of trying
+            self._tell_unavailable(track, why)
+            return
+        row = self.table.currentIndex().row()
+        picked = row if self.table.track_model.id_at(row) == track_id else None     # the row, when a song is listed twice
+        self.queue.set_context(self.table.track_model.ids(), track_id, picked)
+        self._context = self._view if self._view[0] in ("playlist", "ufolder") else None
         self._start(track_id)
 
     def _start(self, track_id: int) -> None:
         track = self.db.get_track(track_id)
         if track is None:
             self._skip_after_error(tr("msg.track_gone"))
+            return
+        why = self._why_unavailable(track)
+        if why:
+            self._skip_after_error(tr("msg.unavailable_server" if why == "server" else "msg.unavailable_file", title=track.title))
             return
         try:
             url = self.resolver.resolve(track)
@@ -1019,19 +1249,22 @@ class MainWindow(QMainWindow):
             self._skip_after_error(reason)
             return
         self.engine.set_live(False)                # leaving live radio: no ICY reading, no station state
-        if not self.engine.play_url(url):
+        fade, self._fade_next = self._fade_next, False
+        if not (self.engine.play_url(url, fade=True) if fade else self.engine.play_url(url)):
             return
         self._leave_station()
         self._errors_in_a_row = 0
         self.queue.current = track_id
         self.current_track = track
         self.db.record_start(track_id)
+        self.table.track_model.mark_played(track_id)
         self.table.track_model.set_current(track_id)
         self.top_bar.set_track(track, self._cover_for(track))
         self.setWindowTitle(self._window_title())
         self._update_counts()
         self._refresh_queue_view()
         self._load_lyrics(track)
+        self._sync_media()
 
     def _skip_after_error(self, reason: str) -> None:
         self._errors_in_a_row += 1
@@ -1044,6 +1277,10 @@ class MainWindow(QMainWindow):
 
     def _advance(self, auto: bool) -> None:
         next_id = self.queue.next(auto=auto)
+        for _ in range(len(self.queue.order) + len(self.queue.user)):       # songs that cannot play now are passed over
+            if next_id is None or not self._why_unavailable(self.db.get_track(next_id)):
+                break
+            next_id = self.queue.next(auto=auto)
         if next_id is None:
             self.engine.stop()
             self._playback_ended()
@@ -1057,11 +1294,12 @@ class MainWindow(QMainWindow):
         self.table.track_model.set_current(None)
         self.setWindowTitle("Juke")
         self._show_lyrics_panel(False)
+        self._sync_media()
 
     def _previous(self) -> None:
         if self.queue.current is None:
             return
-        if self.engine.position_ms() > 3000 or not self.queue.history:
+        if self.engine.position_ms() > 3000 or not self.queue.can_previous():
             self.engine.seek(0.0)
             return
         previous = self.queue.previous()
@@ -1088,6 +1326,14 @@ class MainWindow(QMainWindow):
     def _stop(self) -> None:
         self.engine.stop()
 
+    def _crossfade_next(self) -> None:
+        """The song is ``crossfade`` seconds from its end: bring the next one in now, if there is one."""
+        if self.current_station is not None or not self.queue.has_next(auto=True):
+            return
+        self._fade_next = True
+        self._advance(auto=True)
+        self._fade_next = False
+
     def _track_finished(self) -> None:
         if self.current_station is not None:            # a live stream never "finishes": the connection dropped
             self._station_failed()
@@ -1101,6 +1347,8 @@ class MainWindow(QMainWindow):
 
     def _engine_error(self, message: str) -> None:
         log.warning("Playback problem: %s", message)
+        if self.current_track is not None and self.current_track.source_type == SOURCE_AIRSONIC:
+            self._check_server(force=True)              # a stream that fails may be a server that went away
         if not self.engine.available:
             if not self._warned_no_vlc:
                 self._warned_no_vlc = True
@@ -1114,9 +1362,11 @@ class MainWindow(QMainWindow):
     def _set_shuffle(self, enabled: bool) -> None:
         self.queue.set_shuffle(enabled)
         self._refresh_queue_view()
+        self._sync_media()
 
     def _set_repeat(self, mode: str) -> None:
         self.queue.repeat = mode
+        self._sync_media()
 
     # ------------------------------------------------------------------------------ queue
     def _play_next(self, ids: list[int]) -> None:
@@ -1180,6 +1430,7 @@ class MainWindow(QMainWindow):
         self.top_bar.set_station(station, self._station_cover(station))
         self._sync_radio_state()
         self.setWindowTitle(f"{station.name} · Juke")
+        self._sync_media()
         self._fetch_station_icon(station)
         if refresh and (station.uuid or station.source_url):
             self._refresh_station(station, token, failed=False)
@@ -1404,6 +1655,7 @@ class MainWindow(QMainWindow):
         tracks = self.db.tracks_by_ids(ids)
         local = [t.location for t in tracks if t.is_local]
         added = self.folders.add_paths(folder_id, local)
+        self._follow_context("ufolder", folder_id)
         self.refresh_folders()
         folder = self.folders.get(folder_id)
         name = folder.name if folder else ""
@@ -1419,6 +1671,7 @@ class MainWindow(QMainWindow):
             return
         folder_id = int(self._view[1])
         self.folders.remove_paths(folder_id, [t.location for t in self.db.tracks_by_ids(ids) if t.is_local])
+        self._follow_context("ufolder", folder_id)
         self.refresh_folders()
         self._reload_view()
         self._update_heading()
@@ -1483,6 +1736,20 @@ class MainWindow(QMainWindow):
         self.sidebar.set_playlists(self._playlists)
         self.table.set_playlists([(pid, name) for pid, name, _ in self._playlists])
 
+    def _follow_context(self, key: str, value: object) -> None:
+        """What is playing comes from this playlist or folder and it changed: the queue follows, so a song taken out
+        does not play again and one put in is not forgotten."""
+        if self._context != (key, value):
+            return
+        ids = self.db.playlist_track_ids(int(value)) if key == "playlist" else self._folder_ids(int(value))
+        self.queue.update_context(ids)
+        self._update_counts()
+
+    def _lists_column_changed(self) -> None:
+        """A playlist was made, renamed, emptied or deleted: the "in playlists" column of the library must follow."""
+        if not self.table.playlist_mode:
+            self.table.track_model.invalidate_rows()
+
     def _unique_playlist_name(self, name: str, ignore: int | None = None) -> str:
         taken = {n.casefold() for pid, n, _ in self._playlists if pid != ignore}
         candidate, n = name, 2
@@ -1499,6 +1766,7 @@ class MainWindow(QMainWindow):
         if ids:
             self.db.add_to_playlist(playlist_id, ids)
         self.refresh_playlists()
+        self._lists_column_changed()
         self.sidebar.select("playlist", playlist_id)
         self._show_view("playlist", playlist_id)
         if ids:
@@ -1511,6 +1779,7 @@ class MainWindow(QMainWindow):
             return
         self.db.rename_playlist(playlist_id, self._unique_playlist_name(name, ignore=playlist_id))
         self.refresh_playlists()
+        self._lists_column_changed()
         self._update_heading()
 
     def _delete_playlist(self, playlist_id: int) -> None:
@@ -1519,24 +1788,55 @@ class MainWindow(QMainWindow):
             return
         self.db.delete_playlist(playlist_id)
         self.refresh_playlists()
+        self._lists_column_changed()
         if self._view == ("playlist", playlist_id):
             self.sidebar.select("all")
             self._show_view("all", None)
 
     def _add_to_playlist(self, playlist_id: int, ids: list[int]) -> None:
-        self.db.add_to_playlist(playlist_id, ids)
+        """Songs already in the playlist are not added again: the person is told instead."""
         name = next((n for pid, n, _ in self._playlists if pid == playlist_id), "")
+        have = set(self.db.playlist_track_ids(playlist_id))
+        fresh = list(dict.fromkeys(i for i in ids if i not in have))
+        skipped = len(ids) - len(fresh)
+        if not fresh:
+            self.notify(trn("msg.already_playlist", len(ids), name=name), 6000)
+            return
+        self.db.add_to_playlist(playlist_id, fresh)
+        self._follow_context("playlist", playlist_id)
         self.refresh_playlists()
+        self._lists_column_changed()
         if self._view == ("playlist", playlist_id):
             self._reload_view()
             self._update_heading()
-        self.notify(trn("msg.added_playlist", len(ids), name=name), 3500)
+        if skipped:
+            self.notify(trn("msg.added_partial", len(fresh), name=name, skipped=skipped), 6000)
+        else:
+            self.notify(trn("msg.added_playlist", len(fresh), name=name), 3500)
 
-    def _remove_from_playlist(self, ids: list[int]) -> None:
+    def _remove_songs_from_playlist(self, playlist_id: int, ids: list[int]) -> None:
+        """The ✓ of "Add to playlist" pressed again: these songs leave that playlist (every copy of them)."""
+        name = next((n for pid, n, _ in self._playlists if pid == playlist_id), "")
+        have = set(self.db.playlist_track_ids(playlist_id))
+        gone = [i for i in dict.fromkeys(ids) if i in have]
+        if not gone:
+            return
+        self.db.remove_from_playlist(playlist_id, gone)
+        self._follow_context("playlist", playlist_id)
+        self.refresh_playlists()
+        self._lists_column_changed()
+        if self._view == ("playlist", playlist_id):
+            self._reload_view()
+            self._update_heading()
+        self.notify(trn("msg.removed_playlist", len(gone), name=name), 3500)
+
+    def _remove_from_playlist(self, positions: list[int]) -> None:
         if self._view[0] != "playlist":
             return
-        self.db.remove_from_playlist(self._view[1], ids)
+        self.db.remove_playlist_entries(self._view[1], positions)
+        self._follow_context("playlist", self._view[1])
         self.refresh_playlists()
+        self._lists_column_changed()
         self._reload_view()
         self._update_heading()
 
@@ -1670,6 +1970,7 @@ class MainWindow(QMainWindow):
 
     def _startup_tasks(self) -> None:
         QTimer.singleShot(6_000, self._auto_update_check)
+        self._check_server(force=True)
         if self.config.get("scan_on_start") or self.db.count(SOURCE_LOCAL) == 0:
             self.start_scan()
         if integration.is_installed():
@@ -1680,6 +1981,10 @@ class MainWindow(QMainWindow):
 
     def _app_state_changed(self, state) -> None:
         self._update_activity()
+        if state == Qt.ApplicationActive:               # back from elsewhere: a drive or the network may have come or gone
+            self._check_server()
+            self.avail.expire()
+            self.table.recheck_availability()
         # Back from the file manager (or anywhere else): songs and folders may have been deleted or moved meanwhile.
         if (state == Qt.ApplicationActive and self.config.get("scan_on_start")
                 and time.monotonic() - getattr(self, "_last_scan_end", 0.0) > 15.0):
@@ -1851,6 +2156,8 @@ class MainWindow(QMainWindow):
         if dialog.wants_integration != integration.is_installed():
             self._set_integration(dialog.wants_integration)
         self.theme.apply(self.config.get("theme"))
+        self._apply_crossfade(int(self.config.get("crossfade") or 0))
+        self._configure_volume_mode()
         self._configure_airsonic()
         self._update_activity()
         if self.config.get("music_dirs") != old_dirs:

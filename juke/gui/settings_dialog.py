@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
-                               QLabel, QLineEdit, QListWidget, QPushButton, QTabWidget, QVBoxLayout, QWidget)
+                               QLabel, QLineEdit, QListWidget, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
 from ..api.airsonic import AirsonicClient, normalize_base_url
 from ..config import Config
@@ -21,10 +21,11 @@ class SettingsDialog(QDialog):
         self._worker: AsyncWorker | None = None
         self._detected_auth: str | None = None
         self.setWindowTitle(tr("settings.title"))
-        self.setMinimumSize(560, 470)
+        self.setMinimumSize(640, 540)
 
         self.tabs = tabs = QTabWidget()
         tabs.addTab(self._general_tab(integration_installed), tr("settings.general"))
+        tabs.addTab(self._playback_tab(), tr("settings.playback"))
         tabs.addTab(self._library_tab(), tr("settings.library"))
         tabs.addTab(self._airsonic_tab(), tr("settings.airsonic"))
         tabs.setCurrentIndex(max(0, min(int(tab), tabs.count() - 1)))
@@ -42,17 +43,47 @@ class SettingsDialog(QDialog):
         layout.addWidget(buttons)
 
     # -- tabs ---------------------------------------------------------------------------------------
-    def _general_tab(self, integration_installed: bool) -> QWidget:
+    # Every tab is a column of blocks: a control, and under it a few words of explanation that wrap to the width of the
+    # window. (A form with wrapping labels in one row squeezed the explanations over the controls.)
+    @staticmethod
+    def _page() -> tuple[QWidget, QVBoxLayout]:
         page = QWidget()
-        form = QFormLayout(page)
-        form.setContentsMargins(6, 18, 6, 6)
-        form.setSpacing(14)
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(10, 20, 10, 10)
+        layout.setSpacing(6)
+        return page, layout
+
+    @staticmethod
+    def _hint(text: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName("muted")
+        label.setWordWrap(True)
+        label.setContentsMargins(26, 0, 0, 0)          # lines up under the text of a check box
+        return label
+
+    @staticmethod
+    def _gap(layout: QVBoxLayout, pixels: int = 14) -> None:
+        layout.addSpacing(pixels)
+
+    @staticmethod
+    def _labelled(layout: QVBoxLayout, text: str, widget: QWidget) -> None:
+        row = QHBoxLayout()
+        row.setSpacing(14)
+        caption = QLabel(text)
+        caption.setMinimumWidth(190)
+        row.addWidget(caption)
+        row.addWidget(widget, 1)
+        layout.addLayout(row)
+
+    def _general_tab(self, integration_installed: bool) -> QWidget:
+        page, layout = self._page()
         self.language = QComboBox()
         self.language.addItem(tr("settings.language_auto"), "auto")
         for code, (label, _) in LANGUAGES.items():
             self.language.addItem(label, code)
         self.language.setCurrentIndex(max(0, self.language.findData(self._config.get("language"))))
-        form.addRow(tr("settings.language"), self.language)
+        self._labelled(layout, tr("settings.language"), self.language)
+        self._gap(layout, 10)
         self.theme = QComboBox()
         names = {"auto": "settings.theme_auto", "dark": "settings.theme_dark", "light": "settings.theme_light"}
         for value in ("auto", "dark", "light", *styles.COLOR_THEMES):
@@ -62,37 +93,48 @@ class SettingsDialog(QDialog):
             else:
                 self.theme.addItem(theme_swatch(value), label, value)
         self.theme.setCurrentIndex(max(0, self.theme.findData(self._config.get("theme"))))
-        form.addRow(tr("settings.theme"), self.theme)
+        self._labelled(layout, tr("settings.theme"), self.theme)
+        self._gap(layout, 22)
+        self.updates = QCheckBox(tr("settings.updates"))
+        self.updates.setChecked(bool(self._config.get("update.enabled")))
+        layout.addWidget(self.updates)
+        layout.addWidget(self._hint(tr("settings.updates_hint")))
+        self._gap(layout)
+        self.integration = QCheckBox(tr("settings.integration"))
+        self.integration.setChecked(integration_installed)
+        layout.addWidget(self.integration)
+        layout.addWidget(self._hint(tr("settings.integration_hint")))
+        layout.addStretch(1)
+        return page
+
+    def _playback_tab(self) -> QWidget:
+        page, layout = self._page()
+        self.follow_volume = QCheckBox(tr("settings.volume_follow"))
+        self.follow_volume.setChecked(bool(self._config.get("volume_follows_system")))
+        layout.addWidget(self.follow_volume)
+        layout.addWidget(self._hint(tr("settings.volume_follow_hint")))
+        self._gap(layout, 22)
+        self.crossfade = QSpinBox()
+        self.crossfade.setRange(0, 12)
+        self.crossfade.setSuffix(" s")
+        self.crossfade.setSpecialValueText(tr("settings.crossfade_off"))
+        self.crossfade.setValue(int(self._config.get("crossfade") or 0))
+        self.crossfade.setMinimumWidth(130)
+        row = QHBoxLayout()
+        row.setSpacing(14)
+        row.addWidget(QLabel(tr("settings.crossfade")))
+        row.addWidget(self.crossfade)
+        row.addStretch(1)
+        layout.addLayout(row)
+        layout.addWidget(self._hint(tr("settings.crossfade_hint")))
+        self._gap(layout, 22)
         self.meter = QComboBox()
         for value, label in (("auto", "settings.meter_auto"), ("on", "settings.meter_on"), ("off", "settings.meter_off")):
             self.meter.addItem(tr(label), value)
         self.meter.setCurrentIndex(max(0, self.meter.findData(self._config.get("meter"))))
-        form.addRow(tr("settings.meter"), self.meter)
-        meter_hint = QLabel(tr("settings.meter_hint"))
-        meter_hint.setObjectName("muted")
-        meter_hint.setWordWrap(True)
-        form.addRow("", meter_hint)
-        self.updates = QCheckBox(tr("settings.updates"))
-        self.updates.setChecked(bool(self._config.get("update.enabled")))
-        form.addRow("", self.updates)
-        updates_hint = QLabel(tr("settings.updates_hint"))
-        updates_hint.setObjectName("muted")
-        updates_hint.setWordWrap(True)
-        form.addRow("", updates_hint)
-        self.lyrics_auto = QCheckBox(tr("settings.lyrics_auto"))
-        self.lyrics_auto.setChecked(bool(self._config.get("lyrics.auto_search")))
-        form.addRow("", self.lyrics_auto)
-        lyrics_hint = QLabel(tr("settings.lyrics_auto_hint"))
-        lyrics_hint.setObjectName("muted")
-        lyrics_hint.setWordWrap(True)
-        form.addRow("", lyrics_hint)
-        self.integration = QCheckBox(tr("settings.integration"))
-        self.integration.setChecked(integration_installed)
-        form.addRow("", self.integration)
-        hint = QLabel(tr("settings.integration_hint"))
-        hint.setObjectName("muted")
-        hint.setWordWrap(True)
-        form.addRow("", hint)
+        self._labelled(layout, tr("settings.meter"), self.meter)
+        layout.addWidget(self._hint(tr("settings.meter_hint")))
+        layout.addStretch(1)
         return page
 
     def _library_tab(self) -> QWidget:
@@ -115,6 +157,11 @@ class SettingsDialog(QDialog):
         self.scan_on_start = QCheckBox(tr("settings.scan_on_start"))
         self.scan_on_start.setChecked(bool(self._config.get("scan_on_start")))
         layout.addWidget(self.scan_on_start)
+        layout.addSpacing(10)
+        self.lyrics_auto = QCheckBox(tr("settings.lyrics_auto"))
+        self.lyrics_auto.setChecked(bool(self._config.get("lyrics.auto_search")))
+        layout.addWidget(self.lyrics_auto)
+        layout.addWidget(self._hint(tr("settings.lyrics_auto_hint")))
         return page
 
     def _airsonic_tab(self) -> QWidget:
@@ -208,6 +255,8 @@ class SettingsDialog(QDialog):
         config.set("scan_on_start", self.scan_on_start.isChecked())
         config.set("theme", self.theme.currentData())
         config.set("meter", self.meter.currentData())
+        config.set("crossfade", self.crossfade.value())
+        config.set("volume_follows_system", self.follow_volume.isChecked())
         config.set("update.enabled", self.updates.isChecked())
         config.set("lyrics.auto_search", self.lyrics_auto.isChecked())
         config.set("airsonic", {

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QGridLayout, QGrou
                                QLabel, QPushButton, QSlider, QVBoxLayout, QWidget)
 
 from ...audio.engine import AudioEngine
-from ...audio.equalizer import BAND_LABELS, MAX_DB, MIN_DB, Equalizer
+from ...audio.equalizer import BAND_GROUPS, BAND_LABELS, BANDS_HZ, MAX_DB, MIN_DB, Equalizer
 from ...i18n import tr
 from .. import styles
 from ..dialogs import ask_text, notice
@@ -68,7 +68,7 @@ class EqualizerDialog(QDialog):
         super().__init__(parent)
         self._eq = equalizer
         self._engine = engine
-        self.setMinimumWidth(760)
+        self.setMinimumWidth(860)
 
         self.enabled = QCheckBox()
         self.presets = QComboBox()
@@ -91,25 +91,49 @@ class EqualizerDialog(QDialog):
         self.preamp_value = self._value_label()
         self.preamp_name = QLabel()
         self.preamp_name.setObjectName("muted")
+        self.hint = QLabel()
+        self.hint.setObjectName("muted")
+        self.hint.setWordWrap(True)
         self.band_sliders: list[QSlider] = []
         self.band_values: list[QLabel] = []
+        self.band_names: list[QLabel] = []         # "Deep bass", "Voice"...: what the bar changes, in plain words
+        self.band_freqs: list[QLabel] = []
+        self.group_labels: dict[str, QLabel] = {}
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(6)
-        grid.setVerticalSpacing(6)
+        grid.setVerticalSpacing(4)
         self._add_column(grid, 0, self.preamp_value, self.preamp_slider, self.preamp_name)
         divider = QWidget()
         divider.setFixedWidth(1)
         divider.setObjectName("eqDivider")
-        grid.addWidget(divider, 0, 1, 3, 1)
+        grid.addWidget(divider, 0, 1, 5, 1)
+        first_of: dict[str, int] = {}
+        count_of: dict[str, int] = {}
         for i, label in enumerate(BAND_LABELS):
             slider, value = self._vertical_slider(), self._value_label()
-            name = QLabel(label)
-            name.setObjectName("muted")
+            freq = QLabel(label)
+            freq.setObjectName("muted")
+            nick = QLabel()
+            nick.setAlignment(Qt.AlignCenter)
+            nick.setWordWrap(True)
+            nick.setMinimumHeight(30)
             self.band_sliders.append(slider)
             self.band_values.append(value)
-            self._add_column(grid, i + 2, value, slider, name)
+            self.band_freqs.append(freq)
+            self.band_names.append(nick)
+            self._add_column(grid, i + 2, value, slider, freq)
+            grid.addWidget(nick, 3, i + 2, Qt.AlignHCenter | Qt.AlignTop)
+            group = BAND_GROUPS[i]
+            first_of.setdefault(group, i + 2)
+            count_of[group] = count_of.get(group, 0) + 1
             slider.valueChanged.connect(lambda v, idx=i: self._eq.set_band(idx, v / SCALE))
+        for group, column in first_of.items():          # BASS / MIDDLE / TREBLE over the bars they cover
+            caption = QLabel()
+            caption.setAlignment(Qt.AlignCenter)
+            caption.setObjectName("eqGroup")
+            self.group_labels[group] = caption
+            grid.addWidget(caption, 4, column, 1, count_of[group])
         self.preamp_slider.valueChanged.connect(lambda v: self._eq.set_preamp(v / SCALE))
 
         self.extras = QGroupBox()
@@ -145,6 +169,7 @@ class EqualizerDialog(QDialog):
         layout.setContentsMargins(22, 20, 22, 20)
         layout.setSpacing(14)
         layout.addLayout(top)
+        layout.addWidget(self.hint)
         layout.addWidget(self.curve)
         layout.addLayout(grid)
         layout.addWidget(self.extras)
@@ -253,7 +278,18 @@ class EqualizerDialog(QDialog):
         self.btn_save.setText(tr("eq.save"))
         self.btn_delete.setText(tr("eq.delete"))
         self.btn_reset.setText(tr("eq.reset"))
-        self.preamp_name.setText(tr("eq.preamp"))
+        self.preamp_name.setText(tr("eq.preamp_short"))
+        self.hint.setText(tr("eq.hint"))
+        for i, hz in enumerate(BANDS_HZ):
+            about = f"<b>{tr(f'eq.band.{hz}.name')}</b> · {BAND_LABELS[i]} Hz<br>{tr(f'eq.band.{hz}.about')}"
+            self.band_names[i].setText(tr(f"eq.band.{hz}.name"))
+            self.band_freqs[i].setText(f"{hz} Hz" if hz < 1000 else f"{hz / 1000:g} kHz")
+            for widget in (self.band_sliders[i], self.band_names[i], self.band_freqs[i], self.band_values[i]):
+                widget.setToolTip(about)
+        for group, caption in self.group_labels.items():
+            caption.setText(tr(f"eq.group.{group}"))
+        for widget in (self.preamp_slider, self.preamp_name, self.preamp_value):
+            widget.setToolTip(f"<b>{tr('eq.preamp')}</b><br>{tr('eq.preamp.about')}")
         self.extras.setTitle(tr("eq.extras"))
         self.speed_label.setText(tr("eq.speed"))
         self.balance_label.setText(tr("eq.balance"))

@@ -25,12 +25,38 @@ class PlayQueue:
         self.repeat = "off"                # off | all | one
 
     # -- building ----------------------------------------------------------------
-    def set_context(self, ids: list[int], start_id: int) -> None:
-        """Start playing ``start_id`` from a list; the user queue is kept."""
+    def set_context(self, ids: list[int], start_id: int, index: int | None = None) -> None:
+        """Start playing ``start_id`` from a list; the user queue is kept. ``index``: which row it was picked from, for a
+        song that is in the list more than once."""
         self.original = list(ids)
         self.current = start_id
         self.history.clear()
         self._reorder(start_id)
+        if index is not None and not self.shuffle and 0 <= index < len(self.order) and self.order[index] == start_id:
+            self.cursor = index
+
+    def update_context(self, ids: list[int]) -> None:
+        """The list this queue is playing from changed (a song taken out or put in): follow it, keeping the place.
+
+        Without this, a song deleted from the playlist while it plays would still come up when its turn arrives."""
+        counts: dict[int, int] = {}
+        for track_id in ids:
+            counts[track_id] = counts.get(track_id, 0) + 1
+        kept: list[int] = []
+        cursor = -1
+        for position, track_id in enumerate(self.order):
+            if counts.get(track_id, 0) > 0:                  # one copy per copy still in the list
+                counts[track_id] -= 1
+                kept.append(track_id)
+            if position == self.cursor:
+                cursor = len(kept) - 1
+        for track_id in ids:                                  # songs put in meanwhile wait at the end
+            if counts.get(track_id, 0) > 0:
+                counts[track_id] -= 1
+                kept.append(track_id)
+        self.original = list(ids)
+        self.order = kept
+        self.cursor = cursor
 
     def _reorder(self, current: int | None) -> None:
         if self.shuffle:
@@ -97,18 +123,38 @@ class PlayQueue:
             self._remember()
             if self.shuffle:
                 self._reorder(None)
+                if len(self.order) > 1 and self.order[0] == self.current:     # not the song that just played, twice in a row
+                    swap = random.randrange(1, len(self.order))
+                    self.order[0], self.order[swap] = self.order[swap], self.order[0]
             self.cursor = 0
         else:
             return None
         self.current = self.order[self.cursor]
         return self.current
 
+    def has_next(self, auto: bool = True) -> bool:
+        """Would ``next`` find something to play? (Without moving anything.)"""
+        if self.current is not None and auto and self.repeat == "one":
+            return True
+        return bool(self.user) or (bool(self.order) and (self.cursor + 1 < len(self.order) or self.repeat == "all"))
+
+    def can_previous(self) -> bool:
+        """Is there a song before this one: one played earlier, or one above it in the list?"""
+        return bool(self.history) or self.cursor > 0 or (self.repeat == "all" and len(self.order) > 1)
+
     def previous(self) -> int | None:
-        """Step back through history; with none left, the caller restarts the track."""
+        """The song before this one. After a song was picked from the middle of a list there is no history, so the
+        song above it in the list is next; with none left, the caller restarts the track."""
         if self.history:
             self.current = self.history.pop()
             if self.current in self.order:
                 self.cursor = self.order.index(self.current)
+        elif self.cursor > 0:
+            self.cursor -= 1
+            self.current = self.order[self.cursor]
+        elif self.repeat == "all" and len(self.order) > 1:
+            self.cursor = len(self.order) - 1
+            self.current = self.order[self.cursor]
         return self.current
 
     def upcoming(self) -> list[int]:

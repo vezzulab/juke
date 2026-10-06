@@ -251,13 +251,28 @@ class Sidebar(QTreeWidget):
             node = tree
             for part in path.split("/"):
                 node = node.setdefault(part, {})
+        if tree == self._folder_tree and "airsonic" in self._filled:
+            return                                    # a rescan that found nothing new must not close what is open
         self._folder_tree = tree
         if "airsonic" in self._filled:
             self._fill_folders()
 
+    def _open_branches(self, kind: str) -> set:
+        return {k[1] for k, it in self._items.items() if k[0] == kind and it.isExpanded()}
+
+    def _reopen(self, parent: QTreeWidgetItem, kind: str, open_ids: set) -> None:
+        """Open again the branches that were open before a rebuild, as deep as they go."""
+        for i in range(parent.childCount()):
+            child = parent.child(i)
+            key = child.data(0, KEY_ROLE)
+            if key and key[0] == kind and key[1] in open_ids and child.data(0, KIND_ROLE) == "folder":
+                child.setExpanded(True)               # builds its own children
+                self._reopen(child, kind, open_ids)
+
     def _fill_folders(self) -> None:
         group = self._items[("airsonic", None)]
         current = self.current_key()
+        open_ids, scroll = self._open_branches("folder"), self.verticalScrollBar().value()
         self.setUpdatesEnabled(False)
         self.blockSignals(True)
         for child in group.takeChildren():
@@ -265,9 +280,11 @@ class Sidebar(QTreeWidget):
         self._add_folder_items(group, self._folder_tree, "")
         self._filled.add("airsonic")
         self.blockSignals(False)
+        self._reopen(group, "folder", open_ids)
         self.setUpdatesEnabled(True)
         if current in self._items:
             self.select(*current)
+        self.verticalScrollBar().setValue(scroll)
 
     def _forget(self, item: QTreeWidgetItem) -> None:
         for i in range(item.childCount()):
@@ -302,6 +319,7 @@ class Sidebar(QTreeWidget):
         group = self._items[(name, None)]
         current = self.current_key()
         child_key = GROUPS[name]
+        scroll = self.verticalScrollBar().value()
         self.setUpdatesEnabled(False)
         self.blockSignals(True)
         for child in group.takeChildren():
@@ -319,6 +337,7 @@ class Sidebar(QTreeWidget):
         self.setUpdatesEnabled(True)
         if current in self._items:
             self.select(*current)
+        self.verticalScrollBar().setValue(scroll)
 
     # -- selection -------------------------------------------------------------------------
     def current_key(self) -> tuple[str, object] | None:
@@ -473,13 +492,17 @@ class Sidebar(QTreeWidget):
     # -- the user's folders (Music.juke) ---------------------------------------------------------------
     def set_user_folders(self, folders: list, root_sort: str = "name") -> None:
         """``folders``: the tree of db.folders.Folder. Only the levels that are open are built."""
+        signature = (root_sort, tuple((f.id, f.parent_id, f.name, f.count, f.source_path, f.sort_mode) for f in folders))
         self._user_folders = {}
         self._folder_by_id = {f.id: f for f in folders}
         for f in folders:
             self._user_folders.setdefault(f.parent_id, []).append(f)
         self._root_sort = root_sort
+        if signature == getattr(self, "_folders_signature", None):
+            return                                    # nothing changed: leave the open folders and the scroll alone
+        self._folders_signature = signature
         header = self._headers["folders"]
-        expanded = {k[1] for k, it in self._items.items() if k[0] == "ufolder" and it.isExpanded()}
+        open_ids, scroll = self._open_branches("ufolder"), self.verticalScrollBar().value()
         current = self.current_key()
         self.setUpdatesEnabled(False)
         self.blockSignals(True)
@@ -487,19 +510,11 @@ class Sidebar(QTreeWidget):
             self._forget(child)
         self._add_user_children(header, None)
         self.blockSignals(False)
-
-        def reopen(parent: QTreeWidgetItem) -> None:
-            for i in range(parent.childCount()):
-                child = parent.child(i)
-                child_key = child.data(0, KEY_ROLE)
-                if child_key and child_key[1] in expanded and child.data(0, KIND_ROLE) == "folder":
-                    child.setExpanded(True)          # builds its own children
-                    reopen(child)
-
-        reopen(header)
+        self._reopen(header, "ufolder", open_ids)
         self.setUpdatesEnabled(True)
         if current in self._items:
             self.select(*current)
+        self.verticalScrollBar().setValue(scroll)
         self.viewport().update()
 
     def _add_user_children(self, parent_item: QTreeWidgetItem, parent_id: int | None) -> None:

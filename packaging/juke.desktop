@@ -12,5 +12,5 @@ Categories=AudioVideo;Audio;Player;Music;Qt;
 MimeType=audio/mpeg;audio/flac;audio/x-flac;audio/ogg;audio/x-vorbis+ogg;audio/opus;audio/mp4;audio/x-m4a;audio/aac;audio/wav;audio/x-wav;audio/x-ms-wma;audio/x-aiff;audio/x-ape;audio/x-wavpack;audio/x-musepack;
 Keywords=music;audio;player;equalizer;airsonic;subsonic;flac;mp3;
 Keywords[es]=música;audio;reproductor;ecualizador;airsonic;subsonic;flac;mp3;
-StartupWMClass=juke
+StartupWMClass=Juke
 StartupNotify=false

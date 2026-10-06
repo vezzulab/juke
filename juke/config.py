@@ -39,6 +39,9 @@ DEFAULTS: dict[str, Any] = {
     "theme": "auto",  # auto (follow the desktop) | dark | light
     "meter": "auto",  # level-meter animation: auto (mains power only) | on | off
     "volume": 80,
+    "volume_follows_system": True,   # the slider is the computer's volume (keys, panel and mixer move it together with Juke)
+    "crossfade_last": 5,   # the overlap the light under the volume turns back on with
+    "crossfade": 0,   # seconds the next song comes in before the current one ends; 0 = off
     "muted": False,
     "shuffle": False,
     "repeat": "off",  # off | all | one

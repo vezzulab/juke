@@ -13,17 +13,51 @@ Tus archivos, tu servidor Airsonic / Subsonic, radio por Internet y un ecualizad
 
 <br>
 
+![Versión](https://img.shields.io/badge/versión-1.0-cba6f7?style=for-the-badge)
 ![Linux](https://img.shields.io/badge/plataforma-Linux-7aa2f7?style=for-the-badge&logo=linux&logoColor=white)
 ![AppImage](https://img.shields.io/badge/paquete-AppImage-cba6f7?style=for-the-badge)
 ![Python](https://img.shields.io/badge/python-3.10+-7aa2f7?style=for-the-badge&logo=python&logoColor=white)
 ![Qt](https://img.shields.io/badge/Qt-6%20·%20PySide6-cba6f7?style=for-the-badge&logo=qt&logoColor=white)
 ![Motor](https://img.shields.io/badge/audio-libVLC-7aa2f7?style=for-the-badge&logo=vlcmediaplayer&logoColor=white)
 
-[**Descargar**](https://github.com/vezzulab/juke/releases/latest) &nbsp;·&nbsp; [**Sitio web**](https://vezzulab.github.io/juke/) &nbsp;·&nbsp; [Reportar un problema](https://github.com/vezzulab/juke/issues)
+[**Descargar**](https://github.com/vezzulab/juke/releases/latest) &nbsp;·&nbsp; [**Sitio web**](https://vezzulab.github.io/juke/) &nbsp;·&nbsp; [**Manual**](https://vezzulab.github.io/juke/manual.html) &nbsp;·&nbsp; [Reportar un problema](https://github.com/vezzulab/juke/issues)
 
 </div>
 
 <br>
+
+## Novedades de la 1.0
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**Teclas multimedia y controles del escritorio.** Reproducir, pausar, siguiente y anterior desde el teclado, los auriculares y el widget multimedia de GNOME, KDE y el resto. El control de volumen es el de la computadora, en ambos sentidos.
+
+**Crossfade.** La siguiente canción entra unos segundos antes de que termine la actual. Una luz verde bajo el volumen muestra que está activo; un clic lo apaga.
+
+**Un ecualizador que cualquiera puede usar.** Cada barra dice qué cambia — *Graves profundos*, *Voz*, *Claridad*, *Brillo* — y hay 35 presets.
+
+</td>
+<td width="50%" valign="top">
+
+**Letras en cualquier idioma.** Se buscan en varios servicios gratuitos a la vez, los títulos se limpian, y si un servicio está ocupado se vuelve a preguntar en vez de fallar.
+
+**Listas bien hechas.** Una canción nunca se agrega dos veces, la ✓ de *Añadir a la lista* la quita, y la biblioteca muestra en qué listas está cada canción.
+
+**Sabe qué se puede reproducir.** Las canciones de un servidor sin conexión o de un disco desconectado se ven en gris con una nota, y la reproducción las salta.
+
+**Un manual dentro de la app**, con índice, en español e inglés.
+
+</td>
+</tr>
+</table>
+
+¿Ya usas Juke? Te ofrece la 1.0 solo: *Actualizar ahora* reemplaza el AppImage en su lugar, y en Android descarga e instala el APK nuevo. Tu biblioteca, tus listas y tus ajustes se conservan.
+
+## El manual
+
+Una guía completa, escrita como un libro con índice — desde instalar hasta el ecualizador, las listas, los servidores, la radio, las letras y qué hacer cuando algo sale mal. Está **dentro de la app** (`F1` en Linux, *Ajustes ▸ Manual* en Android) y en el idioma de la app, y también en línea: **[leer el manual](https://vezzulab.github.io/juke/manual.html)**. El texto está en [`juke/assets/manual`](juke/assets/manual) ([English](juke/assets/manual/manual-en.md) · [Español](juke/assets/manual/manual-es.md)).
 
 ## Por qué Juke
 
@@ -62,7 +96,7 @@ Un Juke inactivo **no genera ningún despertar**. Reproduciendo con batería usa
 <td valign="top">
 
 ### Ecualizador de 10 bandas
-Diez bandas (60 Hz – 16 kHz), preamp de ±20 dB, quince presets incluidos (con **Dembow, Reggaetón, Salsa, Merengue y Bachata**) y los tuyos. Cada preset suena con su propio margen, así que un realce de graves nunca hace que el sonido se rompa. Usa el ecualizador nativo de libVLC sobre un único reproductor de larga vida, así que cambiar de canción — o sintonizar una emisora — nunca lo reinicia.
+Diez bandas (60 Hz – 16 kHz), preamp de ±20 dB, treinta y cinco presets incluidos (con **Dembow, Reggaetón, Salsa, Merengue, Bachata, Cumbia, Afrobeat y K-Pop**, y ajustes para altavoces pequeños o escucha nocturna) y los tuyos. Cada barra dice con palabras sencillas qué cambia (*Graves profundos*, *Voz*, *Claridad*, *Brillo*…), agrupadas en GRAVES / MEDIOS / AGUDOS, con un consejo con más detalle. Cada preset suena con su propio margen, así que un realce de graves nunca hace que el sonido se rompa. Usa el ecualizador nativo de libVLC sobre un único reproductor de larga vida, así que cambiar de canción — o sintonizar una emisora — nunca lo reinicia.
 
 </td>
 <td valign="top">
@@ -116,7 +150,7 @@ Bajo **Carpetas** en el panel lateral, Juke guarda tu música como tú la organi
 - **Enviar comentarios…** y **Ver registro…** están en el menú ⋯. El reporte se abre como un problema nuevo en GitHub para que lo revises. Antes se ocultan tu carpeta personal, contraseñas y la dirección de tu servidor.
 - El AppImage se añade solo a tu menú de aplicaciones la primera vez que se ejecuta.
 - **Veinte temas de color**, diez claros y diez oscuros, a un clic del botón de paleta junto al menú ⋯. Pasteles suaves (Rosa, Lavanda, Menta, Cielo, Durazno, Arena, Laguna, Coral, Salvia, Limón) y looks más profundos (Bosque profundo, Océano, Atardecer, Neón, Brasa, Ártico, Crepúsculo, Ámbar, Palorrosa, Grafito), todos comprobados para leerse bien.
-- **Letras.** Clic derecho en una canción ▸ *Añadir letra…* (pégala o importa un archivo `.lrc`) o *Buscar letra…*, que busca en [LRCLIB](https://lrclib.net), un servicio gratuito de letras, por el nombre de la canción. Una columna a la derecha se abre sola cuando la canción que suena tiene letra, y se queda cerrada cuando no la tiene. Las letras sincronizadas iluminan la línea que va sonando. Juke también lee un archivo `.lrc` junto a la canción y la letra que venga en sus etiquetas.
+- **Letras.** Clic derecho en una canción ▸ *Añadir letra…* (pégala o importa un archivo `.lrc`) o *Buscar letra…*, que busca a la vez en [LRCLIB](https://lrclib.net), NetEase Cloud Music y lyrics.ovh — servicios gratuitos que juntos cubren español, inglés, portugués, chino, japonés, coreano, árabe, hindi y muchos más — por el nombre de la canción (sin «(feat. …)», «[Remastered]» y similares, en cualquier escritura). También lee bien archivos de letra en codificaciones antiguas (GBK, Shift-JIS, EUC-KR…) y los idiomas de derecha a izquierda. Una columna a la derecha se abre sola cuando la canción que suena tiene letra, y se queda cerrada cuando no la tiene. Las letras sincronizadas iluminan la línea que va sonando. Juke también lee un archivo `.lrc` junto a la canción y la letra que venga en sus etiquetas.
 
 ## Capturas
 
@@ -136,6 +170,10 @@ Bajo **Carpetas** en el panel lateral, Juke guarda tu música como tú la organi
 <tr>
 <td><img src="assets/screenshot-equalizer.png" alt="Ecualizador de diez bandas con curva de respuesta en vivo"><br><sub><b>Ecualizador</b> — curva de respuesta en vivo, presets, velocidad y balance estéreo.</sub></td>
 <td><img src="assets/screenshot-settings.png" alt="Ajustes de Airsonic"><br><sub><b>Ajustes</b> — idioma, tema, carpetas, actualizaciones y tu servidor Airsonic / Subsonic.</sub></td>
+</tr>
+<tr>
+<td><img src="assets/screenshot-lyrics.png" alt="Letra sincronizada junto a la canción"><br><sub><b>Letras</b> — sincronizadas, en cualquier idioma, iluminando la línea que se canta.</sub></td>
+<td><img src="assets/screenshot-playback.png" alt="Ajustes, Reproducción"><br><sub><b>Reproducción</b> — volumen que sigue al de la computadora, crossfade y medidor de nivel.</sub></td>
 </tr>
 </table>
 
@@ -269,7 +307,7 @@ Juke no tiene telemetría, ni cuentas, ni analítica. Lleva incluidas su tipogra
 | Tu servidor Airsonic / Subsonic | Solo si configuras uno. |
 | `api.github.com` | Al abrirse y cada 30 minutos mientras está abierto, para buscar una versión nueva, si dejas activada *Buscar actualizaciones automáticamente*. Solo se envían el nombre y la versión del programa. |
 | Radio Browser (`*.api.radio-browser.info`) y las propias emisoras | Solo cuando abres *Explorar Radio*, añades una emisora o la sintonizas. |
-| `lrclib.net` | Solo cuando pulsas *Buscar letra…*, o si activas *Buscar letras en línea* en Ajustes. Recibe el nombre, el artista, el álbum y la duración de la canción, nada más. |
+| `lrclib.net`, `music.163.com`, `api.lyrics.ovh` | Solo cuando pulsas *Buscar letra…*, o si activas *Buscar letras en línea* en Ajustes. Reciben el nombre, el artista, el álbum y la duración de la canción, nada más. |
 | `github.com` (la página de problemas) | Solo cuando pulsas *Abrir en GitHub* en *Enviar comentarios…*. Juke no envía nada por sí mismo; el reporte se abre en tu navegador. |
 
 ## Rendimiento
@@ -300,6 +338,10 @@ juke/
 ├── config.py           rutas XDG, persistencia de ajustes
 ├── updater.py          búsqueda de versiones en GitHub, actualización verificada en sitio
 ├── integration.py      entrada del menú de aplicaciones + iconos (AppImage)
+├── mpris.py            teclas multimedia y controles del escritorio (D-Bus)
+├── sysvolume.py        el volumen de la computadora, en ambos sentidos
+├── availability.py     qué canciones se pueden reproducir ahora (servidor / disco conectado)
+├── manual.py           el manual: un libro en Markdown por idioma, compartido con Android
 ├── power.py            detección de corriente / batería
 ├── i18n.py, locales/   inglés / español, cambio en vivo
 ├── audio/              motor libVLC, ecualizador, cola, balance, títulos ICY, resolución de fuentes
@@ -337,7 +379,7 @@ La suite tiene más de cien pruebas, incluida reproducción real con libVLC (se 
 - El espectro de la pantalla LCD es un **medidor animado, no un analizador** — libVLC no expone datos FFT.
 - El **karaoke** (letra a pantalla completa con cuenta regresiva antes de cada frase) está en Android. En Linux tienes la columna de letra sincronizada. Juke nunca procesa el sonido de tus canciones más allá del ecualizador que elijas.
 - El **balance** estéreo necesita PulseAudio o PipeWire (`pactl`) y un flujo estéreo; si no, se desactiva.
-- Aún no hay MPRIS / teclas multimedia globales, ni reproducción sin pausas, ni reordenar canciones arrastrando dentro de las listas, y solo un servidor Airsonic a la vez.
+- Las teclas multimedia y los controles del escritorio (MPRIS) funcionan en GNOME, KDE y el resto. El crossfade es solo automático (saltar a mano corta), no hay reproducción sin pausas, ni reordenar canciones arrastrando dentro de las listas, y solo un servidor Airsonic a la vez.
 - Tus propias carpetas viven en Juke (*Carpetas*), el servidor Airsonic se recorre por sus carpetas y la biblioteca local por artista, álbum y género.
 - Radio: no se admiten emisoras que pidan inicio de sesión o usen transmisiones protegidas. La canción en el aire requiere que la emisora envíe metadatos ICY.
 

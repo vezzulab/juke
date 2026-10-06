@@ -8,11 +8,12 @@ user's XDG directories, pointing at wherever the AppImage currently lives.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from . import APP_ID, __version__
+from . import APP_ID, APP_NAME, __version__
 from .assets import ICON_SVG
 
 ICON_SIZES = (16, 22, 24, 32, 48, 64, 128, 256, 512)
@@ -71,11 +72,16 @@ def entry_text() -> str:
         f"MimeType={';'.join(MIME_TYPES)};",
         "Keywords=music;audio;player;equalizer;airsonic;subsonic;flac;mp3;",
         "Keywords[es]=música;audio;reproductor;ecualizador;airsonic;subsonic;flac;mp3;",
-        f"StartupWMClass={APP_ID}",
+        f"StartupWMClass={APP_NAME}",   # X11 windows are classed by Qt as "Juke": that is what panels match the icon by
         "StartupNotify=false",
         f"X-Juke-Version={__version__}",
         "",
     ])
+
+
+def icons_installed() -> bool:
+    return all((_icon_root() / f"{s}x{s}" / "apps" / f"{APP_ID}.png").is_file() for s in ICON_SIZES) \
+        and (_icon_root() / "scalable" / "apps" / f"{APP_ID}.svg").is_file()
 
 
 def is_installed() -> bool:
@@ -85,7 +91,7 @@ def is_installed() -> bool:
 def needs_refresh() -> bool:
     """Installed entry no longer matches where/what we are running from."""
     try:
-        return desktop_file().read_text(encoding="utf-8") != entry_text()
+        return desktop_file().read_text(encoding="utf-8") != entry_text() or not icons_installed()
     except OSError:
         return False
 
@@ -122,13 +128,27 @@ def uninstall() -> None:
 
 
 def _refresh_caches() -> None:
-    """Best effort: tell the desktop about the new entry/icons (tools may be absent)."""
-    commands = (
+    """Best effort: tell every desktop about the new entry and icons (tools may be absent).
+
+    GNOME and the GTK desktops read the icon cache of the theme; KDE keeps its own cache of menu entries and icons
+    (``kbuildsycoca``); the rest watch the directories. Where no tool exists, touching the directories is the signal.
+    """
+    commands = [
         ["update-desktop-database", str(desktop_file().parent)],
         ["gtk-update-icon-cache", "-q", "-f", "-t", str(_icon_root())],
-    )
+        ["xdg-icon-resource", "forceupdate"],
+        ["kbuildsycoca6", "--noincremental"],
+        ["kbuildsycoca5", "--noincremental"],
+    ]
     for command in commands:
+        if shutil.which(command[0]) is None:
+            continue
         try:
-            subprocess.run(command, capture_output=True, timeout=8, check=False)
+            subprocess.run(command, capture_output=True, timeout=15, check=False)
         except (OSError, subprocess.SubprocessError):
+            pass
+    for path in (_icon_root(), desktop_file().parent):
+        try:
+            os.utime(path)
+        except OSError:
             pass

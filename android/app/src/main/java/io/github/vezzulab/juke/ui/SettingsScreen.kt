@@ -23,10 +23,11 @@ import io.github.vezzulab.juke.R
 @Composable
 fun SettingsScreen(vm: JukeViewModel, onLanguage: (String) -> Unit, onEqualizer: () -> Unit, onRescan: () -> Unit) {
     var language by remember { mutableStateOf(vm.store.language) }
-    var page by rememberSaveable { mutableStateOf("") }               // "", "feedback" or "log"
+    var page by rememberSaveable { mutableStateOf("") }               // "", "feedback", "log" or "manual"
     androidx.activity.compose.BackHandler(enabled = page != "") { page = "" }
     if (page == "feedback") { FeedbackScreen(vm) { page = "" }; return }
     if (page == "log") { LogScreen(vm) { page = "" }; return }
+    if (page == "manual") { ManualScreen { page = "" }; return }
     Column(Modifier.fillMaxSize().padding(horizontal = 10.dp)) {
         Crumb(stringResource(R.string.nav_settings), "", canGoUp = false, onUp = {})
         Column(
@@ -78,6 +79,9 @@ fun SettingsScreen(vm: JukeViewModel, onLanguage: (String) -> Unit, onEqualizer:
             }
             Block(stringResource(R.string.support)) {
                 SupportKey(Modifier.fillMaxWidth())
+            }
+            Block(stringResource(R.string.manual_title)) {
+                ActionKey(stringResource(R.string.manual_open), { page = "manual" }, Modifier.fillMaxWidth(), icon = R.drawable.ic_lyrics, accent = false)
             }
             Block(stringResource(R.string.feedback_block)) {
                 ActionKey(stringResource(R.string.feedback_title), { page = "feedback" }, Modifier.fillMaxWidth(), icon = R.drawable.ic_playlist, accent = false)

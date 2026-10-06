@@ -123,6 +123,10 @@ def make_window(lang: str):
     engine = AudioEngine()
     eq = Equalizer(cfg)
     window = MainWindow(cfg, db, engine, eq)
+    window.avail.want = lambda tracks: None                    # the demo songs have no files: do not grey them out
+    window._check_server = lambda force=False: None            # ...and there is no server to ask: Airsonic shows as connected
+    window.avail.set_server(True)
+    window.statusBar().clearMessage()
     window.resize(1320, 820)
     window.show()
     settle(150)
@@ -132,13 +136,26 @@ def make_window(lang: str):
 def stage_playing(window, db) -> None:
     ids = db.query_ids(text="glasshouse")
     track = db.get_track(ids[2])
+    everyone_ids = db.query_ids()
     from juke.gui.main_window import cover_path
     window.top_bar.set_track(track, __import__("PySide6.QtGui", fromlist=["QPixmap"]).QPixmap(str(cover_path(track.cover_key))))
     window.top_bar.set_state("playing")
     window.top_bar.set_position(102000, int(track.duration * 1000))
     window.current_track = track
     window.queue.set_context(db.query_ids(), track.id)
+    if not db.playlists():                                     # two playlists, so "In playlists" has something to say
+        everyone = db.query_ids()
+        db.add_to_playlist(db.create_playlist("Road trip"), everyone[0:6])
+        db.add_to_playlist(db.create_playlist("Sunday morning"), everyone[2:9])
+        window.refresh_playlists()
+        window.table.track_model.invalidate_rows()
     window.table.track_model.set_current(track.id)
+    window.table.track_model.set_state("playing")
+    window.table.track_model.set_animating(True)               # the bars beside the song that is on
+    window.table.track_model._frame = 7
+    for earlier in everyone_ids[:2] + everyone_ids[3:5]:                         # songs that already played: a green check
+        window.table.track_model.mark_played(earlier)
+    window._apply_crossfade(5)                                 # the green light under the volume
     window.table.selectRow(window.table.track_model.ids().index(track.id))
     window.setWindowTitle(window._window_title())
 
@@ -162,7 +179,7 @@ def rounded(image: QImage, radius: float) -> QImage:
     return out
 
 
-def make_hero(shot: Path, out: Path, tagline: str, sub: str) -> None:
+def make_hero(shot: Path, out: Path, tagline: str, sub: str, chips: tuple[str, ...] = ()) -> None:
     """Wide banner: glow, app icon, wordmark, tagline and the real screenshot."""
     scale = 2
     w, h = 1280 * scale, 760 * scale
@@ -197,6 +214,21 @@ def make_hero(shot: Path, out: Path, tagline: str, sub: str) -> None:
     grad.setColorAt(1, QColor("#d6b8fa"))
     p.setPen(QColor("#ffffff"))
     p.drawText(title_rect, Qt.AlignHCenter | Qt.AlignVCenter, "Juke")
+    from PySide6.QtGui import QFontMetrics
+    word = QFontMetrics(font).horizontalAdvance("Juke")                       # the "1.0" pill sits at the end of the wordmark
+    pill_font = QFont("Inter")
+    pill_font.setPixelSize(26 * scale)
+    pill_font.setWeight(QFont.Bold)
+    pill = QRectF(w / 2 + word / 2 + 14 * scale, 190 * scale, 70 * scale, 40 * scale)
+    pill_fill = QLinearGradient(pill.left(), 0, pill.right(), 0)
+    pill_fill.setColorAt(0, QColor("#7aa2f7"))
+    pill_fill.setColorAt(1, QColor("#cba6f7"))
+    p.setPen(Qt.NoPen)
+    p.setBrush(pill_fill)
+    p.drawRoundedRect(pill, 20 * scale, 20 * scale)
+    p.setFont(pill_font)
+    p.setPen(QColor("#11111b"))
+    p.drawText(pill, Qt.AlignCenter, "1.0")
     font.setPixelSize(24 * scale)
     font.setWeight(QFont.Medium)
     font.setLetterSpacing(QFont.AbsoluteSpacing, 0)
@@ -209,11 +241,32 @@ def make_hero(shot: Path, out: Path, tagline: str, sub: str) -> None:
     p.setPen(QColor("#9399b2"))
     p.drawText(QRectF(0, 304 * scale, w, 26 * scale), Qt.AlignHCenter | Qt.AlignVCenter, sub)
 
+    if chips:                                                                  # what is new, as a row of small badges
+        chip_font = QFont("Inter")
+        chip_font.setPixelSize(15 * scale)
+        chip_font.setWeight(QFont.DemiBold)
+        metrics = QFontMetrics(chip_font)
+        pad, gap = 16 * scale, 10 * scale
+        widths = [metrics.horizontalAdvance(c) + 2 * pad for c in chips]
+        x0 = (w - (sum(widths) + gap * (len(chips) - 1))) / 2
+        for text, cw in zip(chips, widths):
+            box = QRectF(x0, 342 * scale, cw, 32 * scale)
+            edge = QColor("#cba6f7")
+            edge.setAlpha(90)
+            fill = QColor("#cba6f7")
+            fill.setAlpha(26)
+            p.setPen(edge)
+            p.setBrush(fill)
+            p.drawRoundedRect(box, 16 * scale, 16 * scale)
+            p.setFont(chip_font)
+            p.setPen(QColor("#e4dcfb"))
+            p.drawText(box, Qt.AlignCenter, text)
+            x0 += cw + gap
     shot_img = QImage(str(shot))
     width = 1010 * scale
     scaled = shot_img.scaledToWidth(width, Qt.SmoothTransformation)
     card = rounded(scaled, 18 * scale)
-    x, y = (w - width) // 2, 372 * scale
+    x, y = (w - width) // 2, 400 * scale
     for i in range(14):  # soft shadow
         shadow = QColor(0, 0, 0, 12)
         p.setPen(Qt.NoPen)
@@ -303,6 +356,29 @@ def main() -> None:
     sidebar.select("all")
     window._show_view("all", None)
 
+    # a playlist: when songs go in, the date is not needed here, the ✓ in "Add to playlist" tells what is where
+    first_list = db.playlists()[0][0]
+    sidebar.select("playlist", first_list)
+    window._show_view("playlist", first_list)
+    window.table.clearSelection()
+    grab(window, out / "screenshot-playlist.png")
+    sidebar.select("all")
+    window._show_view("all", None)
+
+    # synced lyrics (invented words) beside the song that is playing
+    stage_playing(window, db)
+    demo = ("[00:08.00]Paper moons over the kitchen light\n[00:14.00]Slow motion summer, hold on tight\n"
+            "[00:20.00]Glasshouse windows, golden hour\n[00:26.00]Every colour in the shower\n"
+            "[00:32.00]We were never in a hurry\n[00:38.00]Hello, golden hour")
+    playing = window.current_track
+    window._save_lyrics(playing, demo)
+    window._show_lyrics_panel(True)
+    window.lyrics_panel.set_position(27000)
+    window.lyrics_panel.set_lyrics(demo)
+    window.lyrics_panel.set_position(27000)
+    grab(window, out / "screenshot-lyrics.png")
+    window._show_lyrics_panel(False)
+
     # equalizer
     eq.set_enabled(True)
     eq.load_preset("Rock")
@@ -316,10 +392,13 @@ def main() -> None:
     # Airsonic settings tab
     window.config.set("airsonic", {"enabled": True, "url": "https://music.example.com", "username": "alex", "password": "demo"})
     settings = SettingsDialog(window.config, True, window)
-    settings.findChild(__import__("PySide6.QtWidgets", fromlist=["QTabWidget"]).QTabWidget).setCurrentIndex(2)
+    settings.findChild(__import__("PySide6.QtWidgets", fromlist=["QTabWidget"]).QTabWidget).setCurrentIndex(3)
     settings.show()
     settle(200)
     grab(settings, out / "screenshot-settings.png")
+    settings.findChild(__import__("PySide6.QtWidgets", fromlist=["QTabWidget"]).QTabWidget).setCurrentIndex(1)
+    settle(150)
+    grab(settings, out / "screenshot-playback.png")
     settings.reject()
     window.close()
 
@@ -330,10 +409,12 @@ def main() -> None:
     window.close()
 
     make_hero(out / "screenshot-main.png", out / "hero.png",
-              "A modern music player for Linux", "Three panes. Ten-band equalizer. Airsonic streaming. Instant with 50,000+ tracks.")
+              "A modern music player for Linux", "Three panes. Airsonic streaming. Internet radio. Instant with 50,000+ tracks.",
+              ("Media keys", "Crossfade", "Lyrics in any language", "An equalizer for everyone"))
     translator.set_language("es")
     make_hero(out / "screenshot-main-es.png", out / "hero-es.png",
-              "Un reproductor de música moderno para Linux", "Tres paneles. Ecualizador de 10 bandas. Streaming Airsonic. Instantáneo con más de 50.000 pistas.")
+              "Un reproductor de música moderno para Linux", "Tres paneles. Streaming Airsonic. Radio por Internet. Instantáneo con más de 50.000 pistas.",
+              ("Teclas multimedia", "Crossfade", "Letras en cualquier idioma", "Un ecualizador para todos"))
 
     svg = ICON_SVG.read_bytes()
     icons.render_svg(svg, 512, 1.0).save(str(out / "icon.png"), "PNG")

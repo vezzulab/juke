@@ -44,6 +44,7 @@ def make_window(name, n=200):
     engine = AudioEngine()
     eq = Equalizer(cfg)
     window = MainWindow(cfg, db, engine, eq)
+    window.avail.want = lambda tracks: None          # these songs live at made-up paths: do not look for the files
     window.show()
     pump(100)
     return window, cfg, db, engine, eq
@@ -194,8 +195,28 @@ class GuiTests(unittest.TestCase):
             window._add_to_playlist(pid, [ids[2]])
             self.assertEqual(window.table.track_model.rowCount(), 3)
             self.assertEqual(sidebar._items[("playlist", pid)].data(0, COUNT_ROLE), 3)
-            window._remove_from_playlist([ids[0]])
+            window._remove_from_playlist(window.table.track_model.entry_positions([0]))
             self.assertEqual(window.table.track_model.ids(), [ids[1], ids[2]])
+            window._add_to_playlist(pid, [ids[1]])                                   # the same song again: told, not repeated
+            self.assertEqual(window.table.track_model.ids(), [ids[1], ids[2]])
+            self.assertIn(translator.tr("msg.already_playlist_one", name="Fiesta"), window.statusBar().currentMessage())
+            window._add_to_playlist(pid, [ids[1], ids[3]])                           # one is there, one is new
+            self.assertEqual(window.table.track_model.ids(), [ids[1], ids[2], ids[3]])
+            self.assertIn("1", window.statusBar().currentMessage())
+            window.db.add_to_playlist(pid, [ids[1]], allow_duplicates=True)          # (a copy made before this rule existed)
+            window._reload_view()
+            self.assertEqual(window.table.track_model.ids(), [ids[1], ids[2], ids[3], ids[1]])
+            self.assertTrue(window.table.isColumnHidden(7))                          # inside a playlist: no "in playlists" column
+            window._remove_from_playlist(window.table.track_model.entry_positions([3]))   # ...and only that copy goes
+            window._remove_from_playlist(window.table.track_model.entry_positions([2]))
+            self.assertEqual(window.table.track_model.ids(), [ids[1], ids[2]])
+            window._show_view("all", None)                                           # in the library each song says where it is
+            self.assertFalse(window.table.isColumnHidden(7))
+            model = window.table.track_model
+            row_of = {i: r for r, i in enumerate(model.ids())}
+            self.assertEqual(model.data(model.index(row_of[ids[1]], 7)), "Fiesta")
+            self.assertEqual(model.data(model.index(row_of[ids[5]], 7)), "")        # in no playlist
+            window._show_view("playlist", pid)
             window._new_playlist()                                                   # same name again -> made unique
             self.assertEqual(sorted(n for _, n, _c in db.playlists()), ["Fiesta", "Fiesta (2)"])
             self.assertEqual(window.table.playlists[0][1], "Fiesta")                 # offered in "Add to playlist"
@@ -205,6 +226,41 @@ class GuiTests(unittest.TestCase):
         finally:
             main_window_module.ask_text, main_window_module.confirm = original
             window.close()
+
+    def test_a_song_deleted_from_the_playing_playlist_does_not_come_back(self):
+        translator.set_language("en")
+        window, cfg, db, engine, eq = make_window("gui8b", n=8)
+        ids = db.query_ids()
+        pid = db.create_playlist("Mix")
+        db.add_to_playlist(pid, [ids[0], ids[1], ids[2]])
+        db.add_to_playlist(pid, [ids[1]], allow_duplicates=True)                    # a copy from before the rule existed
+        window.refresh_playlists()
+        window._show_view("playlist", pid)
+        window.table.selectRow(0)
+        window._play_from_table(ids[0])                                              # playing the playlist
+        self.assertEqual(window.queue.order, [ids[0], ids[1], ids[2], ids[1]])
+        window._remove_from_playlist(window.table.track_model.entry_positions([3]))   # the repeated song is taken out
+        self.assertEqual(window.queue.order, [ids[0], ids[1], ids[2]])               # ...and the queue knows it
+        self.assertEqual(window.queue.upcoming(), [ids[1], ids[2]])
+        window._add_to_playlist(pid, [ids[5]])                                       # one put in while playing waits at the end
+        self.assertEqual(window.queue.upcoming(), [ids[1], ids[2], ids[5]])
+        window.close()
+
+    def test_the_check_mark_of_add_to_playlist_takes_the_song_out_again(self):
+        translator.set_language("en")
+        window, cfg, db, engine, eq = make_window("gui8c", n=8)
+        ids = db.query_ids()
+        pid = db.create_playlist("Mix")
+        db.add_to_playlist(pid, [ids[0], ids[1]])
+        window.refresh_playlists()
+        self.assertEqual(db.playlist_coverage([ids[0]]), {pid: 1})
+        self.assertEqual(db.playlist_coverage([ids[0], ids[2]]), {pid: 1})            # one of the two: partly in
+        window._remove_songs_from_playlist(pid, [ids[0]])                              # the ✓ pressed again
+        self.assertEqual(db.playlist_track_ids(pid), [ids[1]])
+        self.assertIn("removed", window.statusBar().currentMessage())
+        window._remove_songs_from_playlist(pid, [ids[0]])                              # not there: nothing happens
+        self.assertEqual(db.playlist_track_ids(pid), [ids[1]])
+        window.close()
 
     def test_empty_states_offer_a_button_and_the_sidebar_footer_only_has_support(self):
         translator.set_language("en")
@@ -230,6 +286,110 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(big.devicePixelRatio(), 2.0)
         for name in icons._GLYPHS:
             self.assertFalse(icons.glyph(name, "#ffffff", 20).isNull(), name)
+
+
+class PlayingMarkTests(unittest.TestCase):
+    def test_bars_beside_the_playing_song_move_only_while_it_plays(self):
+        from juke.gui.components.track_table import BEAT_MS, BEAT_SLOW_MS, TrackTable
+
+        db = Database(Path(helpers.ROOT) / "mark.db")
+        db.upsert_many([row(i) for i in range(5)])
+        table = TrackTable(db)
+        table.show_view()
+        model = table.track_model
+        ids = model.ids()
+        model.set_current(ids[2])
+        self.assertIsNone(model.data(model.index(2, 0), Qt.DecorationRole))        # stopped: nothing beside the song
+        model.mark_played(ids[0])                                                    # a song that already played: a check mark
+        self.assertIsNotNone(model.data(model.index(0, 0), Qt.DecorationRole))
+        self.assertIsNone(model.data(model.index(0, 1), Qt.DecorationRole))        # (beside the title only)
+        model.set_current(ids[1])                                                    # another song is picked: the check stays
+        self.assertIsNotNone(model.data(model.index(0, 0), Qt.DecorationRole))
+        db.record_start(ids[2])                                                      # played in an earlier session: no check
+        model.invalidate_rows()
+        self.assertIsNone(model.data(model.index(4, 0), Qt.DecorationRole))
+        self.assertIsNone(model.data(model.index(3, 0), Qt.DecorationRole))
+        model.set_current(ids[2])
+        model.set_state("playing")
+        model.set_animating(True, slow=True)                                         # on battery: slower, but moving
+        self.assertTrue(model._beat.isActive())
+        self.assertEqual(model._beat.interval(), BEAT_SLOW_MS)
+        first = model.data(model.index(2, 0), Qt.DecorationRole)
+        for _ in range(3):
+            model._tick()
+        self.assertIsNotNone(first)
+        self.assertIsNone(model.data(model.index(3, 0), Qt.DecorationRole))        # only the playing row has the bars
+        model.set_animating(True, slow=False)
+        self.assertEqual(model._beat.interval(), BEAT_MS)
+        model.set_state("paused")
+        self.assertFalse(model._beat.isActive())                                     # paused: still, no wake-ups
+        self.assertIsNotNone(model.data(model.index(2, 0), Qt.DecorationRole))
+        model.set_state("stopped")
+        self.assertIsNone(model.data(model.index(2, 0), Qt.DecorationRole))
+
+
+class AvailabilityTests(unittest.TestCase):
+    def test_songs_that_cannot_play_are_grey_with_a_note(self):
+        import tempfile
+        from juke.availability import Availability
+        from juke.gui.components.track_table import TrackTable
+
+        translator.set_language("en")
+        folder = Path(tempfile.mkdtemp(prefix="juke-avail-"))
+        there = folder / "here.wav"
+        write_wav(there)
+        db = Database(Path(helpers.ROOT) / "avail.db")
+        db.upsert_many([row(1, location=str(there), title="Here"),
+                        row(2, location="/mnt/nas-that-is-off/gone.mp3", title="Gone"),
+                        row(3, source_type=SOURCE_AIRSONIC, location="abc", title="Remote")])
+        avail = Availability()
+        table = TrackTable(db)
+        table.track_model.availability = avail
+        table.show_view()
+        model = table.track_model
+        rows = {model.track_at(r).title: r for r in range(model.rowCount())}      # painting a page asks about its files
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline and avail.reason(model.track_at(rows["Gone"])) is None:
+            pump(20)
+        col = lambda title, c, role=Qt.DisplayRole: model.data(model.index(rows[title], c), role)
+        self.assertEqual(col("Gone", 6), "Not connected")                           # the note where the source is
+        self.assertEqual(col("Gone", 0, Qt.ForegroundRole), model._dim)             # grey
+        self.assertIn("isn’t connected", col("Gone", 0, Qt.ToolTipRole))
+        self.assertEqual(col("Here", 6), "Local")                                   # a file that is there is normal
+        self.assertNotEqual(col("Here", 0, Qt.ForegroundRole), model._dim)
+        self.assertEqual(col("Remote", 6), "Airsonic")                              # server not known to be down: normal
+        avail.set_server(False)                                                      # offline: Airsonic songs go grey
+        self.assertEqual(col("Remote", 6), "Go online")
+        self.assertEqual(col("Remote", 0, Qt.ForegroundRole), model._dim)
+        avail.set_server(True)
+        self.assertEqual(col("Remote", 6), "Airsonic")                              # back online: normal again
+        there.unlink()                                                               # a file that disappears is noticed later
+        avail.expire()
+        table.recheck_availability()
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline and avail.reason(model.track_at(rows["Here"])) is None:
+            pump(20)
+        self.assertEqual(col("Here", 6), "Not connected")
+
+
+class CrossfadeLightTests(unittest.TestCase):
+    def test_the_light_under_the_volume_shows_and_toggles_crossfade(self):
+        translator.set_language("en")
+        window, cfg, db, engine, eq = make_window("gui-xf", n=3)
+        light = window.top_bar.crossfade
+        self.assertFalse(light.on)                                                  # off by default: grey
+        QTest.mouseClick(light, Qt.LeftButton)                                      # a click turns it on...
+        self.assertTrue(light.on)
+        self.assertEqual((engine.crossfade, cfg.get("crossfade")), (5, 5))
+        self.assertIn("5 s", light.toolTip())
+        QTest.mouseClick(light, Qt.LeftButton)                                      # ...and off again
+        self.assertEqual((light.on, engine.crossfade, cfg.get("crossfade")), (False, 0, 0))
+        window._apply_crossfade(9)                                                  # set in Settings: the light follows
+        self.assertTrue(light.on)
+        window._crossfade_toggled(False)
+        window._crossfade_toggled(True)                                             # turned on again: the 9 s it had
+        self.assertEqual(engine.crossfade, 9)
+        window.close()
 
 
 class LightweightTests(unittest.TestCase):

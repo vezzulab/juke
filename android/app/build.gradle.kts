@@ -12,6 +12,17 @@ val keystoreProps = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
+// The manual is shared with Juke for Linux: one copy of the text, in juke/assets/manual. Only the text and the phone's own
+// pictures go into the APK (the PC screenshots stay out, to keep it small).
+val manualAssets = layout.buildDirectory.dir("generated/manual")
+val copyManual = tasks.register<Copy>("copyManual") {
+    from(rootProject.file("../juke/assets/manual")) {
+        include("*.md")
+        include("img/android/**")
+    }
+    into(manualAssets)
+}
+
 android {
     namespace = "io.github.vezzulab.juke"
     compileSdk = 35
@@ -20,8 +31,8 @@ android {
         applicationId = "io.github.vezzulab.juke"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "0.3.3"
+        versionCode = 20
+        versionName = "1.0.0"
     }
 
     signingConfigs {
@@ -50,8 +61,11 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
+    sourceSets["main"].assets.srcDir(manualAssets)
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
+
+tasks.named("preBuild") { dependsOn(copyManual) }
 
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.04.01"))

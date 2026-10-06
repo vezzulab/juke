@@ -10,7 +10,9 @@ changing songs only swaps the media, so the equalizer setting is never torn down
 from __future__ import annotations
 
 import glob
+import math
 import os
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
@@ -24,6 +26,7 @@ POLL_ACTIVE_MS = 500     # window in front: progress bar and time labels follow 
 ICY_FIRST_MS = 2500      # first own ICY title lookup after tuning in
 ICY_EVERY_MS = 30_000    # then every half minute, and only while the window is in front
 POLL_HIDDEN_MS = 2000    # window hidden/minimised/unfocused: only watch for the end of the song
+FADE_STEP_MS = 80        # volume steps of a crossfade (only while one is running)
 READY_AFTER_MS = 400     # media time after which the audio output is fully up
 
 
@@ -41,6 +44,7 @@ class AudioEngine(QObject):
     track_finished = Signal()                  # reached the end by itself
     error = Signal(str)
     now_playing_changed = Signal(str)          # live radio: the song the station is playing right now (ICY metadata)
+    ending_soon = Signal()                     # crossfade: the song is ``crossfade`` seconds from its end, start the next one
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -48,6 +52,13 @@ class AudioEngine(QObject):
         self.balance = 0.0
         self.volume = 80
         self.muted = False
+        self.crossfade = 0                     # seconds of overlap between two songs; 0 = off
+        self._fade_armed = False               # a timer is waiting for the moment the next song has to come in
+        self._fade_old = None                  # the player (and media) of the song that is fading out
+        self._fade_old_media = None
+        self._fade_started = 0.0
+        self._fade_length = 0.0
+        self._level_scale = 1.0                # fade-in of the current song, 0..1, on top of the volume
         self.unavailable_reason = ""
         self._state = "stopped"
         self._equalizer: Equalizer | None = None
@@ -75,6 +86,9 @@ class AudioEngine(QObject):
         self._timer.setTimerType(Qt.CoarseTimer)   # lets the kernel batch our wake-ups with others
         self._timer.setInterval(POLL_ACTIVE_MS)
         self._timer.timeout.connect(self._poll)
+        self._fade_timer = QTimer(self)
+        self._fade_timer.setInterval(FADE_STEP_MS)
+        self._fade_timer.timeout.connect(self._fade_step)
 
     # -- lazy libVLC ----------------------------------------------------------------------
     def _ensure_backend(self) -> bool:
@@ -118,14 +132,29 @@ class AudioEngine(QObject):
     def state(self) -> str:
         return self._state
 
-    def play_url(self, url: str) -> bool:
-        """Start ``url`` (file:///... or http(s)://...) on the same player."""
+    def play_url(self, url: str, fade: bool = False) -> bool:
+        """Start ``url`` (file:///... or http(s)://...) on the same player.
+
+        ``fade``: let the song that is playing fade out while this one fades in (a second player takes over).
+        """
         if not self._ensure_backend():
             self.error.emit(self.unavailable_reason)
             return False
+        crossing = fade and self.crossfade > 0 and self._aout_safe and self._state == "playing" and not self._live
+        self._finish_fade()
+        self._fade_armed = False
         media = self._instance.media_new_location(url)
         if url.startswith(("http://", "https://")):
             media.add_option(":network-caching=2000")
+        if crossing:
+            remaining = self._remaining_ms()
+            length = min(self.crossfade * 1000, remaining) if remaining > 0 else self.crossfade * 1000
+            self._fade_old, self._fade_old_media = self._player, self._media
+            self._player = self._instance.media_player_new()      # the old one keeps playing its last seconds
+            self._media = None
+            self._level_scale = 0.0
+            self._fade_started, self._fade_length = time.monotonic(), max(0.5, length / 1000)
+            self._fade_timer.start()
         self._player.set_media(media)
         old, self._media = self._media, media       # keep it: ICY "now playing" arrives on this object
         if old is not None:
@@ -145,6 +174,65 @@ class AudioEngine(QObject):
         if self._live:
             self._later(ICY_FIRST_MS, lambda t=self._icy_token: self._lookup_title(t))
         return True
+
+    # -- crossfade ----------------------------------------------------------------------------------
+    def set_crossfade(self, seconds: int) -> None:
+        self.crossfade = max(0, min(30, int(seconds)))
+        self._fade_armed = False
+
+    def _remaining_ms(self) -> int:
+        if self._player is None:
+            return 0
+        length = self._player.get_length()
+        return length - max(0, self._player.get_time()) if length > 0 else 0
+
+    def _arm_crossfade(self, interval_ms: int) -> None:
+        """If the moment to start the next song falls before the next poll, wait for exactly that moment."""
+        if self._fade_armed or not self.crossfade or self._live or self._fade_old is not None:
+            return
+        length = self._player.get_length()
+        if length < (self.crossfade + 3) * 1000:                 # too short a song to overlap with anything
+            return
+        wait = self._remaining_ms() - self.crossfade * 1000
+        if wait <= interval_ms:
+            self._fade_armed = True
+            QTimer.singleShot(max(0, wait), self._crossfade_due)
+
+    def _crossfade_due(self) -> None:
+        if not self._fade_armed:
+            return
+        if self._state != "playing" or self._remaining_ms() > self.crossfade * 1000 + 800:   # paused, or sought backwards
+            self._fade_armed = False
+            return
+        self._fade_armed = False
+        self.ending_soon.emit()
+
+    def _fade_step(self) -> None:
+        progress = (time.monotonic() - self._fade_started) / self._fade_length
+        if progress >= 1.0 or self._fade_old is None:
+            self._finish_fade()
+            return
+        # equal-power curves keep the loudness steady through the middle of the mix
+        incoming, outgoing = math.sin(progress * math.pi / 2), math.cos(progress * math.pi / 2)
+        self._level_scale = incoming
+        if self._audio_ready:
+            self._player.audio_set_volume(int(round(self.volume * incoming)))
+        self._fade_old.audio_set_volume(int(round(self.volume * outgoing)))
+
+    def _finish_fade(self) -> None:
+        """The outgoing song is gone and the incoming one is at full volume (also when playback is interrupted)."""
+        self._fade_timer.stop()
+        old, media = self._fade_old, self._fade_old_media
+        self._fade_old = self._fade_old_media = None
+        if old is not None:
+            old.stop()
+            old.release()
+        if media is not None:
+            media.release()
+        if self._level_scale != 1.0:
+            self._level_scale = 1.0
+            self._audio_pending = True
+            self._apply_audio_levels()
 
     def set_live(self, live: bool, station_name: str = "") -> None:
         """Live radio: while on, ICY "now playing" metadata is read and announced as it changes."""
@@ -219,11 +307,13 @@ class AudioEngine(QObject):
     def toggle_pause(self) -> None:
         if self._player is None or self._state == "stopped":
             return
+        self._finish_fade()
         self._player.pause()
         self._set_state("paused" if self._state == "playing" else "playing")
 
     def pause(self) -> None:
         if self._player is not None and self._state == "playing":
+            self._finish_fade()
             self._player.set_pause(1)
             self._set_state("paused")
 
@@ -234,6 +324,8 @@ class AudioEngine(QObject):
 
     def stop(self) -> None:
         self._now_playing = ""
+        self._fade_armed = False
+        self._finish_fade()
         if self._player is not None:
             self._player.stop()
         self._set_state("stopped")
@@ -268,8 +360,10 @@ class AudioEngine(QObject):
         """Push volume/mute to libVLC as soon as it is safe to do so (see _ensure_backend)."""
         if self._player is None or not self._audio_ready or not self._audio_pending:
             return
-        self._player.audio_set_volume(self.volume)
+        self._player.audio_set_volume(int(round(self.volume * self._level_scale)))
         self._player.audio_set_mute(self.muted)
+        if self._fade_old is not None:
+            self._fade_old.audio_set_mute(self.muted)
         self._audio_pending = False
 
     def set_rate(self, rate: float) -> None:
@@ -355,6 +449,8 @@ class AudioEngine(QObject):
                 text = self._read_now_playing()          # libVLC's own reading (http:// streams)
                 if text and text != self._now_playing:
                     self._announce(text)
+            if self.crossfade:
+                self._arm_crossfade(POLL_ACTIVE_MS if self._ui_active else POLL_HIDDEN_MS)
             if self._ui_active:
                 self.position_changed.emit(max(0, self._player.get_time()), max(0, self._player.get_length()))
 
@@ -364,6 +460,7 @@ class AudioEngine(QObject):
             self._icy_worker.cancel()
             self._icy_worker.wait(1500)
         self._timer.stop()
+        self._finish_fade()
         if self._player is not None:
             self._player.stop()
             self._player.release()

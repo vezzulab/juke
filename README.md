@@ -13,17 +13,51 @@ Your own files, your Airsonic / Subsonic server, internet radio and a 10-band eq
 
 <br>
 
+![Version](https://img.shields.io/badge/version-1.0-cba6f7?style=for-the-badge)
 ![Linux](https://img.shields.io/badge/platform-Linux-7aa2f7?style=for-the-badge&logo=linux&logoColor=white)
 ![AppImage](https://img.shields.io/badge/package-AppImage-cba6f7?style=for-the-badge)
 ![Python](https://img.shields.io/badge/python-3.10+-7aa2f7?style=for-the-badge&logo=python&logoColor=white)
 ![Qt](https://img.shields.io/badge/Qt-6%20·%20PySide6-cba6f7?style=for-the-badge&logo=qt&logoColor=white)
 ![Engine](https://img.shields.io/badge/audio-libVLC-7aa2f7?style=for-the-badge&logo=vlcmediaplayer&logoColor=white)
 
-[**Download**](https://github.com/vezzulab/juke/releases/latest) &nbsp;·&nbsp; [**Website**](https://vezzulab.github.io/juke/) &nbsp;·&nbsp; [Report a problem](https://github.com/vezzulab/juke/issues)
+[**Download**](https://github.com/vezzulab/juke/releases/latest) &nbsp;·&nbsp; [**Website**](https://vezzulab.github.io/juke/) &nbsp;·&nbsp; [**Manual**](https://vezzulab.github.io/juke/manual.html) &nbsp;·&nbsp; [Report a problem](https://github.com/vezzulab/juke/issues)
 
 </div>
 
 <br>
+
+## What is new in 1.0
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**Media keys and the desktop's controls.** Play, pause, next and back from your keyboard, headset and the media widget of GNOME, KDE and the rest. The volume slider is the computer's own volume, both ways.
+
+**Crossfade.** The next song comes in a few seconds before the current one ends. A green light under the volume shows it is on; one click turns it off.
+
+**An equalizer anyone can use.** Every bar says what it changes — *Deep bass*, *Voice*, *Clarity*, *Sparkle* — and there are 35 presets.
+
+</td>
+<td width="50%" valign="top">
+
+**Lyrics in any language.** Several free services are searched at once, titles are cleaned, and a busy service is asked again instead of failing.
+
+**Playlists done right.** A song is never added twice, the ✓ in *Add to playlist* takes it out, and the library shows which playlists hold each song.
+
+**It knows what can play.** Songs on an offline server or a disconnected drive turn grey with a note, and playback skips them.
+
+**A manual inside the app**, with an index, in English and Spanish.
+
+</td>
+</tr>
+</table>
+
+Already using Juke? It offers 1.0 by itself: *Update now* replaces the AppImage in place, and on Android it downloads and installs the new APK. Your library, playlists and settings are kept.
+
+## The manual
+
+A complete guide, written like a book with an index — from installing to the equalizer, playlists, servers, radio, lyrics and what to do when something goes wrong. It is **inside the app** (`F1` on Linux, *Settings ▸ Manual* on Android) and in the language of the app, and also online: **[read the manual](https://vezzulab.github.io/juke/manual.html)**. The text is in [`juke/assets/manual`](juke/assets/manual) ([English](juke/assets/manual/manual-en.md) · [Español](juke/assets/manual/manual-es.md)).
 
 ## Why Juke
 
@@ -62,13 +96,13 @@ An idle Juke makes **no wake-ups at all**. Playing on battery it uses about **1 
 <td valign="top">
 
 ### 10-band equalizer
-Ten bands (60 Hz – 16 kHz), ±20 dB preamp, fifteen built-in presets (including **Dembow, Reggaeton, Salsa, Merengue and Bachata**) and your own. Every preset is played with its own headroom, so a bass boost never makes the sound break up. It runs through libVLC's native equalizer on one long-lived player, so switching songs — or tuning in a radio station — never resets it.
+Ten bands (60 Hz – 16 kHz), ±20 dB preamp, thirty-five built-in presets (including **Dembow, Reggaeton, Salsa, Merengue, Bachata, Cumbia, Afrobeat and K-Pop**, and fixes for small speakers or night listening) and your own. Every bar says in plain words what it changes (*Deep bass*, *Voice*, *Clarity*, *Sparkle*…), grouped under BASS / MIDDLE / TREBLE, with a tooltip for the details. Every preset is played with its own headroom, so a bass boost never makes the sound break up. It runs through libVLC's native equalizer on one long-lived player, so switching songs — or tuning in a radio station — never resets it.
 
 </td>
 <td valign="top">
 
 ### A real queue, and your own playlists
-**Play next** inserts right after the current song; **Add to queue** goes to the end. The queue is temporary and independent of the list you started from, which resumes when it is empty. Make playlists with the **+** next to *Playlists*.
+**Play next** inserts right after the current song; **Add to queue** goes to the end. The queue is temporary and independent of the list you started from, which resumes when it is empty. Make playlists with the **+** next to *Playlists*. A playlist shows when each song was **added**, a song added twice can be taken out one copy at a time, and *Add to playlist* marks (✓) the playlists that already hold the song.
 
 </td>
 </tr>
@@ -116,7 +150,7 @@ Under **Folders** in the sidebar Juke keeps your music the way you arrange it. T
 - **Send feedback…** and **View log…** are in the ⋯ menu. A report opens as a new issue on GitHub for you to review. Your home folder, passwords and server address are hidden first.
 - The AppImage adds itself to your applications menu the first time it runs.
 - **Twenty colour themes**, ten light and ten dark, one click away from the palette button next to the ⋯ menu. Soft pastels (Rose, Lavender, Mint, Sky, Peach, Sand, Lagoon, Coral, Sage, Lemon) and deeper looks (Deep Forest, Ocean, Sunset, Neon, Ember, Arctic, Twilight, Amber, Rosewood, Graphite), all checked for legibility.
-- **Lyrics.** Right-click a song ▸ *Add lyrics…* (paste them or import a `.lrc` file) or *Find lyrics…*, which searches [LRCLIB](https://lrclib.net), a free lyrics service, by the song's name. A column on the right opens by itself when the playing song has lyrics, and stays shut when it has none. Synced lyrics light up the line being sung. Juke also reads a `.lrc` file beside the song and the lyrics inside its tags.
+- **Lyrics.** Right-click a song ▸ *Add lyrics…* (paste them or import a `.lrc` file) or *Find lyrics…*, which searches [LRCLIB](https://lrclib.net), NetEase Cloud Music and lyrics.ovh at once — free services that together cover English, Spanish, Portuguese, Chinese, Japanese, Korean, Arabic, Hindi and many more — by the song's name (cleaned of “(feat. …)”, “[Remastered]” and the like, in any script). Lyrics files saved in older encodings (GBK, Shift-JIS, EUC-KR…) and right-to-left languages are read correctly. A column on the right opens by itself when the playing song has lyrics, and stays shut when it has none. Synced lyrics light up the line being sung. Juke also reads a `.lrc` file beside the song and the lyrics inside its tags.
 
 ## Screenshots
 
@@ -136,6 +170,10 @@ Under **Folders** in the sidebar Juke keeps your music the way you arrange it. T
 <tr>
 <td><img src="assets/screenshot-equalizer.png" alt="Ten-band equalizer with live response curve"><br><sub><b>Equalizer</b> — live response curve, presets, playback speed and stereo balance.</sub></td>
 <td><img src="assets/screenshot-settings.png" alt="Airsonic settings"><br><sub><b>Settings</b> — language, theme, folders, updates and your Airsonic / Subsonic server.</sub></td>
+</tr>
+<tr>
+<td><img src="assets/screenshot-lyrics.png" alt="Synced lyrics beside the song"><br><sub><b>Lyrics</b> — synced, in any language, lighting up the line being sung.</sub></td>
+<td><img src="assets/screenshot-playback.png" alt="Settings, Playback"><br><sub><b>Playback</b> — volume that follows the computer, crossfade and the level meter.</sub></td>
 </tr>
 </table>
 
@@ -267,7 +305,7 @@ Juke has no telemetry, no accounts and no analytics. It bundles its font and ico
 | Your Airsonic / Subsonic server | Only if you configure one. |
 | `api.github.com` | When it opens and every 30 minutes while open, to look for a new release, if you leave *Check for updates automatically* on. Only the program name and version are sent. |
 | Radio Browser (`*.api.radio-browser.info`) and the stations themselves | Only when you open *Explore Radio*, add a station, or tune in. |
-| `lrclib.net` | Only when you press *Find lyrics…*, or if you turn on *Search lyrics online* in Settings. It gets the song's name, artist, album and length, nothing else. |
+| `lrclib.net`, `music.163.com`, `api.lyrics.ovh` | Only when you press *Find lyrics…*, or if you turn on *Search lyrics online* in Settings. They get the song's name, artist, album and length, nothing else. |
 | `github.com` (the issues page) | Only when you press *Open on GitHub* in *Send feedback…*. Juke sends nothing itself; the report opens in your browser. |
 
 ## Performance
@@ -299,6 +337,10 @@ juke/
 ├── updater.py          GitHub release check, verified in-place update
 ├── integration.py      applications-menu entry + icons (AppImage)
 ├── power.py            mains / battery detection
+├── mpris.py            media keys and the desktop's media controls (D-Bus)
+├── sysvolume.py        the computer's volume, followed both ways
+├── availability.py     which songs can be played now (server / drive connected)
+├── manual.py           the manual: one Markdown book per language, shared with Android
 ├── i18n.py, locales/   English / Spanish, live switching
 ├── audio/              libVLC engine, equalizer, queue, balance, ICY titles, source resolver
 ├── api/                Airsonic client, Radio-Browser client, stream resolver
@@ -306,7 +348,7 @@ juke/
 └── gui/                main window, top bar, sidebar, song table, radio view, dialogs, themes, SVG icons
 android/                Juke for Android (Kotlin, Jetpack Compose, Media3)
 packaging/              AppImage build (AppRun, desktop entry, scripts)
-docs/                   the project website (GitHub Pages)
+docs/                   the project website and the web manual (GitHub Pages)
 tests/                  unit tests and offscreen GUI tests (incl. real playback through libVLC)
 ```
 
@@ -335,7 +377,7 @@ The suite has over a hundred tests, including real playback through libVLC (skip
 - The spectrum in the LCD is an **animated meter, not an analyser** — libVLC does not expose FFT data.
 - **Karaoke** (full-screen lyrics with a countdown into each phrase) is on Android. On Linux you get the synced lyrics column. Juke never processes the sound of your songs beyond the equalizer you choose.
 - Stereo **balance** needs PulseAudio or PipeWire (`pactl`) and a stereo stream; it is disabled otherwise.
-- No MPRIS / global media keys yet, no gapless playback, no drag-and-drop reordering inside playlists, one Airsonic server at a time.
+- Media keys and the desktop's media controls (MPRIS) work on GNOME, KDE and the rest. Crossfade is automatic only (skipping by hand cuts), no gapless playback, no drag-and-drop reordering inside playlists, one Airsonic server at a time.
 - Your own folders live in Juke (*Folders*), the Airsonic server is browsed by its folders, and the local library by artist, album and genre.
 - Radio: stations that need a login or use protected streams are not supported. The song on air needs the station to send ICY metadata.
 

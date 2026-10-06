@@ -36,4 +36,4 @@ version = { attr = "juke.__version__" }
 include = ["juke*"]
 
 [tool.setuptools.package-data]
-juke = ["assets/*.svg", "assets/fonts/*"]
+juke = ["assets/*.svg", "assets/fonts/*", "assets/manual/*.md", "assets/manual/img/*/*"]

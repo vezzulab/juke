@@ -166,6 +166,7 @@ QLabel#metaArt {{ background: {PANEL}; border: 1px solid {BORDER}; border-radius
 QLabel#heading {{ font-size: 15px; font-weight: 600; }}
 QLabel#eqValue {{ font-family: {MONO_FAMILY}; font-size: 11px; color: {ACCENT}; }}
 QWidget#eqDivider {{ background: {BORDER}; }}
+QLabel#eqGroup {{ font-size: 10px; font-weight: 700; letter-spacing: 1px; color: {SUBTEXT}; border-top: 1px solid {BORDER}; padding-top: 4px; }}
 
 /* Top bar & LCD ------------------------------------------------------------------ */
 QWidget#topBar {{ background: {MANTLE}; border-bottom: 1px solid {BORDER}; }}

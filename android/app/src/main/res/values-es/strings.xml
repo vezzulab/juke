@@ -8,6 +8,11 @@
     <string name="support">Apoyar</string>
     <string name="support_kofi">Apoyar en Ko-fi</string>
     <string name="support_kofi_short">Ko-fi</string>
+    <string name="manual_title">Manual</string>
+    <string name="manual_open">Abrir el manual</string>
+    <string name="manual_contents">Contenido</string>
+    <string name="manual_previous">◀  Anterior</string>
+    <string name="manual_next">Siguiente  ▶</string>
     <string name="feedback_block">Ayuda</string>
     <string name="feedback_title">Enviar comentarios</string>
     <string name="feedback_intro">¿Algo no funciona, o quieres algo nuevo? Cuéntanos. Tu reporte se abre como un problema nuevo en GitHub y lo revisas allí antes de que se envíe nada.</string>

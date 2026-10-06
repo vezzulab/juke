@@ -142,6 +142,24 @@ class DatabaseTests(unittest.TestCase):
         db.upsert_many([row(2, folder="X/Y")])
         self.assertEqual(db.folders(SOURCE_LOCAL), ["X/Y"])
 
+    def test_a_song_added_twice_leaves_one_copy_at_a_time(self):
+        db = make_db("pl-dup.db")
+        db.upsert_many([row(i) for i in range(3)])
+        ids = db.query_ids()
+        pid = db.create_playlist("Dup")
+        db.add_to_playlist(pid, [ids[0], ids[1]])
+        self.assertEqual(db.add_to_playlist(pid, [ids[0], ids[1], ids[2], ids[2]]), 1)   # only the new song, once
+        self.assertEqual(db.playlist_track_ids(pid), [ids[0], ids[1], ids[2]])
+        db.remove_from_playlist(pid, [ids[2]])
+        db.add_to_playlist(pid, [ids[0]], allow_duplicates=True)                         # a copy made before the rule existed
+        entries = db.playlist_entries(pid)
+        self.assertEqual([e[0] for e in entries], [ids[0], ids[1], ids[0]])
+        self.assertTrue(all(e[2] > 0 for e in entries))                          # every entry knows when it was added
+        self.assertEqual(db.playlists_containing([ids[0]]), {pid})
+        self.assertEqual(db.playlists_containing([ids[2]]), set())
+        db.remove_playlist_entries(pid, [entries[2][1]])                         # the duplicate only
+        self.assertEqual(db.playlist_track_ids(pid), [ids[0], ids[1]])
+
     def test_playlists_crud_order_and_cascade(self):
         db = make_db("pl.db")
         db.upsert_many([row(i) for i in range(6)])
@@ -179,6 +197,53 @@ class DatabaseTests(unittest.TestCase):
 
 
 class PlayQueueTests(unittest.TestCase):
+    def test_a_song_taken_out_of_the_playing_list_does_not_play_again(self):
+        q = PlayQueue()
+        q.set_context([1, 2, 3, 2, 4], 1, 0)                   # playing a playlist in which song 2 is there twice
+        q.update_context([1, 2, 3, 4])                          # the second copy was deleted
+        self.assertEqual([q.next(), q.next(), q.next()], [2, 3, 4])
+        self.assertIsNone(q.next())                             # the old queue would have played 2 again, then 4
+        q.update_context([1, 2, 3, 4, 9])                       # a song put in while it plays waits at the end
+        self.assertEqual(q.next(), 9)
+        q.set_context([5, 6, 7], 6)
+        q.update_context([5, 7])                                # the song that is playing was taken out
+        self.assertEqual(q.next(), 7)
+
+    def test_shuffle_plays_everything_once_and_never_the_same_song_twice_in_a_row(self):
+        ids = list(range(1, 31))
+        q = PlayQueue()
+        q.shuffle = True
+        q.set_context(ids, 7)
+        played = [q.current]
+        while (n := q.next(auto=True)) is not None:
+            played.append(n)
+        self.assertEqual((played[0], sorted(played)), (7, ids))        # starts on the picked song, plays each one once
+        self.assertNotEqual(played, ids)
+        q = PlayQueue()
+        q.shuffle, q.repeat = True, "all"
+        q.set_context([1, 2, 3], 1)
+        run = [q.current] + [q.next(auto=True) for _ in range(60)]
+        self.assertTrue(all(a != b for a, b in zip(run, run[1:])))     # also across the turn of the list
+
+    def test_picking_the_second_copy_of_a_song_starts_from_that_row(self):
+        q = PlayQueue()
+        q.set_context([7, 8, 9, 7, 10], 7, 3)
+        self.assertEqual(q.next(), 10)
+        self.assertEqual(q.previous(), 7)
+
+    def test_back_walks_up_the_list_after_picking_a_song_in_the_middle(self):
+        q = PlayQueue()
+        q.set_context([1, 2, 3, 4, 5], 3)                 # picked the third song: nothing was played before it
+        self.assertTrue(q.can_previous())
+        self.assertEqual(q.previous(), 2)
+        self.assertEqual(q.previous(), 1)
+        self.assertFalse(q.can_previous())                # the top of the list: the caller restarts the song
+        self.assertEqual(q.previous(), 1)
+        self.assertEqual(q.next(), 2)                     # and forward still works from there
+        q.repeat = "all"
+        q.set_context([1, 2, 3], 1)
+        self.assertEqual(q.previous(), 3)                 # repeat all wraps to the bottom
+
     def test_context_and_next_prev(self):
         q = PlayQueue()
         q.set_context([1, 2, 3], 2)

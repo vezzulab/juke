@@ -58,6 +58,9 @@ class LyricsPanel(QWidget):
         self.text.setObjectName("lyricsText")
         self.text.setReadOnly(True)
         self.text.setFrameShape(QPlainTextEdit.NoFrame)
+        option = self.text.document().defaultTextOption()
+        option.setTextDirection(Qt.LayoutDirectionAuto)       # Arabic, Hebrew, Persian lines run right to left
+        self.text.document().setDefaultTextOption(option)
         self.text.document().setDefaultTextOption(QTextOption(Qt.AlignHCenter))
         self.text.setCursorWidth(0)
         self.text.viewport().setCursor(Qt.ArrowCursor)

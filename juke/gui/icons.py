@@ -54,6 +54,7 @@ _GLYPHS: dict[str, tuple[str, str]] = {
     "trash": ("stroke", '<path d="M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13"/>'),
     "close": ("stroke", '<path d="M6 6l12 12M18 6L6 18"/>'),
     "plus": ("stroke", '<path d="M12 5v14M5 12h14"/>'),
+    "check": ("stroke", '<path d="M4.5 12.5l5 5L19.5 7"/>'),
     "chevron": ("stroke", '<path d="M9 6l6 6-6 6"/>'),
 }
 

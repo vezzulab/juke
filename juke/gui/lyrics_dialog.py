@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
                                QPlainTextEdit, QPushButton, QVBoxLayout)
@@ -14,6 +14,13 @@ from ..db.database import Track
 from ..i18n import tr
 from ..workers import AsyncWorker
 from .dialogs import notice
+
+
+def _auto_direction(edit: QPlainTextEdit) -> None:
+    """Arabic, Hebrew, Persian and Urdu lines run right to left, the rest left to right: each paragraph decides."""
+    option = edit.document().defaultTextOption()
+    option.setTextDirection(Qt.LayoutDirectionAuto)
+    edit.document().setDefaultTextOption(option)
 
 
 class LyricsEditDialog(QDialog):
@@ -31,6 +38,7 @@ class LyricsEditDialog(QDialog):
         self.editor = QPlainTextEdit(text)
         self.editor.setFont(QFontDatabase.systemFont(QFontDatabase.GeneralFont))
         self.editor.setPlaceholderText(tr("lyrics.placeholder"))
+        _auto_direction(self.editor)
         self.state = QLabel()
         self.state.setObjectName("muted")
         self.editor.textChanged.connect(self._state)
@@ -68,7 +76,7 @@ class LyricsEditDialog(QDialog):
         if not path:
             return
         try:
-            self.editor.setPlainText(Path(path).read_text(encoding="utf-8", errors="replace").strip())
+            self.editor.setPlainText(lyrics_lib.decode_text(Path(path).read_bytes()))
         except OSError as exc:
             notice(self, tr("lyrics.edit_title"), str(exc))
 
@@ -78,7 +86,7 @@ class LyricsEditDialog(QDialog):
 
 
 class FindLyricsDialog(QDialog):
-    """Search LRCLIB by title and artist, look at a result and use it."""
+    """Search the lyrics services by title and artist, look at a result and use it."""
 
     def __init__(self, track: Track, parent=None) -> None:
         super().__init__(parent)
@@ -86,6 +94,7 @@ class FindLyricsDialog(QDialog):
         self.resize(640, 560)
         self._found: list[lyrics_lib.Found] = []
         self._worker: AsyncWorker | None = None
+        self._retries = 0
         self.chosen = ""
 
         self.title = QLineEdit(track.title)
@@ -111,6 +120,7 @@ class FindLyricsDialog(QDialog):
         self.results.itemDoubleClicked.connect(lambda _i: self._use())
         self.view = QPlainTextEdit()
         self.view.setReadOnly(True)
+        _auto_direction(self.view)
         self.use = QPushButton(tr("lyrics.use"))
         self.use.setObjectName("primary")
         self.use.setEnabled(False)
@@ -133,29 +143,46 @@ class FindLyricsDialog(QDialog):
         if track.title:
             self.search()
 
-    def search(self) -> None:
+    def search(self, _checked: bool = False, retry: bool = False) -> None:
         title, artist = self.title.text().strip(), self.artist.text().strip()
         if not title or (self._worker is not None and self._worker.isRunning()):
             return
+        if not retry:
+            self._retries = 0
         self.status.setText(tr("lyrics.searching"))
         self.results.clear()
         self.view.clear()
         self.use.setEnabled(False)
-        worker = AsyncWorker(lambda _progress: lyrics_lib.search(title, artist), self)
+        worker = AsyncWorker(lambda _progress: lyrics_lib.search_report(title, artist), self)
         self._worker = worker
-        worker.result.connect(self._show_results)
+        worker.result.connect(self._show_report)
         worker.failed.connect(lambda message: self.status.setText(tr("lyrics.search_failed", error=message)))
         worker.finished.connect(lambda w=worker: (setattr(self, "_worker", None) if self._worker is w else None, w.deleteLater()))
         worker.start()
 
-    def _show_results(self, found: list) -> None:
+    def _show_report(self, report) -> None:
+        """Results; or, when nothing came and a service did not answer, a plain word about it and a second try."""
+        if not report.found and report.failed and self._retries < 2:
+            self._retries += 1
+            self.status.setText(tr("lyrics.busy_retry", services=", ".join(report.failed)))
+            QTimer.singleShot(4000, lambda: self.isVisible() and self.search(retry=True))
+            return
+        self._show_results(report.found, report.failed)
+
+    def _show_results(self, found: list, failed: list | None = None) -> None:
         self._found = found
         for item in found:
             minutes, seconds = divmod(int(item.duration), 60)
             badge = "  ·  " + tr("lyrics.synced_badge") if item.is_synced else ""
-            line = f"{item.title} — {item.artist}" + (f"  ·  {item.album}" if item.album else "") + f"  ·  {minutes}:{seconds:02d}{badge}"
+            line = f"{item.title} — {item.artist}" + (f"  ·  {item.album}" if item.album else "") + f"  ·  {minutes}:{seconds:02d}{badge}  ·  {item.source}"
             self.results.addItem(QListWidgetItem(line))
-        self.status.setText(tr("lyrics.results", n=len(found)) if found else tr("lyrics.no_results"))
+        if found:
+            note = tr("lyrics.partial", services=", ".join(failed)) if failed else ""
+            self.status.setText(tr("lyrics.results", n=len(found)) + note)
+        elif failed:
+            self.status.setText(tr("lyrics.busy_gave_up", services=", ".join(failed)))
+        else:
+            self.status.setText(tr("lyrics.no_results"))
         if found:
             self.results.setCurrentRow(0)
 

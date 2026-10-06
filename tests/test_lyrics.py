@@ -37,7 +37,9 @@ class LyricsCoreTests(unittest.TestCase):
         import httpx
 
         def handler(request: httpx.Request) -> httpx.Response:
-            self.assertEqual(request.url.params["track_name"], "Blue Hour")
+            if "lrclib" not in request.url.host:
+                return httpx.Response(404)                          # the other services know nothing of this song
+            self.assertIn("Blue Hour", request.url.params.get("track_name") or request.url.params.get("q"))
             return httpx.Response(200, json=[
                 {"trackName": "Blue Hour", "artistName": "Ada", "albumName": "Paper", "duration": 201.4, "plainLyrics": "a\nb", "syncedLyrics": LRC},
                 {"trackName": "Blue Hour", "artistName": "Ada", "instrumental": True},
@@ -46,6 +48,95 @@ class LyricsCoreTests(unittest.TestCase):
         found = asyncio.run(lyrics.search("Blue Hour", "Ada", transport=httpx.MockTransport(handler)))
         self.assertEqual([(f.artist, f.is_synced) for f in found], [("Ada", True), ("Bo", False)])
         self.assertEqual(found[1].text, "words only")
+
+    def test_other_languages_are_found_and_titles_are_cleaned(self):
+        import httpx
+
+        self.assertEqual(lyrics.clean_title("03 - Despacito (feat. Daddy Yankee) [Remastered 2017]"), "Despacito")
+        self.assertEqual(lyrics.clean_title("夜曲 - Live"), "夜曲")
+        self.assertEqual(lyrics.main_artist("周杰伦 & 方文山"), "周杰伦")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            host = request.url.host
+            if "lrclib" in host:
+                return httpx.Response(404)
+            if "163.com" in host and request.url.path.endswith("/search/get"):
+                return httpx.Response(200, json={"result": {"songs": [
+                    {"id": 7, "name": "夜曲", "artists": [{"name": "周杰伦"}], "album": {"name": "十一月的萧邦"}, "duration": 226000}]}})
+            if "163.com" in host:
+                return httpx.Response(200, json={"lrc": {"lyric": "[00:00.00] 作词 : 方文山\n[00:20.00]一群嗜血的蚂蚁\n[00:25.00]被腐肉所吸引"}})
+            return httpx.Response(404)
+
+        found = asyncio.run(lyrics.search("夜曲", "周杰伦", transport=httpx.MockTransport(handler)))
+        self.assertEqual([(f.source, f.is_synced) for f in found], [("NetEase", True)])
+        self.assertNotIn("作词", found[0].synced)                                   # credits are not lyrics
+        self.assertIn("嗜血", lyrics.plain_text(found[0].text))
+
+    def test_a_busy_service_is_asked_again_and_other_songs_are_not_offered(self):
+        import httpx
+
+        calls = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if "lrclib" not in request.url.host:
+                return httpx.Response(404)
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return httpx.Response(503, json={"message": "The server is busy, please retry in a moment"})
+            return httpx.Response(200, json=[
+                {"trackName": "La Cabra Y La Soga", "artistName": "Frankie Ruiz", "plainLyrics": "words", "syncedLyrics": None, "duration": 250},
+                {"trackName": "Derroche", "artistName": "Orquesta La Solución", "plainLyrics": "other song", "syncedLyrics": LRC}])
+
+        import asyncio as aio
+        orig = aio.sleep
+
+        async def quick(_seconds):
+            return None
+
+        lyrics.asyncio.sleep = quick
+        try:
+            found = asyncio.run(lyrics.search("La Cabra Y La Soga", "Orquesta La Solucion", transport=httpx.MockTransport(handler)))
+        finally:
+            lyrics.asyncio.sleep = orig
+        self.assertGreater(calls["n"], 1)                                            # it asked again after the 503
+        self.assertEqual([(f.title, f.artist) for f in found], [("La Cabra Y La Soga", "Frankie Ruiz")])   # the cover, not "Derroche"
+
+    def test_artist_dash_song_in_the_title_box_and_other_spellings_of_a_group(self):
+        self.assertEqual(lyrics._variants("orquesta la solucion - Ruina", "")[0], ("Ruina", "orquesta la solucion"))
+        self.assertEqual(lyrics._variants("RICHIE RAY & BOBBY CRUZ - Aguzate", "Richie Ray")[0], ("Aguzate", "Richie Ray"))
+        self.assertEqual(lyrics._variants("La Ruina", "Orquesta La Solucion"), [("La Ruina", "Orquesta La Solucion")])
+        self.assertEqual(lyrics.artist_core("Orquesta La Solucion"), "Solucion")
+        found = lyrics.Found("La Ruina", "La Solución", "", 0, "x", "")                 # the group under its other spelling
+        self.assertGreater(lyrics.relevance(found, "La Ruina", "Orquesta La Solucion")[1], 0.9)
+
+    def test_everything_down_says_who_did_not_answer(self):
+        import httpx
+
+        async def run():
+            async def quick(_s):
+                return None
+
+            orig, lyrics.asyncio.sleep = lyrics.asyncio.sleep, quick
+            try:
+                return await lyrics.search_report("Ruina", "Orquesta La Solucion",
+                                                  transport=httpx.MockTransport(lambda r: httpx.Response(503)))
+            finally:
+                lyrics.asyncio.sleep = orig
+
+        report = asyncio.run(run())
+        self.assertEqual(report.found, [])
+        self.assertIn("LRCLIB", report.failed)
+
+    def test_accents_and_case_do_not_hide_a_match(self):
+        found = lyrics.Found("Una Cañita Más", "Orquesta La Solución", "", 0, "x", "")
+        self.assertGreater(lyrics.relevance(found, "UNA CANITA MAS", "Orquesta La Solucion")[1], 0.95)
+
+    def test_old_lyric_files_in_other_encodings_are_read(self):
+        for text, encoding in (("[00:01.00]你好 世界\n[00:05.00]再见 朋友", "gb18030"),
+                               ("[00:01.00]こんにちは世界\n[00:05.00]さようなら", "shift_jis"),
+                               ("[00:01.00]안녕하세요 세계\n[00:05.00]사랑해요", "euc_kr"),
+                               ("canción de amor ñandú", "cp1252"), ("日本語の歌", "utf-16")):
+            self.assertEqual(lyrics.decode_text(text.encode(encoding)), text, encoding)
 
     def test_no_match_is_not_an_error(self):
         import httpx
