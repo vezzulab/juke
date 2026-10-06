@@ -331,6 +331,10 @@ class MainWindow(QMainWindow):
         self.device_view.cancel_requested.connect(self.devices.cancel)
         t.add_to_folder_requested.connect(self._add_to_folder)
         t.new_folder_requested.connect(lambda ids: self._new_folder(0, ids))
+        t.song_eq_requested.connect(self._song_eq_chosen)
+        t.eq_presets = self._eq_presets_for_menu
+        t.tracks_dropped.connect(self._table_tracks_dropped)
+        t.paths_dropped.connect(self._table_paths_dropped)
         t.remove_from_folder_requested.connect(self._remove_from_folder)
         self.sidebar.new_playlist_requested.connect(lambda: self._new_playlist())
         self.sidebar.rename_playlist_requested.connect(self._rename_playlist)
@@ -401,6 +405,44 @@ class MainWindow(QMainWindow):
         self.media.update(status=self.engine.state, title=title, artist=artist, album=album, length_us=length,
                           track=ident, url=url, can_next=True, can_previous=True, shuffle=self.queue.shuffle,
                           repeat=self.queue.repeat, volume=self._shown_volume() / 100)
+
+    # ------------------------------------------------------------------------------ an equalizer for each song
+    def _eq_presets_for_menu(self) -> tuple[list[tuple[str, str]], list[str]]:
+        eq = self.equalizer
+        return ([(n, tr("eq.preset." + n)) for n in eq.preset_names() if eq.is_builtin(n)],
+                [n for n in eq.preset_names() if not eq.is_builtin(n)])
+
+    def _song_eq_chosen(self, ids: list[int], what: str) -> None:
+        """Right-click ▸ Equalizer: these songs get their own curve (a preset, or the one in the equalizer now), or go back
+        to the general equalizer."""
+        eq = self.equalizer
+        if what == "":
+            curve = None
+        elif what == "current":
+            curve = eq.song_curve()
+        else:
+            curve = eq.curve_for(what.removeprefix("preset:"))
+            if curve is None:
+                return
+        self._apply_song_eq(ids, curve)
+        name = (curve or {}).get("name") or ""
+        self.notify(trn("msg.song_eq_set", len(ids), name=name) if curve else trn("msg.song_eq_cleared", len(ids)), 4000)
+
+    def _apply_song_eq(self, ids: list[int], curve: dict | None) -> None:
+        text = json.dumps(curve) if curve else ""
+        self.db.set_eq(ids, text)
+        playing = self.current_track
+        if playing is not None and playing.id in ids:                  # the song that is on changes now, not at its next play
+            playing.eq = text
+            self.equalizer.begin_song(playing.id, curve)
+        self.table.track_model.invalidate_rows()
+
+    def _save_song_eq(self, song_id: int, curve: dict) -> None:
+        """The sliders were moved while a song with its own equalizer plays: the curve is kept with that song."""
+        text = json.dumps(curve)
+        self.db.set_eq([song_id], text)
+        if self.current_track is not None and self.current_track.id == song_id:
+            self.current_track.eq = text
 
     # ------------------------------------------------------------------------------ what can be played now
     def _watch_network(self) -> None:
@@ -536,6 +578,8 @@ class MainWindow(QMainWindow):
         self._apply_crossfade(int(self.config.get("crossfade") or 0))
         self.awake = StayAwake(self)
         self.awake.enabled = not os.environ.get("JUKE_NO_MPRIS") and bool(self.config.get("stay_awake"))
+        self.equalizer.song_saver = self._save_song_eq             # edits of a song's own curve are kept with the song
+        self.equalizer.song_cleared.connect(lambda song: self._apply_song_eq([song], None))
         self.table.track_model.availability = self.avail
         self.avail.changed.connect(self.table.track_model.repaint_rows)
         self._watch_network()
@@ -1039,6 +1083,8 @@ class MainWindow(QMainWindow):
             self.table.track_model.set_entries(self.db.playlist_entries(value))
         elif key == "queue":
             self.table.track_model.set_fixed_ids(self.queue.view())
+        elif key == "ufolder":                       # the folder may have gained subfolders since it was opened
+            self.table.track_model.update_scope(self._scope_for(key, value)[0])
         else:
             self.table.track_model.reload()
 
@@ -1118,6 +1164,8 @@ class MainWindow(QMainWindow):
         self.table.queue_mode = key == "queue"
         self.table.playlist_mode = key == "playlist"
         self.table.folder_mode = key == "ufolder"
+        folder = self.folders.get(int(value)) if key == "ufolder" else None
+        self.table.drop_name = folder.name if folder else (self._view_title() if key == "playlist" else "")   # what a drop here adds to
         self.table.duplicate_mode = str(value) if key == "duplicates" else None
         if key in ("duplicates", "favorites", "recent", "queue"):
             self.sidebar.clear_selection()             # these are reached from the menu, not from the sidebar
@@ -1254,6 +1302,7 @@ class MainWindow(QMainWindow):
             self._skip_after_error(reason)
             return
         self.engine.set_live(False)                # leaving live radio: no ICY reading, no station state
+        self.equalizer.begin_song(track.id, self.equalizer.parse_curve(track.eq))
         fade, self._fade_next = self._fade_next, False
         if not (self.engine.play_url(url, fade=True) if fade else self.engine.play_url(url)):
             return
@@ -1299,6 +1348,7 @@ class MainWindow(QMainWindow):
         self.table.track_model.set_current(None)
         self.setWindowTitle("Juke")
         self._show_lyrics_panel(False)
+        self.equalizer.end_song()
         self._sync_media()
 
     def _previous(self) -> None:
@@ -1423,6 +1473,7 @@ class MainWindow(QMainWindow):
         the station has moved, because stations keep changing their stream address."""
         self._station_token += 1
         token = self._station_token
+        self.equalizer.end_song()
         self.engine.set_live(True, station.name)
         if not self.engine.play_url(station.stream_url):
             self.engine.set_live(False)
@@ -1710,6 +1761,39 @@ class MainWindow(QMainWindow):
         if found:
             folder = self.folders.get(landed) if landed else None
             self.notify(trn("msg.added_folder", len(found), name=folder.name if folder else tr("sidebar.folders")), 3500)
+
+    def _table_tracks_dropped(self, ids: list[int]) -> None:
+        """Songs dropped on the list of the open folder or playlist: they go in it, no need to aim at the sidebar."""
+        key, value = self._view
+        if key == "ufolder":
+            self._add_to_folder(int(value), ids)
+        elif key == "playlist":
+            self._add_to_playlist(int(value), ids)
+
+    def _table_paths_dropped(self, paths: list[str]) -> None:
+        """Files and folders dropped from the file manager on the open folder or playlist."""
+        key, value = self._view
+        if key == "ufolder":
+            self._paths_dropped(int(value), paths)
+            self._reload_view()
+            self._update_heading()
+        elif key == "playlist":                           # a playlist holds songs of the library: the dropped ones that are in it
+            found: list[int] = []
+            unknown = 0
+            for path in paths:
+                files = [str(f) for f in Path(path).rglob("*") if f.is_file()] if Path(path).is_dir() else [path]
+                for file in files:
+                    if Path(file).suffix.lower() not in AUDIO_EXTENSIONS:
+                        continue
+                    track = self.db.find_by_location(SOURCE_LOCAL, file)
+                    if track is not None:
+                        found.append(track.id)
+                    else:
+                        unknown += 1
+            if found:
+                self._add_to_playlist(int(value), list(dict.fromkeys(found)))
+            if unknown:
+                self.notify(trn("msg.drop_not_in_library", unknown), 8000)
 
     def _folder_moved(self, folder_id: int, new_parent: int) -> None:
         if not self.folders.move(folder_id, new_parent or None):

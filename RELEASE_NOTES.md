@@ -7,6 +7,10 @@
 - **Playlists done right.** A song already in a playlist is not added twice, and you are told. Press the ✓ in *Add to playlist* to take it out. The library shows which playlists hold each song. A song deleted from the playlist that is playing no longer plays again.
 - **Knows what can play.** Songs on an offline server, or on a drive that is not connected, turn grey with a note ("Go online" / "Not connected"); playback skips them.
 - **A manual inside the app**, with an index, in English and Spanish: press `F1`.
+- **Fixed: the music was too quiet with the equalizer on.** libVLC's equalizer is 12 dB down when its preamp is 0, so a flat curve turned the music down by a quarter, even at 100 % volume. "Level +0.0" is now the song exactly as it is.
+- **An equalizer for each song, or for a group.** Right-click one song, or several, ▸ *Equalizer* and give them a curve of their own; the equalizer window says when the song that plays has one, and the general equalizer comes back for the rest.
+- **Drop songs where they go.** With a folder or a playlist open, drop songs (or files from your file manager) right on its list; the list is framed and says where they will go.
+- **The computer stays awake while music plays.** Juke asks the desktop not to sleep or turn the screen off, and lets go when you pause or stop (*Settings ▸ Playback*).
 - Bars beside the song that is playing and a green ✓ on those that already played. Back goes up the list even when you picked a song from the middle. The sidebar keeps its folders open and the list keeps its place. Settings reorganised into four tabs. Icons and menu entry that work on GNOME, KDE and the others. Shuffle never repeats a song at the turn of the list.
 
 **Android**
@@ -26,6 +30,10 @@
 - **Listas bien hechas.** Una canción que ya está en una lista no se agrega dos veces, y te avisa. Pulsa la ✓ en *Añadir a la lista* para quitarla. La biblioteca muestra en qué listas está cada canción. Una canción borrada de la lista que suena ya no vuelve a sonar.
 - **Sabe qué se puede reproducir.** Las canciones de un servidor sin conexión, o de un disco desconectado, se ven en gris con una nota («Conéctate» / «Sin conexión»); la reproducción las salta.
 - **Un manual dentro de la app**, con índice, en español e inglés: pulsa `F1`.
+- **Corregido: la música sonaba muy baja con el ecualizador encendido.** El ecualizador de libVLC está 12 dB más bajo cuando su preamp vale 0, así que una curva plana bajaba la música a la cuarta parte, incluso con el volumen al 100 %. Ahora «Nivel +0.0» es la canción tal cual.
+- **Un ecualizador para cada canción, o para un grupo.** Clic derecho en una canción, o en varias, ▸ *Ecualizador* y dales una curva propia; la ventana del ecualizador avisa cuando la canción que suena tiene una, y el ecualizador general vuelve para las demás.
+- **Suelta las canciones donde van.** Con una carpeta o una lista abierta, suelta canciones (o archivos de tu administrador de archivos) directamente sobre su lista; la lista se enmarca y dice adónde irán.
+- **La computadora se queda despierta mientras suena música.** Juke le pide al escritorio que no duerma ni apague la pantalla, y lo suelta al pausar o detener (*Ajustes ▸ Reproducción*).
 - Barras junto a la canción que suena y una ✓ verde en las que ya sonaron. Atrás sube por la lista aunque hayas elegido una canción del medio. El sidebar mantiene sus carpetas abiertas y la lista conserva su posición. Ajustes reorganizados en cuatro pestañas. Iconos y entrada de menú que funcionan en GNOME, KDE y los demás. El aleatorio no repite una canción al dar la vuelta a la lista.
 
 **Android**

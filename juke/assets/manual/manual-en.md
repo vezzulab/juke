@@ -142,6 +142,7 @@ Under **Folders** in the sidebar, Juke keeps your music the way you arrange it. 
 
 - Click the **+** next to *Folders* (or `Ctrl` + `Shift` + `N`) to make a folder. Put folders inside folders.
 - Drag songs into a folder from the list, or drop files and whole folders from your file manager onto the sidebar. Dropped folders keep their layout.
+- **With a folder open, drop songs straight onto its list.** Files and folders from your file manager, or songs from the library, go in the open folder: there is no need to aim at the folder in the sidebar. The same works on an open playlist. While you drag, the list is framed and says where the songs will go.
 - Right-click a folder to rename, duplicate or delete it, to sort what is inside (A→Z, Z→A, by number, newest, oldest), or to play it, shuffle it or add it to the queue.
 - Deleting a folder takes its songs out of Juke. **The files stay on your disk.** Juke never moves, renames or deletes your music files.
 
@@ -364,6 +365,15 @@ You do not need to be a sound engineer. Move a bar **up** to hear **more** of th
 | 16 kHz | **Air** | The open feeling at the very top. |
 
 The bars are grouped as **Bass**, **Middle** and **Treble**. The curve above the bars shows the sound you are shaping.
+
+## An equalizer for each song
+
+The equalizer you set in the window is the **general** one, for every song. Any song can have its **own** instead: right-click it ▸ **Equalizer for this song** and choose a preset, one of your own presets, or *The equalizer as it is now*. Select several songs first (`Ctrl` + `A`, `Ctrl` + click, `Shift` + click) and the same menu gives them all the same equalizer at once.
+
+- **General equalizer (default)** in that menu takes the song's own curve away. A ✓ shows what the selected songs have.
+- When a song with its own equalizer plays, the equalizer window says so, and what you change there is kept for that song only. *Use the general equalizer* goes back.
+- A song with its own curve is always shaped by it, even if the general equalizer is off. The next song, if it has none, plays with the general one again.
+- The song's tooltip in the list shows which equalizer it has.
 
 ## Level (preamp)
 

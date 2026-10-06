@@ -36,6 +36,10 @@ Your own files, your Airsonic / Subsonic server, internet radio and a 10-band eq
 
 **Crossfade.** The next song comes in a few seconds before the current one ends. A green light under the volume shows it is on; one click turns it off.
 
+**An equalizer for each song — or for a group.** Right-click one song, or several, ▸ *Equalizer* and give them a curve of their own; the general equalizer comes back for the rest.
+
+**Drop songs where they go.** With a folder or a playlist open, drop songs (or files from your file manager) right on its list.
+
 **Never falls asleep mid-party.** While music plays, Juke asks the desktop not to put the computer to sleep or turn the screen off, and lets go when you pause or stop.
 
 **An equalizer anyone can use.** Every bar says what it changes — *Deep bass*, *Voice*, *Clarity*, *Sparkle* — and there are 35 presets.

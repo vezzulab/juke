@@ -36,6 +36,10 @@ Tus archivos, tu servidor Airsonic / Subsonic, radio por Internet y un ecualizad
 
 **Crossfade.** La siguiente canción entra unos segundos antes de que termine la actual. Una luz verde bajo el volumen muestra que está activo; un clic lo apaga.
 
+**Un ecualizador para cada canción — o para un grupo.** Clic derecho en una canción, o en varias, ▸ *Ecualizador* y dales una curva propia; el ecualizador general vuelve para las demás.
+
+**Suelta las canciones donde van.** Con una carpeta o una lista abierta, suelta canciones (o archivos de tu administrador de archivos) directamente sobre su lista.
+
 **No se duerme en plena fiesta.** Mientras suena música, Juke le pide al escritorio que no duerma la computadora ni apague la pantalla, y lo suelta al pausar o detener.
 
 **Un ecualizador que cualquiera puede usar.** Cada barra dice qué cambia — *Graves profundos*, *Voz*, *Claridad*, *Brillo* — y hay 35 presets.

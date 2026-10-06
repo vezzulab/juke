@@ -1,4 +1,5 @@
 import json
+import time
 import unittest
 from pathlib import Path
 
@@ -175,6 +176,77 @@ class FoldersGuiTests(unittest.TestCase):
         w.table.selectRow(0)
         w._remove_from_folder(w.table.selected_ids())
         self.assertEqual(len(self.store.items(folder.id)), 2)
+
+    def test_songs_dropped_on_the_list_of_the_open_folder_or_playlist_go_in_it(self):
+        from PySide6.QtCore import QPointF, QUrl
+        from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent
+
+        w, db = self.window, self.db
+        ids = self.real_ids(8)                                                           # songs whose files exist
+        self.names = ["Mine"]
+        w._new_folder()
+        folder = self.store.tree()[0]
+        w.sidebar.select("ufolder", folder.id)
+        w._show_view("ufolder", folder.id)
+        table = w.table
+        self.assertEqual(table.drop_name, "Mine")
+
+        def drop(mime):
+            where = QPointF(table.viewport().rect().center())
+            enter = QDragEnterEvent(where.toPoint(), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
+            QApplication.sendEvent(table.viewport(), enter)
+            move = QDragMoveEvent(where.toPoint(), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
+            QApplication.sendEvent(table.viewport(), move)
+            QApplication.sendEvent(table.viewport(), QDropEvent(where, Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier))
+            return enter.isAccepted(), table._dropping
+
+        accepted, _ = drop(tracks_mime(ids[:3]))                                         # songs from the library, dropped on the list
+        self.assertTrue(accepted)
+        self.assertEqual(len(self.store.items(folder.id)), 3)
+        self.assertEqual(table.track_model.rowCount(), 3)                                # ...and they show at once
+        pid = db.create_playlist("Mix")
+        w.refresh_playlists()
+        w.sidebar.select("playlist", pid)
+        w._show_view("playlist", pid)
+        self.assertEqual(table.drop_name, "Mix")
+        drop(tracks_mime(ids[4:6]))                                                      # the same on a playlist
+        self.assertEqual(db.playlist_track_ids(pid), ids[4:6])
+        w._show_view("all", None)
+        self.assertFalse(drop(tracks_mime(ids[:2]))[0])                                  # the library itself takes no drops
+        mime = QMimeData()
+        mime.setUrls([QUrl.fromLocalFile("/nope/not-in-the-library.mp3")])
+        w._show_view("playlist", pid)
+        drop(mime)                                                                       # a file that is not in the library: told, not lost
+        self.assertEqual(db.playlist_track_ids(pid), ids[4:6])
+        self.assertIn("not in your library", w.statusBar().currentMessage())
+
+    def test_files_dropped_from_the_file_manager_on_the_open_folder_land_in_it(self):
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent
+
+        w = self.window
+        incoming = Path(helpers.ROOT) / "dropped-on-the-list"
+        for rel in ("one.wav", "Sub/two.wav"):
+            (incoming / rel).parent.mkdir(parents=True, exist_ok=True)
+            write_wav(incoming / rel, 0.2)
+        self.names = ["Open one"]
+        w._new_folder()
+        folder = self.store.tree()[0]
+        w.sidebar.select("ufolder", folder.id)
+        w._show_view("ufolder", folder.id)                                               # the folder is open, as in the report
+        mime = QMimeData()
+        mime.setUrls([QUrl.fromLocalFile(str(incoming / "one.wav")), QUrl.fromLocalFile(str(incoming / "Sub"))])
+        table = w.table
+        where = QPointF(table.viewport().rect().center())
+        QApplication.sendEvent(table.viewport(), QDragEnterEvent(where.toPoint(), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier))
+        QApplication.sendEvent(table.viewport(), QDragMoveEvent(where.toPoint(), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier))
+        QApplication.sendEvent(table.viewport(), QDropEvent(where, Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier))
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline and table.track_model.rowCount() < 2:
+            pump(100)                                                                    # (the songs are read in the background)
+        self.assertEqual(len(self.store.items(folder.id)), 1)                             # the file went in the open folder...
+        self.assertIn("Sub", [f.name for f in self.store.tree()])                        # ...and the dropped folder came with its layout
+        self.assertEqual(table.track_model.rowCount(), 2)                                # both songs are in the list that was open
 
     def test_files_and_folders_dragged_in_from_the_file_manager_need_no_import_step(self):
         w, db = self.window, self.db

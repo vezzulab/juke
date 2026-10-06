@@ -6,6 +6,8 @@ gains and preamp are in dB within libVLC's ±20 dB range.
 
 from __future__ import annotations
 
+import json
+
 from PySide6.QtCore import QObject, Signal
 
 from ..config import Config
@@ -81,10 +83,14 @@ class Equalizer(QObject):
     """Holds the current curve; ``changed`` fires after every edit."""
 
     changed = Signal()
+    song_cleared = Signal(int)          # the person went back to the general equalizer for the song that is playing
 
     def __init__(self, config: Config, parent=None) -> None:
         super().__init__(parent)
         self._config = config
+        self.song_id: int | None = None                    # set while the song that plays has an equalizer of its own
+        self.song_saver = None                             # callable(song id, curve): where edits of that curve are kept
+        self._general: tuple | None = None                 # the general curve, put away while a song's own plays
         state = config.get("equalizer")
         self.enabled: bool = bool(state["enabled"])
         self.preamp: float = _clamp(state["preamp"])
@@ -98,6 +104,11 @@ class Equalizer(QObject):
 
     # -- state ---------------------------------------------------------------
     def _persist(self) -> None:
+        if self.song_id is not None:                       # editing a song's own curve: it is kept with the song, not as the general one
+            if self.song_saver is not None:
+                self.song_saver(self.song_id, self.song_curve())
+            self._config.set("custom_presets", self.custom)
+            return
         self._config.set("equalizer", {
             "enabled": self.enabled, "preamp": self.preamp,
             "gains": list(self.gains), "preset": self.preset,
@@ -171,3 +182,64 @@ class Equalizer(QObject):
 
     def reset(self) -> None:
         self.load_preset("Flat")
+
+    # -- a song's own equalizer ---------------------------------------------------------------------------
+    def song_curve(self) -> dict:
+        """The curve in play as something to keep with a song."""
+        return {"name": self.preset or "", "preamp": self.preamp, "gains": list(self.gains)}
+
+    @staticmethod
+    def parse_curve(text: str) -> dict | None:
+        """A song's saved curve, or None when it has none (or the text is not a usable curve)."""
+        if not text:
+            return None
+        try:
+            data = json.loads(text)
+            gains = [_clamp(g) for g in data["gains"]]
+            if len(gains) != 10:
+                return None
+            return {"name": str(data.get("name") or ""), "preamp": _clamp(data.get("preamp", 0.0)), "gains": gains}
+        except (ValueError, KeyError, TypeError):
+            return None
+
+    def curve_for(self, preset: str) -> dict | None:
+        """A preset (built-in or yours) as a curve to give a song."""
+        presets = self._all_presets()
+        if preset not in presets:
+            return None
+        preamp, gains = presets[preset]
+        return {"name": preset, "preamp": preamp, "gains": list(gains)}
+
+    def begin_song(self, song_id: int, curve: dict | None) -> None:
+        """A song starts. With a curve of its own, that is what plays (and what the sliders edit) until the song
+        changes; without one, the general equalizer."""
+        had = self.song_id is not None
+        if curve is None:
+            if had:
+                self.end_song()
+            return
+        if not had:
+            self._general = (self.enabled, self.preamp, list(self.gains), self.preset)
+        self.song_id = song_id
+        self.enabled, self.preamp, self.gains = True, _clamp(curve["preamp"]), [_clamp(g) for g in curve["gains"]]
+        self.preset = curve.get("name") or self._matching_preset()
+        self.changed.emit()
+
+    def end_song(self) -> None:
+        """Back to the general equalizer (the song ended, or the person asked for it)."""
+        if self.song_id is None:
+            return
+        self.song_id = None
+        if self._general is not None:
+            self.enabled, self.preamp, gains, self.preset = self._general
+            self.gains = list(gains)
+        self._general = None
+        self.changed.emit()
+
+    def clear_song(self) -> None:
+        """The person chose the general equalizer for the song that is playing: its own curve is dropped."""
+        song = self.song_id
+        if song is None:
+            return
+        self.end_song()
+        self.song_cleared.emit(song)

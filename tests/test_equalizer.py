@@ -68,5 +68,64 @@ class PresetTests(unittest.TestCase):
         self.assertEqual(eq.preset, "Dembow")
 
 
+
+
+class EngineLevelTests(unittest.TestCase):
+    """libVLC's equalizer is 12 dB down at preamp 0, so Juke's "Level +0.0" must reach it as 12: a flat curve is the
+    song exactly as it is. (Measured on a real output: flat was 12.0 dB quieter than no equalizer before this.)"""
+
+    def make_engine(self):
+        from juke.audio.engine import AudioEngine
+        from juke.audio.equalizer import Equalizer
+        from juke.config import Config
+
+        sent = {}
+
+        class Native:
+            def set_preamp(self, db):
+                sent["preamp"] = db
+
+            def set_amp_at_index(self, gain, band):
+                sent.setdefault("gains", {})[band] = gain
+
+        class Vlc:
+            AudioEqualizer = Native
+
+        class Player:
+            def set_equalizer(self, eq):
+                sent["applied"] = eq
+
+        engine = AudioEngine()
+        engine._vlc, engine._player = Vlc(), Player()
+        eq = Equalizer(Config(Path(helpers.ROOT) / "eq-level.json"))
+        engine._equalizer = eq
+        return engine, eq, sent
+
+    def test_a_flat_equalizer_reaches_libvlc_at_its_unity_level(self):
+        from juke.audio.engine import VLC_UNITY_PREAMP
+
+        engine, eq, sent = self.make_engine()
+        eq.enabled, eq.preamp, eq.gains = True, 0.0, [0.0] * 10
+        engine._apply_equalizer()
+        self.assertEqual(VLC_UNITY_PREAMP, 12.0)
+        self.assertEqual(sent["preamp"], 12.0)
+        self.assertEqual(sent["gains"][0], 0.0)
+
+    def test_the_level_slider_moves_it_from_there_and_stays_in_libvlcs_range(self):
+        engine, eq, sent = self.make_engine()
+        eq.enabled = True
+        for level, expected in ((-5.0, 7.0), (3.0, 15.0), (20.0, 20.0), (-20.0, -8.0)):    # (libVLC accepts -20..+20)
+            eq.preamp = level
+            engine._apply_equalizer()
+            self.assertEqual(sent["preamp"], expected, level)
+
+    def test_a_built_in_preset_keeps_its_headroom_on_top_of_that(self):
+        engine, eq, sent = self.make_engine()
+        eq.enabled = True
+        eq.load_preset("Dembow")
+        engine._apply_equalizer()
+        self.assertEqual(sent["preamp"], 12.0 + headroom(BUILTIN_PRESETS["Dembow"]))
+
+
 if __name__ == "__main__":
     unittest.main()

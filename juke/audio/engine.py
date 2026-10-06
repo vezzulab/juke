@@ -26,6 +26,9 @@ POLL_ACTIVE_MS = 500     # window in front: progress bar and time labels follow 
 ICY_FIRST_MS = 2500      # first own ICY title lookup after tuning in
 ICY_EVERY_MS = 30_000    # then every half minute, and only while the window is in front
 POLL_HIDDEN_MS = 2000    # window hidden/minimised/unfocused: only watch for the end of the song
+# libVLC's equalizer filter is 12 dB down when its preamp is 0 (VLC's own window starts the preamp at 12), so a flat curve
+# turned the music down by a quarter. Juke's "Level +0.0" has to be libVLC's 12: that is the song exactly as it is.
+VLC_UNITY_PREAMP = 12.0
 FADE_STEP_MS = 80        # volume steps of a crossfade (only while one is running)
 READY_AFTER_MS = 400     # media time after which the audio output is fully up
 
@@ -402,7 +405,7 @@ class AudioEngine(QObject):
             self._vlc_eq = None
             return
         native = self._vlc.AudioEqualizer()
-        native.set_preamp(eq.preamp)
+        native.set_preamp(max(-20.0, min(20.0, eq.preamp + VLC_UNITY_PREAMP)))
         for band, gain in enumerate(eq.gains):
             native.set_amp_at_index(gain, band)
         self._player.set_equalizer(native)

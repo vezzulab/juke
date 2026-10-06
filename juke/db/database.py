@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS tracks (
     play_count   INTEGER NOT NULL DEFAULT 0,
     last_played  REAL    NOT NULL DEFAULT 0,
     added_at     REAL    NOT NULL DEFAULT 0,
+    eq           TEXT    NOT NULL DEFAULT '',
     UNIQUE (source_type, location)
 );
 CREATE INDEX IF NOT EXISTS idx_tracks_artist      ON tracks (artist COLLATE NOCASE);
@@ -93,7 +94,7 @@ CREATE INDEX IF NOT EXISTS idx_stations_name ON stations (name COLLATE NOCASE);
 
 _COLUMNS = (
     "id, source_type, location, title, artist, album, genre, year, track_no, "
-    "duration, bitrate, cover_key, favorite, play_count, last_played"
+    "duration, bitrate, cover_key, favorite, play_count, last_played, eq"
 )
 
 # Sortable columns of the track table -> SQL ordering expression.
@@ -141,12 +142,13 @@ class Track:
     favorite: bool
     play_count: int
     last_played: float
+    eq: str = ""           # the song's own equalizer, as JSON ({"name", "preamp", "gains"}); empty: the general one
 
     @classmethod
     def from_row(cls, row: Sequence) -> "Track":
         return cls(
             row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8],
-            row[9], row[10], row[11], bool(row[12]), row[13], row[14],
+            row[9], row[10], row[11], bool(row[12]), row[13], row[14], row[15] if len(row) > 15 else "",
         )
 
     @property
@@ -217,6 +219,9 @@ class Database:
         station_columns = {row[1] for row in conn.execute("PRAGMA table_info(stations)")}
         if station_columns and "source_url" not in station_columns:
             conn.execute("ALTER TABLE stations ADD COLUMN source_url TEXT NOT NULL DEFAULT ''")
+        track_columns = {row[1] for row in conn.execute("PRAGMA table_info(tracks)")}
+        if track_columns and "eq" not in track_columns:
+            conn.execute("ALTER TABLE tracks ADD COLUMN eq TEXT NOT NULL DEFAULT ''")
         playlist_columns = {row[1] for row in conn.execute("PRAGMA table_info(playlist_tracks)")}
         if playlist_columns and "added_at" not in playlist_columns:
             conn.execute("ALTER TABLE playlist_tracks ADD COLUMN added_at REAL NOT NULL DEFAULT 0")   # 0 = added before Juke kept the date
@@ -331,6 +336,12 @@ class Database:
         conn = self.connect()
         with conn:
             conn.executemany("UPDATE tracks SET favorite=? WHERE id=?", [(int(value), i) for i in ids])
+
+    def set_eq(self, ids: Sequence[int], curve_json: str) -> None:
+        """Give these songs their own equalizer (JSON), or take it away again with an empty string."""
+        conn = self.connect()
+        with conn:
+            conn.executemany("UPDATE tracks SET eq=? WHERE id=?", [(curve_json, i) for i in ids])
 
     def record_start(self, track_id: int) -> None:
         conn = self.connect()

@@ -142,6 +142,7 @@ Bajo **Carpetas** en la barra lateral, Juke guarda tu música como tú la acomod
 
 - Haz clic en el **+** junto a *Carpetas* (o `Ctrl` + `Mayús` + `N`) para crear una carpeta. Pon carpetas dentro de carpetas.
 - Arrastra canciones a una carpeta desde la lista, o suelta archivos y carpetas enteras desde tu administrador de archivos sobre la barra lateral. Las carpetas que sueltas conservan su estructura.
+- **Con una carpeta abierta, suelta las canciones directamente sobre su lista.** Archivos y carpetas de tu administrador de archivos, o canciones de la biblioteca, entran en la carpeta abierta: no hace falta apuntar a la carpeta de la barra lateral. Lo mismo vale en una lista de reproducción abierta. Mientras arrastras, la lista se enmarca y dice adónde irán las canciones.
 - Clic derecho en una carpeta para renombrarla, duplicarla o borrarla, ordenar lo que tiene (A→Z, Z→A, por número, más nuevas, más viejas), o reproducirla, mezclarla o agregarla a la cola.
 - Borrar una carpeta saca sus canciones de Juke. **Los archivos se quedan en tu disco.** Juke nunca mueve, renombra ni borra tus archivos de música.
 
@@ -364,6 +365,15 @@ No hace falta ser ingeniero de sonido. Mueve una barra **hacia arriba** para oí
 | 16 kHz | **Aire** | La sensación abierta de lo más alto. |
 
 Las barras están agrupadas en **Graves**, **Medios** y **Agudos**. La curva sobre las barras muestra el sonido que estás moldeando.
+
+## Un ecualizador para cada canción
+
+El ecualizador que ajustas en la ventana es el **general**, para todas las canciones. Cualquier canción puede tener el **suyo propio**: clic derecho ▸ **Ecualizador para esta canción** y elige un preajuste, uno tuyo, o *El ecualizador como está ahora*. Selecciona varias canciones antes (`Ctrl` + `A`, `Ctrl` + clic, `Mayús` + clic) y el mismo menú les da a todas el mismo ecualizador de una vez.
+
+- **Ecualizador general (por defecto)** en ese menú le quita a la canción su curva propia. Una ✓ muestra lo que tienen las canciones seleccionadas.
+- Cuando suena una canción con ecualizador propio, la ventana del ecualizador lo dice, y lo que cambies ahí se guarda solo para esa canción. *Usar el ecualizador general* vuelve atrás.
+- Una canción con curva propia siempre se moldea con ella, aunque el ecualizador general esté apagado. La siguiente canción, si no tiene, suena otra vez con el general.
+- El texto emergente de la canción en la lista muestra qué ecualizador tiene.
 
 ## Nivel (preamp)
 

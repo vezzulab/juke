@@ -94,6 +94,17 @@ class EqualizerDialog(QDialog):
         self.hint = QLabel()
         self.hint.setObjectName("muted")
         self.hint.setWordWrap(True)
+        self.song_note = QLabel()                          # shown while the song that plays has an equalizer of its own
+        self.song_note.setWordWrap(True)
+        self.song_note.setObjectName("eqSongNote")
+        self.song_back = QPushButton()
+        self.song_back.clicked.connect(self._eq.clear_song)
+        note = QHBoxLayout()
+        note.addWidget(self.song_note, 1)
+        note.addWidget(self.song_back)
+        self.song_bar = QWidget()
+        self.song_bar.setLayout(note)
+        self.song_bar.hide()
         self.band_sliders: list[QSlider] = []
         self.band_values: list[QLabel] = []
         self.band_names: list[QLabel] = []         # "Deep bass", "Voice"...: what the bar changes, in plain words
@@ -169,6 +180,7 @@ class EqualizerDialog(QDialog):
         layout.setContentsMargins(22, 20, 22, 20)
         layout.setSpacing(14)
         layout.addLayout(top)
+        layout.addWidget(self.song_bar)
         layout.addWidget(self.hint)
         layout.addWidget(self.curve)
         layout.addLayout(grid)
@@ -236,6 +248,11 @@ class EqualizerDialog(QDialog):
         self.presets.setCurrentIndex(max(0, self.presets.findData(eq.preset)) if eq.preset else 0)
         for widget in (self.enabled, self.presets, self.preamp_slider, *self.band_sliders):
             widget.blockSignals(False)
+        own = eq.song_id is not None
+        self.song_bar.setVisible(own)
+        self.enabled.setEnabled(not own)                    # a song with its own curve is always shaped by it
+        if own:
+            self.song_note.setText(tr("eq.song_note", name=eq.preset or tr("eq.custom")))
         controls_on = eq.enabled
         for slider in (self.preamp_slider, *self.band_sliders):
             slider.setEnabled(controls_on)
@@ -278,6 +295,7 @@ class EqualizerDialog(QDialog):
         self.btn_save.setText(tr("eq.save"))
         self.btn_delete.setText(tr("eq.delete"))
         self.btn_reset.setText(tr("eq.reset"))
+        self.song_back.setText(tr("eq.song_back"))
         self.preamp_name.setText(tr("eq.preamp_short"))
         self.hint.setText(tr("eq.hint"))
         for i, hz in enumerate(BANDS_HZ):

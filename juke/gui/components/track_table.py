@@ -15,7 +15,8 @@ import math
 
 from PySide6.QtCore import (QAbstractTableModel, QItemSelectionModel, QMimeData, QModelIndex, QRect, QRectF, Qt, QTimer,
                             Signal)
-from PySide6.QtGui import QAction, QColor, QDrag, QFont, QFontMetrics, QFontMetricsF, QGuiApplication, QPainter, QPixmap
+from PySide6.QtGui import (QAction, QColor, QDrag, QFont, QFontMetrics, QFontMetricsF, QGuiApplication, QPainter, QPen,
+                           QPixmap)
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QMenu, QPushButton, QTableView
 
 from ...db.database import SOURCE_AIRSONIC, Database, Scope, Track
@@ -87,6 +88,11 @@ class TrackModel(QAbstractTableModel):
         self._index_entries(entries)
         self.reload(force=True)                       # another view: the table starts afresh
 
+    def update_scope(self, scope: Scope) -> None:
+        """The same view with a new scope (a folder that gained a subfolder): sort and search stay."""
+        self._scope = scope
+        self.reload()
+
     def set_text(self, text: str) -> None:
         if text != self._text:
             self._text = text
@@ -157,6 +163,16 @@ class TrackModel(QAbstractTableModel):
         for i in self._fixed:                                  # a song that is in the list twice shows twice
             copies[i] = copies.get(i, 0) + 1
         return [i for i in ordered for _ in range(copies.get(i, 0))]
+
+    @staticmethod
+    def _eq_label(track) -> str:
+        if not track.eq:
+            return ""
+        try:
+            name = str(json.loads(track.eq).get("name") or "")
+        except (ValueError, AttributeError):
+            return ""
+        return tr("tip.song_eq", name=name) if name else tr("tip.song_eq_custom")
 
     def mark_played(self, track_id: int) -> None:
         """This song has started playing: it keeps a check mark until Juke is closed."""
@@ -376,7 +392,10 @@ class TrackModel(QAbstractTableModel):
                 return tr("avail.tip_server" if why == "server" else "avail.tip_file")
             if column == "playlists":
                 return "\n".join(self._names.get(track.id, ())) or None
-            return f"{track.title}\n{track.artist} — {track.album}" if column == "title" else None
+            if column != "title":
+                return None
+            own = self._eq_label(track)
+            return f"{track.title}\n{track.artist} — {track.album}" + (f"\n{own}" if own else "")
         if column == "title":
             return ("★ " if track.favorite else "") + (track.title or tr("unknown_title"))
         if column == "artist":
@@ -414,6 +433,9 @@ class TrackTable(QTableView):
     remove_from_folder_requested = Signal(list)
     send_to_device_requested = Signal(str, list)    # device key, track ids
     action_requested = Signal()                     # the button of an empty-state message
+    song_eq_requested = Signal(list, str)           # track ids, and "" (general) | "preset:<name>" | "current": their own equalizer
+    tracks_dropped = Signal(list)                   # songs dropped on the list of the open folder or playlist (track ids)
+    paths_dropped = Signal(list)                    # files and folders dropped from the file manager
 
     def __init__(self, db: Database, parent=None) -> None:
         super().__init__(parent)
@@ -423,6 +445,9 @@ class TrackTable(QTableView):
         self.playlist_mode = False
         self.folder_mode = False                    # showing one of the user's folders: songs can be taken out of it
         self.duplicate_mode: str | None = None      # showing copies of songs ("same" | "exact")
+        self.eq_presets = None                      # callable -> ([(name, label)] built-in, [name] yours): for the equalizer menu
+        self.drop_name = ""                         # the folder or playlist that is open: what a drop here adds to
+        self._dropping = False                      # a drag is over the list, and it would be taken
         self.playlists: list[tuple[int, str]] = []
         self.devices: list[tuple[str, str]] = []        # (key, name) of the phones that are ready to take songs
         self._folder_children: dict[int | None, list] = {}
@@ -453,6 +478,7 @@ class TrackTable(QTableView):
         self.setContextMenuPolicy(Qt.DefaultContextMenu)
         self.setDragEnabled(True)
         self.setDragDropMode(QAbstractItemView.DragOnly)
+        self.setAcceptDrops(True)                   # (only taken while a folder or a playlist is open: see _can_drop)
         self.setDefaultDropAction(Qt.CopyAction)
         self.verticalHeader().hide()
         self.verticalHeader().setDefaultSectionSize(36)
@@ -589,6 +615,59 @@ class TrackTable(QTableView):
             return
         super().keyPressEvent(event)
 
+    # -- dropping songs where they go ----------------------------------------------------------------------------
+    def _can_drop(self, mime) -> bool:
+        """The list of an open folder or playlist takes songs dropped on it, from the file manager or from another view."""
+        if not (self.folder_mode or self.playlist_mode):
+            return False
+        return mime.hasFormat(MIME_TRACKS) or mime.hasUrls()
+
+    def _set_dropping(self, on: bool) -> None:
+        if on != self._dropping:
+            self._dropping = on
+            self.viewport().update()
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802
+        if event.source() is not self and self._can_drop(event.mimeData()):
+            event.setDropAction(Qt.CopyAction)
+            event.accept()
+            self._set_dropping(True)
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802
+        if event.source() is not self and self._can_drop(event.mimeData()):
+            event.setDropAction(Qt.CopyAction)
+            event.accept()
+            self._set_dropping(True)
+        else:
+            event.ignore()
+            self._set_dropping(False)
+
+    def dragLeaveEvent(self, event) -> None:  # noqa: N802
+        self._set_dropping(False)
+        event.accept()
+
+    def dropEvent(self, event) -> None:  # noqa: N802
+        self._set_dropping(False)
+        mime = event.mimeData()
+        if event.source() is self or not self._can_drop(mime):
+            event.ignore()
+            return
+        if mime.hasFormat(MIME_TRACKS):
+            try:
+                ids = [int(i) for i in json.loads(bytes(mime.data(MIME_TRACKS)).decode())]
+            except (ValueError, TypeError):
+                ids = []
+            if ids:
+                self.tracks_dropped.emit(ids)
+        else:
+            paths = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
+            if paths:
+                self.paths_dropped.emit(paths)
+        event.setDropAction(Qt.CopyAction)
+        event.accept()
+
     # -- context menu ------------------------------------------------------------------------------------
     def contextMenuEvent(self, event) -> None:  # noqa: N802
         index = self.indexAt(event.pos())
@@ -622,6 +701,7 @@ class TrackTable(QTableView):
         if self.playlist_mode:
             positions = self.selected_entry_positions()
             menu.addAction(tr("menu.remove_from_playlist"), lambda: self.remove_from_playlist_requested.emit(positions))
+        self._add_eq_menu(menu, ids, tracks)
         self._add_folder_menu(menu, ids)
         if len(self.devices) == 1:
             key, name = self.devices[0]
@@ -646,6 +726,40 @@ class TrackTable(QTableView):
         find_lyrics = menu.addAction(tr("menu.find_lyrics"), lambda: self.find_lyrics_requested.emit(ids[0]))
         find_lyrics.setEnabled(single)
         menu.exec(event.globalPos())
+
+    @staticmethod
+    def _eq_name(track) -> str | None:
+        """The name of the equalizer a song has of its own ("" for an unnamed curve), None when it has none."""
+        if not track.eq:
+            return None
+        try:
+            return str(json.loads(track.eq).get("name") or "")
+        except (ValueError, AttributeError):
+            return None
+
+    def _add_eq_menu(self, menu: QMenu, ids: list[int], tracks: list) -> None:
+        """"Equalizer for this song / these songs": its own curve for each, or back to the general one."""
+        if self.eq_presets is None or not tracks:
+            return
+        builtin, mine = self.eq_presets()
+        names = {self._eq_name(t) for t in tracks}                       # what the selected songs have now
+        title = tr("menu.song_eq_one") if len(tracks) == 1 else tr("menu.song_eq_many", n=len(tracks))
+        sub = menu.addMenu(title)
+
+        def mark(label: str, on: bool) -> str:
+            return f"✓  {label}" if on else label
+
+        sub.addAction(mark(tr("menu.song_eq_default"), names == {None}),
+                      lambda: self.song_eq_requested.emit(list(ids), ""))
+        sub.addAction(tr("menu.song_eq_current"), lambda: self.song_eq_requested.emit(list(ids), "current"))
+        sub.addSeparator()
+        for name in mine:
+            sub.addAction(mark(name, names == {name}), lambda _c=False, n=name: self.song_eq_requested.emit(list(ids), "preset:" + n))
+        if mine:
+            sub.addSeparator()
+        presets = sub.addMenu(tr("menu.song_eq_presets"))
+        for name, label in builtin:
+            presets.addAction(mark(label, names == {name}), lambda _c=False, n=name: self.song_eq_requested.emit(list(ids), "preset:" + n))
 
     def set_folders(self, folders: list) -> None:
         self._folder_children = {}
@@ -701,12 +815,32 @@ class TrackTable(QTableView):
         self.empty_button.setFixedSize(width, 38)
         self.empty_button.move((rect.width() - width) // 2, half + 6 + hint_height + 18)
 
+    def _paint_drop_hint(self) -> None:
+        """While songs are being dragged over the list: a frame in the accent colour and what dropping them does."""
+        painter = QPainter(self.viewport())
+        painter.setRenderHint(QPainter.Antialiasing)
+        rect = QRectF(self.viewport().rect()).adjusted(6, 6, -6, -6)
+        fill = styles.qcolor(styles.ACCENT, 28)
+        painter.setBrush(fill)
+        painter.setPen(QPen(QColor(styles.ACCENT), 2, Qt.DashLine))
+        painter.drawRoundedRect(rect, 14, 14)
+        font = QFont(self.font())
+        font.setPixelSize(16)
+        font.setWeight(QFont.DemiBold)
+        painter.setFont(font)
+        painter.setPen(QColor(styles.TEXT))
+        painter.drawText(rect, Qt.AlignCenter | Qt.TextWordWrap, tr("drop.add_to", name=self.drop_name))
+        painter.end()
+
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         self._place_empty_button()
 
     def paintEvent(self, event) -> None:  # noqa: N802
         super().paintEvent(event)
+        if self._dropping:
+            self._paint_drop_hint()
+            return
         if self.track_model.rowCount() or not self.empty_title:
             return
         painter = QPainter(self.viewport())
