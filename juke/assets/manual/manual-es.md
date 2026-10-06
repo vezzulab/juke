@@ -200,6 +200,12 @@ Usa las teclas de volumen del teléfono. Juke sigue el volumen del sistema.
 <!--/android-->
 
 <!--linux-->
+## Mantener la computadora despierta
+
+Mientras suena una canción o una emisora, Juke le pide al escritorio que no duerma la computadora ni apague la pantalla, para que un portátil no se duerma en plena fiesta. Lo suelta en cuanto pausas o detienes, y la computadora vuelve a dormirse con normalidad. Puedes apagarlo con *Mantener la computadora despierta mientras suena música* en *Ajustes ▸ Reproducción*. Cerrar la tapa sigue lo que digan tus ajustes de energía: si el portátil debe seguir sonando con la tapa cerrada, configúralo en las opciones de energía de tu escritorio.
+<!--/linux-->
+
+<!--linux-->
 ## Teclado y teclas multimedia
 
 Reproducir, pausar, detener, siguiente y anterior funcionan con las teclas multimedia de tu teclado o de tus auriculares, con el widget multimedia de tu escritorio (GNOME, KDE y los demás) y con herramientas como `playerctl`. La tecla Play también pausa cuando suena una canción. Los atajos están en el capítulo *Atajos de teclado*.
@@ -411,7 +417,7 @@ Juke solo copia archivos de música y nunca cambia tu biblioteca.
 | Pestaña | Qué tiene |
 | --- | --- |
 | **General** | Idioma, tema, *Buscar actualizaciones automáticamente*, *Mostrar Juke en el menú de aplicaciones*. |
-| **Reproducción** | *El volumen sigue al de la computadora*, *Crossfade* (segundos, o apagado) y el medidor de nivel. |
+| **Reproducción** | *Mantener la computadora despierta mientras suena música*, *El volumen sigue al de la computadora*, *Crossfade* (segundos, o apagado) y el medidor de nivel. |
 | **Biblioteca** | Tus carpetas de música, *Buscar cambios al iniciar Juke* y *Buscar letras en línea*. |
 | **Airsonic** | La dirección del servidor, el usuario y la contraseña, y *Probar conexión*. |
 <!--/linux-->

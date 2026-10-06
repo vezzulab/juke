@@ -200,6 +200,12 @@ Use the volume keys of the phone. Juke follows the system volume.
 <!--/android-->
 
 <!--linux-->
+## Keeping the computer awake
+
+While a song or a station is playing, Juke asks the desktop not to put the computer to sleep and not to turn the screen off, so a laptop does not fall asleep in the middle of a party. It lets go as soon as you pause or stop, and the computer sleeps as usual again. You can turn it off with *Keep the computer awake while music plays* in *Settings ▸ Playback*. Closing the lid still follows your power settings: if the laptop must keep playing with the lid closed, set that in your desktop's power options.
+<!--/linux-->
+
+<!--linux-->
 ## Keyboard and media keys
 
 Play, pause, stop, next and previous work from the media keys of your keyboard or headset, from the media widget of your desktop (GNOME, KDE and the rest), and from tools such as `playerctl`. The Play key also pauses when a song is playing. The shortcuts are in the chapter *Keyboard shortcuts*.
@@ -411,7 +417,7 @@ Open them with `Ctrl` + `,` or from the ⋯ menu. There are four tabs:
 | Tab | What is in it |
 | --- | --- |
 | **General** | Language, theme, *Check for updates automatically*, *Show Juke in the applications menu*. |
-| **Playback** | *Volume follows the computer*, *Crossfade* (seconds, or off) and the level meter. |
+| **Playback** | *Keep the computer awake while music plays*, *Volume follows the computer*, *Crossfade* (seconds, or off) and the level meter. |
 | **Library** | Your music folders, *Look for changes when Juke opens* and *Search lyrics online*. |
 | **Airsonic** | The server address, user and password, and *Test connection*. |
 <!--/linux-->

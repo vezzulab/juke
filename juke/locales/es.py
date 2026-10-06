@@ -327,6 +327,8 @@ STRINGS = {
     "settings.meter_auto": "Automática (solo con corriente)",
     "settings.meter_on": "Siempre",
     "settings.meter_off": "Nunca",
+    "settings.stay_awake": "Mantener la computadora despierta mientras suena música",
+    "settings.stay_awake_hint": "Mientras suena una canción o una emisora, Juke le pide al escritorio que no se duerma ni apague la pantalla, para que un portátil no se duerma en plena fiesta. Lo suelta al pausar o detener. Cerrar la tapa sigue lo que digan tus ajustes de energía.",
     "settings.volume_follow": "El volumen sigue al de la computadora",
     "settings.volume_follow_hint": "El control es el volumen de la computadora: las teclas de volumen, el panel y el mezclador lo mueven, y él los mueve a ellos. Desactívalo para tener un volumen que es solo de Juke.",
     "settings.crossfade": "Crossfade (mezcla)",

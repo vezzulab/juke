@@ -36,6 +36,8 @@ Your own files, your Airsonic / Subsonic server, internet radio and a 10-band eq
 
 **Crossfade.** The next song comes in a few seconds before the current one ends. A green light under the volume shows it is on; one click turns it off.
 
+**Never falls asleep mid-party.** While music plays, Juke asks the desktop not to put the computer to sleep or turn the screen off, and lets go when you pause or stop.
+
 **An equalizer anyone can use.** Every bar says what it changes — *Deep bass*, *Voice*, *Clarity*, *Sparkle* — and there are 35 presets.
 
 </td>
@@ -338,6 +340,7 @@ juke/
 ├── integration.py      applications-menu entry + icons (AppImage)
 ├── power.py            mains / battery detection
 ├── mpris.py            media keys and the desktop's media controls (D-Bus)
+├── awake.py            keeps the computer awake while music plays
 ├── sysvolume.py        the computer's volume, followed both ways
 ├── availability.py     which songs can be played now (server / drive connected)
 ├── manual.py           the manual: one Markdown book per language, shared with Android

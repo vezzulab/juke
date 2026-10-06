@@ -109,6 +109,11 @@ class SettingsDialog(QDialog):
 
     def _playback_tab(self) -> QWidget:
         page, layout = self._page()
+        self.stay_awake = QCheckBox(tr("settings.stay_awake"))
+        self.stay_awake.setChecked(bool(self._config.get("stay_awake")))
+        layout.addWidget(self.stay_awake)
+        layout.addWidget(self._hint(tr("settings.stay_awake_hint")))
+        self._gap(layout, 22)
         self.follow_volume = QCheckBox(tr("settings.volume_follow"))
         self.follow_volume.setChecked(bool(self._config.get("volume_follows_system")))
         layout.addWidget(self.follow_volume)
@@ -256,6 +261,7 @@ class SettingsDialog(QDialog):
         config.set("theme", self.theme.currentData())
         config.set("meter", self.meter.currentData())
         config.set("crossfade", self.crossfade.value())
+        config.set("stay_awake", self.stay_awake.isChecked())
         config.set("volume_follows_system", self.follow_volume.isChecked())
         config.set("update.enabled", self.updates.isChecked())
         config.set("lyrics.auto_search", self.lyrics_auto.isChecked())

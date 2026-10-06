@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMa
 
 from .. import REPO_URL, __version__, integration, mpris, updater
 from ..availability import Availability
+from ..awake import StayAwake
 from ..sysvolume import SystemVolume
 from ..api import radio as radio_api
 from ..api.airsonic import AirsonicClient, normalize_base_url
@@ -264,6 +265,7 @@ class MainWindow(QMainWindow):
         tb.shuffle_toggled.connect(self._set_shuffle)
         tb.repeat_changed.connect(self._set_repeat)
         eng.state_changed.connect(tb.set_state)
+        eng.state_changed.connect(lambda state: self.awake.set(state == "playing"))     # a laptop must not sleep mid-song
         eng.state_changed.connect(self.table.track_model.set_state)
         eng.state_changed.connect(lambda _s: self._update_activity())
         eng.position_changed.connect(tb.set_position)
@@ -532,6 +534,8 @@ class MainWindow(QMainWindow):
         volume, muted = int(self.config.get("volume")), bool(self.config.get("muted"))
         self.engine.volume, self.engine.muted = volume, muted
         self._apply_crossfade(int(self.config.get("crossfade") or 0))
+        self.awake = StayAwake(self)
+        self.awake.enabled = not os.environ.get("JUKE_NO_MPRIS") and bool(self.config.get("stay_awake"))
         self.table.track_model.availability = self.avail
         self.avail.changed.connect(self.table.track_model.repaint_rows)
         self._watch_network()
@@ -748,6 +752,7 @@ class MainWindow(QMainWindow):
         self._update_activity()
 
     def closeEvent(self, event) -> None:  # noqa: N802
+        self.awake.set(False)
         self.media.unregister()
         self.sysvol.stop()
         self.devices.shutdown()
@@ -2158,6 +2163,8 @@ class MainWindow(QMainWindow):
         self.theme.apply(self.config.get("theme"))
         self._apply_crossfade(int(self.config.get("crossfade") or 0))
         self._configure_volume_mode()
+        self.awake.enabled = not os.environ.get("JUKE_NO_MPRIS") and bool(self.config.get("stay_awake"))
+        self.awake.set(self.engine.state == "playing")
         self._configure_airsonic()
         self._update_activity()
         if self.config.get("music_dirs") != old_dirs:

@@ -36,6 +36,8 @@ Tus archivos, tu servidor Airsonic / Subsonic, radio por Internet y un ecualizad
 
 **Crossfade.** La siguiente canción entra unos segundos antes de que termine la actual. Una luz verde bajo el volumen muestra que está activo; un clic lo apaga.
 
+**No se duerme en plena fiesta.** Mientras suena música, Juke le pide al escritorio que no duerma la computadora ni apague la pantalla, y lo suelta al pausar o detener.
+
 **Un ecualizador que cualquiera puede usar.** Cada barra dice qué cambia — *Graves profundos*, *Voz*, *Claridad*, *Brillo* — y hay 35 presets.
 
 </td>
@@ -339,6 +341,7 @@ juke/
 ├── updater.py          búsqueda de versiones en GitHub, actualización verificada en sitio
 ├── integration.py      entrada del menú de aplicaciones + iconos (AppImage)
 ├── mpris.py            teclas multimedia y controles del escritorio (D-Bus)
+├── awake.py            mantiene la computadora despierta mientras suena música
 ├── sysvolume.py        el volumen de la computadora, en ambos sentidos
 ├── availability.py     qué canciones se pueden reproducir ahora (servidor / disco conectado)
 ├── manual.py           el manual: un libro en Markdown por idioma, compartido con Android

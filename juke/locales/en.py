@@ -327,6 +327,8 @@ STRINGS = {
     "settings.meter_auto": "Automatic (only on mains power)",
     "settings.meter_on": "Always",
     "settings.meter_off": "Never",
+    "settings.stay_awake": "Keep the computer awake while music plays",
+    "settings.stay_awake_hint": "While a song or a station is playing, Juke asks the desktop not to sleep or turn off the screen, so a laptop does not fall asleep in the middle of a party. It lets go when you pause or stop. Closing the lid still follows your power settings.",
     "settings.volume_follow": "Volume follows the computer",
     "settings.volume_follow_hint": "The slider is the computer's own volume: the volume keys, the panel and the mixer move it, and it moves them. Turn it off for a volume that belongs to Juke alone.",
     "settings.crossfade": "Crossfade",
