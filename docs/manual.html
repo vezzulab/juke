@@ -20,7 +20,8 @@ nav .in { width:min(1180px,100% - 32px); margin-inline:auto; display:flex; align
 .sp { flex:1; } .tool { background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:6px 12px; font:inherit; font-size:14px; cursor:pointer; text-decoration:none; }
 .layout { width:min(1180px,100% - 32px); margin:0 auto; display:grid; grid-template-columns:290px 1fr; gap:44px; padding:34px 0 90px; }
 aside { position:sticky; top:84px; align-self:start; max-height:calc(100vh - 110px); overflow:auto; padding-right:6px; font-size:14.5px; }
-aside h2 { font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 10px; }
+aside summary { font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 10px; font-weight:700; cursor:pointer; list-style:none; }
+aside summary::-webkit-details-marker { display:none; } summary .lang.on { display:inline; }
 aside ul { list-style:none; margin:0; padding:0; } aside > ul > li { margin:2px 0; } aside a { color:var(--sub); text-decoration:none; display:block; padding:4px 8px; border-radius:8px; }
 aside a:hover { background:var(--surface); color:var(--text); } aside .n { display:inline-block; min-width:1.5em; color:var(--accent2); font-weight:700; }
 aside ul ul { margin:0 0 6px 28px; } aside ul ul a { font-size:13px; padding:2px 8px; }
@@ -37,7 +38,15 @@ figure { margin:18px 0; } figure img { border-radius:14px; border:1px solid var(
 .pill { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:2px 9px; border-radius:99px; background:var(--surface); color:var(--sub); margin-bottom:2px; } .plat.linux .pill { color:var(--accent); } .plat.android .pill { color:#6fcf7b; }
 .il.linux { color:var(--accent); } .il.android { color:#6fcf7b; } .il::before { content:""; }
 .lang { display:none; } .lang.on { display:block; }
-@media (max-width:900px) { .layout { grid-template-columns:1fr; } aside { position:static; max-height:none; } }
+@media (min-width:901px) { aside summary { pointer-events:none; } }
+@media (max-width:900px) {
+  .layout { grid-template-columns:1fr; gap:18px; padding-top:18px; } aside { position:static; max-height:none; }
+  aside details { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:12px 14px; }
+  aside summary { margin:0; font-size:13px; } aside summary::after { content:" ▾"; } aside details[open] summary { margin-bottom:10px; } aside details[open] summary::after { content:" ▴"; }
+  nav .in { gap:8px; height:54px; } .brand small { display:none; } .tool { padding:6px 10px; }
+  .cover { padding:0 0 22px; } .cover img { width:64px; height:64px; margin-bottom:8px; } .cover p { font-size:16px; }
+  .chapter h2 { font-size:25px; } figure img { max-width:100%; } table { font-size:14px; } th,td { padding:8px 9px; }
+}
 @media print { nav,aside { display:none; } .layout { display:block; } body { background:#fff; color:#000; } }
 </style>
 </head>
@@ -51,7 +60,9 @@ figure { margin:18px 0; } figure img { border-radius:14px; border:1px solid var(
 </div></nav>
 <div class="layout">
   <aside>
-    <div class="lang on" data-lang="en"><h2>Contents</h2><ul><li><a href="#en-c1"><span class="n">1</span> Welcome to Juke 1.0</a><ul><li><a href="#en-c1-what-is-new-in-1-0">What is new in 1.0</a></li><li><a href="#en-c1-how-this-manual-is-written">How this manual is written</a></li></ul></li>
+    <details class="toc" open>
+      <summary><span class="lang on" data-lang="en">Contents</span><span class="lang" data-lang="es">Contenido</span></summary>
+      <div class="lang on" data-lang="en"><ul><li><a href="#en-c1"><span class="n">1</span> Welcome to Juke 1.0</a><ul><li><a href="#en-c1-what-is-new-in-1-0">What is new in 1.0</a></li><li><a href="#en-c1-how-this-manual-is-written">How this manual is written</a></li></ul></li>
 <li><a href="#en-c2"><span class="n">2</span> Installing and updating</a><ul><li><a href="#en-c2-installing-on-linux">Installing on Linux</a></li><li><a href="#en-c2-installing-from-the-source-code">Installing from the source code</a></li><li><a href="#en-c2-installing-on-android">Installing on Android</a></li><li><a href="#en-c2-updating">Updating</a></li></ul></li>
 <li><a href="#en-c3"><span class="n">3</span> A tour of the window</a><ul><li><a href="#en-c3-the-song-that-is-playing">The song that is playing</a></li></ul></li>
 <li><a href="#en-c4"><span class="n">4</span> Your music</a><ul><li><a href="#en-c4-the-library">The library</a></li><li><a href="#en-c4-favorites-and-recent-songs">Favorites and recent songs</a></li><li><a href="#en-c4-edit-tags-and-covers">Edit tags and covers</a></li><li><a href="#en-c4-find-duplicates">Find duplicates</a></li></ul></li>
@@ -69,7 +80,7 @@ figure { margin:18px 0; } figure img { border-radius:14px; border:1px solid var(
 <li><a href="#en-c16"><span class="n">16</span> Keyboard shortcuts</a></li>
 <li><a href="#en-c17"><span class="n">17</span> When something goes wrong</a></li>
 <li><a href="#en-c18"><span class="n">18</span> About Juke</a></li></ul></div>
-    <div class="lang" data-lang="es"><h2>Contenido</h2><ul><li><a href="#es-c1"><span class="n">1</span> Bienvenido a Juke 1.0</a><ul><li><a href="#es-c1-qu-hay-de-nuevo-en-1-0">Qué hay de nuevo en 1.0</a></li><li><a href="#es-c1-cmo-est-escrito-este-manual">Cómo está escrito este manual</a></li></ul></li>
+      <div class="lang" data-lang="es"><ul><li><a href="#es-c1"><span class="n">1</span> Bienvenido a Juke 1.0</a><ul><li><a href="#es-c1-qu-hay-de-nuevo-en-1-0">Qué hay de nuevo en 1.0</a></li><li><a href="#es-c1-cmo-est-escrito-este-manual">Cómo está escrito este manual</a></li></ul></li>
 <li><a href="#es-c2"><span class="n">2</span> Instalar y actualizar</a><ul><li><a href="#es-c2-instalar-en-linux">Instalar en Linux</a></li><li><a href="#es-c2-instalar-desde-el-cdigo-fuente">Instalar desde el código fuente</a></li><li><a href="#es-c2-instalar-en-android">Instalar en Android</a></li><li><a href="#es-c2-actualizar">Actualizar</a></li></ul></li>
 <li><a href="#es-c3"><span class="n">3</span> Un recorrido por la ventana</a><ul><li><a href="#es-c3-la-cancin-que-suena">La canción que suena</a></li></ul></li>
 <li><a href="#es-c4"><span class="n">4</span> Tu música</a><ul><li><a href="#es-c4-la-biblioteca">La biblioteca</a></li><li><a href="#es-c4-favoritas-y-canciones-recientes">Favoritas y canciones recientes</a></li><li><a href="#es-c4-editar-etiquetas-y-portadas">Editar etiquetas y portadas</a></li><li><a href="#es-c4-buscar-duplicados">Buscar duplicados</a></li></ul></li>
@@ -87,6 +98,7 @@ figure { margin:18px 0; } figure img { border-radius:14px; border:1px solid var(
 <li><a href="#es-c16"><span class="n">16</span> Atajos de teclado</a></li>
 <li><a href="#es-c17"><span class="n">17</span> Cuando algo sale mal</a></li>
 <li><a href="#es-c18"><span class="n">18</span> Acerca de Juke</a></li></ul></div>
+    </details>
   </aside>
   <main>
     <div class="cover"><img src="assets/icon.png" alt="Juke" width="96" height="96">
@@ -315,6 +327,8 @@ function paint() { document.getElementById("theme").textContent = dark() ? "☾"
 root.dataset.theme = store("juke-theme") || "dark";
 document.getElementById("theme").onclick = () => { root.dataset.theme = dark() ? "light" : "dark"; store("juke-theme", root.dataset.theme); paint(); };
 paint(); apply();
+if (matchMedia("(max-width: 900px)").matches) document.querySelector(".toc").removeAttribute("open");
+document.querySelectorAll(".toc a").forEach(a => a.addEventListener("click", () => { if (matchMedia("(max-width: 900px)").matches) document.querySelector(".toc").removeAttribute("open"); }));
 </script>
 </body>
 </html>
