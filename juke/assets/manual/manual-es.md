@@ -53,7 +53,7 @@ La primera vez que se abre, Juke pide permiso para leer tu música. Di que sí, 
 
 ## Actualizar
 
-Juke busca versiones nuevas al abrirse y cada 30 minutos mientras está abierto. Si hay una, te muestra qué versión tienes, cuál salió y qué cambió, y **tú** eliges: *Actualizar ahora*, *Más tarde* u *Omitir esta versión*. La descarga se verifica con su SHA-256 antes de reemplazar nada. Puedes apagar la búsqueda en *Ajustes*, y buscar a mano desde el menú ⋯ ▸ *Buscar actualizaciones…*.
+Juke busca versiones nuevas al abrirse y cada 30 minutos mientras está abierto. Si hay una, te muestra qué versión tienes, cuál salió y qué cambió, y **tú** eliges: *Actualizar ahora*, *Más tarde* u *Omitir esta versión*. La descarga se verifica con su SHA-256 antes de reemplazar nada. Puedes apagar la búsqueda en *Ajustes*, y buscar a mano desde el menú ⋯ ▸ *Buscar actualizaciones…* o con el botón de *Ajustes ▸ General*.
 
 <!--linux-->
 Si el AppImage está en una carpeta donde puedes escribir, *Actualizar ahora* lo reemplaza en su lugar y ofrece reiniciar. Si no, Juke te dice dónde descargar el archivo nuevo.
@@ -74,7 +74,7 @@ Si tienes Juke 0.3 o una versión anterior, te ofrecerá la 1.0 solo, de la mism
 
 Juke tiene tres paneles:
 
-- **Arriba: el reproductor.** Anterior, reproducir / pausa, siguiente y detener; aleatorio y repetir; la pantalla con la portada, el título, la barra de tiempo y el medidor de nivel; el volumen con la luz de *Crossfade* debajo; y el botón del ecualizador.
+- **Arriba: el reproductor.** Anterior, reproducir / pausa, siguiente y detener; aleatorio y repetir; la pantalla (un cristal sobre una luz de fondo vintage cuyo color sigue al tema: ámbar, naranja, verde suave, aqua o rosa) con la portada, el título, la barra de tiempo y el medidor de nivel; el volumen con la luz de *Crossfade* debajo; y el botón del ecualizador.
 - **Izquierda: la barra lateral.** Tus fuentes: *Biblioteca* (todas las canciones, por artista, álbum y género), *Servidores*, *Radio*, *Listas* y *Carpetas*. Cuando conectas un teléfono o una tableta aparece una sección *Dispositivos*.
 - **Centro: las canciones.** Una tabla con el título, artista, álbum, tiempo, género, bitrate, origen y las listas en que está cada canción. Haz clic en una columna para ordenar; otra vez para invertir; una tercera para volver al orden natural.
 
@@ -383,7 +383,7 @@ La primera barra, *Nivel*, es el nivel general del ecualizador. Si el sonido se 
 
 Treinta y cinco curvas listas: *Plano*, *Rock*, *Pop*, *Jazz*, *Clásica*, *Electrónica*, *Heavy Metal*, *Techno*, *Hip-Hop*, *R&B*, *Baile*, *Acústica*, *Blues*, *Country*, *Reggae*, *Latina*, *Dembow*, *Reggaetón*, *Salsa*, *Merengue*, *Bachata*, *Cumbia*, *Afrobeat*, *K-Pop*, *Voces*, *Voz / Podcast*, *En vivo*, y ajustes para el lugar o la manera de escuchar: *Graves potentes*, *Menos graves*, *Agudos brillantes*, *Menos agudos*, *Realce a bajo volumen*, *Altavoces pequeños*, *Auriculares* y *Noche (silencioso)*.
 
-El botón **Avanzado** (arriba a la derecha del ecualizador) lo agranda, con un gráfico en dB y controles de eco y reverberación: *Eco* (el retumbo que acumula un cuarto pequeño), *Reverberación* (la cola brillante), *Claridad* y *Graves firmes*, y cuánto usar del ajuste de *Escucha*. Moldean el sonido; ningún ecualizador puede quitar un eco real de una grabación.
+El botón ámbar **Avanzado** (arriba a la derecha del ecualizador) lo agranda, con un gráfico y su cuadrícula de dB y un panel de controles de un toque: *Eco* (el retumbo que acumula un cuarto pequeño), *Reverberación* (la cola brillante), *Claridad*, *Voz chillona* y *Graves firmes*, y cuánto usar del ajuste de *Escucha*. Pulsa **Básico** (el mismo botón) para volver. Moldean el sonido; ningún ecualizador puede quitar un eco real de una grabación.
 
 Mueve una barra y el preset pasa a *Personalizado*. **Guardar preset…** conserva tu propia curva con un nombre; *Borrar* la quita. *Restablecer* vuelve a *Plano*. El ecualizador sigue encendido cuando cambia la canción.
 
@@ -428,7 +428,7 @@ Juke solo copia archivos de música y nunca cambia tu biblioteca.
 
 | Pestaña | Qué tiene |
 | --- | --- |
-| **General** | Idioma, tema, *Buscar actualizaciones automáticamente*, *Mostrar Juke en el menú de aplicaciones*. |
+| **General** | Idioma, tema, *Buscar actualizaciones automáticamente* y su botón *Buscar actualizaciones…*, *Mostrar Juke en el menú de aplicaciones*. |
 | **Reproducción** | *Mantener la computadora despierta mientras suena música*, *El volumen sigue al de la computadora*, *Crossfade* (segundos, o apagado) y el medidor de nivel. |
 | **Biblioteca** | Tus carpetas de música, *Buscar cambios al iniciar Juke* y *Buscar letras en línea*. |
 | **Airsonic** | La dirección del servidor, el usuario y la contraseña, y *Probar conexión*. |

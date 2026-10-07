@@ -53,7 +53,7 @@ The first time it opens, Juke asks permission to read your music. Say yes, or th
 
 ## Updating
 
-Juke looks for new versions when it opens and every 30 minutes while it is open. If there is one, it shows which version you have, which one is out and what changed, and **you** choose: *Update now*, *Later* or *Skip this version*. The download is checked against its SHA-256 before anything is replaced. You can turn the check off in *Settings*, and check by hand from the ⋯ menu ▸ *Check for updates…*.
+Juke looks for new versions when it opens and every 30 minutes while it is open. If there is one, it shows which version you have, which one is out and what changed, and **you** choose: *Update now*, *Later* or *Skip this version*. The download is checked against its SHA-256 before anything is replaced. You can turn the check off in *Settings*, and check by hand from the ⋯ menu ▸ *Check for updates…* or with the button in *Settings ▸ General*.
 
 <!--linux-->
 If the AppImage is in a folder you can write to, *Update now* replaces it in place and offers to restart. Otherwise Juke tells you where to download the new file.
@@ -74,7 +74,7 @@ If you have Juke 0.3 or any earlier version, it will offer 1.0 by itself the sam
 
 Juke has three panes:
 
-- **Top: the player.** Previous, play / pause, next and stop; shuffle and repeat; the display with the cover, the title, the time bar and the level meter; the volume with the *Crossfade* light under it; and the equalizer button.
+- **Top: the player.** Previous, play / pause, next and stop; shuffle and repeat; the display (a pane of glass over a vintage backlight whose colour follows the theme: amber, orange, soft green, aqua or rose) with the cover, the title, the time bar and the level meter; the volume with the *Crossfade* light under it; and the equalizer button.
 - **Left: the sidebar.** Your sources: *Library* (all songs, by artist, album and genre), *Servers*, *Radio*, *Playlists* and *Folders*. When a phone or tablet is plugged in, a *Devices* section appears.
 - **Centre: the songs.** A table with the title, artist, album, time, genre, bitrate, source and the playlists each song is in. Click a column to sort; click again to reverse; a third time to go back to the natural order.
 
@@ -383,7 +383,7 @@ The first bar, *Level*, is the overall level of the equalizer. If the sound dist
 
 Thirty-five ready-made curves: *Flat*, *Rock*, *Pop*, *Jazz*, *Classical*, *Electronic*, *Heavy Metal*, *Techno*, *Hip-Hop*, *R&B*, *Dance*, *Acoustic*, *Blues*, *Country*, *Reggae*, *Latin*, *Dembow*, *Reggaeton*, *Salsa*, *Merengue*, *Bachata*, *Cumbia*, *Afrobeat*, *K-Pop*, *Vocal*, *Speech / Podcast*, *Live*, and fixes for the way you listen (below them, the *Listening* tabs next to Speed add a correction for a small room, small / medium / large speakers, headphones or a 5.1 / 7.1 system on top of any curve): *Bass Boost*, *Bass Reducer*, *Treble Boost*, *Treble Reducer*, *Loudness*, *Small Speakers*, *Headphones* and *Night (quiet)*.
 
-The **Advanced** button (top right of the equalizer) makes it bigger, with a graph in dB and controls for echo and reverb: *Echo* (the boom a small room piles up), *Reverb* (the long bright tail), *Clarity* and *Tight bass*, plus how much of the *Listening* setting to use. They shape the sound; no equalizer can remove a real echo from a recording.
+The amber **Advanced** button (top right of the equalizer) makes it bigger, with a graph and its dB grid and a rack of one-tap controls: *Echo* (the boom a small room piles up), *Reverb* (the long bright tail), *Clarity*, *Shrill voice* and *Tight bass*, plus how much of the *Listening* setting to use. Press **Basic** (the same button) to go back. They shape the sound; no equalizer can remove a real echo from a recording.
 
 Move a bar and the preset becomes *Custom*. **Save preset…** keeps your own curve under a name; *Delete* removes it. *Reset* goes back to *Flat*. The equalizer stays on when the song changes.
 
@@ -428,7 +428,7 @@ Open them with `Ctrl` + `,` or from the ⋯ menu. There are four tabs:
 
 | Tab | What is in it |
 | --- | --- |
-| **General** | Language, theme, *Check for updates automatically*, *Show Juke in the applications menu*. |
+| **General** | Language, theme, *Check for updates automatically* and its *Check for updates…* button, *Show Juke in the applications menu*. |
 | **Playback** | *Keep the computer awake while music plays*, *Volume follows the computer*, *Crossfade* (seconds, or off) and the level meter. |
 | **Library** | Your music folders, *Look for changes when Juke opens* and *Search lyrics online*. |
 | **Airsonic** | The server address, user and password, and *Test connection*. |
