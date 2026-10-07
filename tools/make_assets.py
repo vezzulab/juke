@@ -180,108 +180,175 @@ def rounded(image: QImage, radius: float) -> QImage:
 
 
 def make_hero(shot: Path, out: Path, tagline: str, sub: str, chips: tuple[str, ...] = ()) -> None:
-    """Wide banner: glow, app icon, wordmark, tagline and the real screenshot."""
+    """Wide banner in deep space: nebula glow, stars, a huge record, the wordmark, tagline and the real screenshot."""
+    import math
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QConicalGradient, QFont, QFontMetrics, QPen
     scale = 2
     w, h = 1280 * scale, 760 * scale
     canvas = QImage(w, h, QImage.Format_ARGB32_Premultiplied)
     p = QPainter(canvas)
-    p.setRenderHint(QPainter.Antialiasing)
-    p.setRenderHint(QPainter.SmoothPixmapTransform)
-    bg = QLinearGradient(0, 0, 0, h)
-    bg.setColorAt(0, QColor("#12121c"))
-    bg.setColorAt(1, QColor("#0d0d15"))
-    p.fillRect(canvas.rect(), bg)
-    for cx, cy, r, color, alpha in ((0.28, 0.02, 0.55, "#7aa2f7", 70), (0.74, 0.0, 0.5, "#cba6f7", 60)):
-        g = QRadialGradient(w * cx, h * cy, w * r)
+    p.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing | QPainter.SmoothPixmapTransform)
+    p.scale(scale, scale)
+    W, H = 1280, 760
+
+    def glow(cx, cy, r, color, alpha):
+        g = QRadialGradient(cx, cy, r)
         c = QColor(color)
         c.setAlpha(alpha)
         g.setColorAt(0, c)
         c.setAlpha(0)
         g.setColorAt(1, c)
-        p.fillRect(canvas.rect(), g)
+        p.setPen(Qt.NoPen)
+        p.setBrush(g)
+        p.drawEllipse(QPointF(cx, cy), r, r)
 
-    icon = icons.render_svg(ICON_SVG.read_bytes(), 120 * scale, 1.0).toImage()
-    p.drawImage(int(w / 2 - 60 * scale), 44 * scale, icon)
-    from PySide6.QtGui import QFont
-    font = QFont("Inter")
-    font.setPixelSize(72 * scale // 1)
-    font.setWeight(QFont.Bold)
-    font.setLetterSpacing(QFont.AbsoluteSpacing, -1.5 * scale)
-    p.setFont(font)
-    title_rect = QRectF(0, 176 * scale, w, 84 * scale)
-    grad = QLinearGradient(w / 2 - 130 * scale, 0, w / 2 + 130 * scale, 0)
-    grad.setColorAt(0, QColor("#8fb1f9"))
-    grad.setColorAt(1, QColor("#d6b8fa"))
-    p.setPen(QColor("#ffffff"))
-    p.drawText(title_rect, Qt.AlignHCenter | Qt.AlignVCenter, "Juke")
-    from PySide6.QtGui import QFontMetrics
-    word = QFontMetrics(font).horizontalAdvance("Juke")                       # the "1.0" pill sits at the end of the wordmark
-    pill_font = QFont("Inter")
-    pill_font.setPixelSize(26 * scale)
-    pill_font.setWeight(QFont.Bold)
-    pill = QRectF(w / 2 + word / 2 + 14 * scale, 190 * scale, 70 * scale, 40 * scale)
-    pill_fill = QLinearGradient(pill.left(), 0, pill.right(), 0)
-    pill_fill.setColorAt(0, QColor("#7aa2f7"))
-    pill_fill.setColorAt(1, QColor("#cba6f7"))
+    bg = QLinearGradient(0, 0, W, H)
+    bg.setColorAt(0, QColor("#04030c"))
+    bg.setColorAt(0.55, QColor("#0d0722"))
+    bg.setColorAt(1, QColor("#1a0b2e"))
+    p.fillRect(0, 0, W, H, bg)
+    glow(280, 40, 560, "#5b6cf0", 95)
+    glow(1060, 100, 560, "#b04cf0", 95)
+    glow(640, 800, 620, "#ff9a1f", 95)
+    rnd = random.Random(7)
+    for _ in range(360):
+        x, y = rnd.uniform(0, W), rnd.uniform(0, H)
+        r = rnd.choice((0.5, 0.6, 0.8, 1.0, 1.3))
+        c = QColor(rnd.choice(("#ffffff", "#cfd8ff", "#ffe9c4")))
+        c.setAlpha(rnd.randint(70, 230))
+        p.setPen(Qt.NoPen)
+        p.setBrush(c)
+        p.drawEllipse(QPointF(x, y), r, r)
+    for x, y, sz in ((120, 70, 9), (1170, 60, 12), (640, 30, 7), (1240, 330, 8)):
+        glow(x, y, sz * 3, "#ffffff", 90)
+        p.setPen(QPen(QColor(255, 255, 255, 190), 0.9))
+        p.drawLine(QPointF(x - sz, y), QPointF(x + sz, y))
+        p.drawLine(QPointF(x, y - sz), QPointF(x, y + sz))
+
+    cx, cy, R = 1090, 150, 250                                                 # the record, cropped by the top-right corner
+    glow(cx, cy, R * 1.5, "#9a6cff", 110)
+    disc = QRadialGradient(cx, cy, R)
+    disc.setColorAt(0, QColor("#1a1530"))
+    disc.setColorAt(0.97, QColor("#05040a"))
+    disc.setColorAt(1, QColor("#2a2150"))
+    p.setPen(QPen(QColor(150, 130, 255, 200), 2))
+    p.setBrush(disc)
+    p.drawEllipse(QPointF(cx, cy), R, R)
+    p.setBrush(Qt.NoBrush)
+    for i in range(46):
+        p.setPen(QPen(QColor(120, 105, 200, 26 if i % 3 else 55), 0.8))
+        p.drawEllipse(QPointF(cx, cy), R * (0.36 + i * 0.0135), R * (0.36 + i * 0.0135))
+    sheen = QConicalGradient(cx, cy, 30)
+    for pos, al in ((0, 0), (0.08, 70), (0.16, 0), (0.5, 0), (0.58, 70), (0.66, 0), (1, 0)):
+        sheen.setColorAt(pos, QColor(255, 255, 255, al))
     p.setPen(Qt.NoPen)
-    p.setBrush(pill_fill)
-    p.drawRoundedRect(pill, 20 * scale, 20 * scale)
-    p.setFont(pill_font)
-    p.setPen(QColor("#11111b"))
-    p.drawText(pill, Qt.AlignCenter, "1.0")
-    font.setPixelSize(24 * scale)
-    font.setWeight(QFont.Medium)
-    font.setLetterSpacing(QFont.AbsoluteSpacing, 0)
-    p.setFont(font)
-    p.setPen(QColor("#cdd6f4"))
-    p.drawText(QRectF(0, 266 * scale, w, 34 * scale), Qt.AlignHCenter | Qt.AlignVCenter, tagline)
-    font.setPixelSize(17 * scale)
-    font.setWeight(QFont.Normal)
-    p.setFont(font)
-    p.setPen(QColor("#9399b2"))
-    p.drawText(QRectF(0, 304 * scale, w, 26 * scale), Qt.AlignHCenter | Qt.AlignVCenter, sub)
+    p.setBrush(sheen)
+    p.drawEllipse(QPointF(cx, cy), R * 0.97, R * 0.97)
+    label = QRadialGradient(cx, cy, R * 0.34)
+    label.setColorAt(0, QColor("#ffd35c"))
+    label.setColorAt(0.6, QColor("#f0a928"))
+    label.setColorAt(1, QColor("#c4701a"))
+    p.setBrush(label)
+    p.drawEllipse(QPointF(cx, cy), R * 0.34, R * 0.34)
+    p.setBrush(QColor("#0d0722"))
+    p.drawEllipse(QPointF(cx, cy), 8, 8)
 
+    title = QFont("Inter")
+    title.setPixelSize(150)
+    title.setBold(True)
+    title.setLetterSpacing(QFont.AbsoluteSpacing, -4)
+    tw = QFontMetrics(title).horizontalAdvance("Juke")
+    path = QPainterPath()
+    path.addText(70, 175, title, "Juke")
+    glow(70 + tw / 2, 120, 280, "#8f7bff", 70)
+    fill = QLinearGradient(0, 70, 0, 190)
+    fill.setColorAt(0, QColor("#ffffff"))
+    fill.setColorAt(1, QColor("#c9c2ff"))
+    p.setPen(Qt.NoPen)
+    p.setBrush(fill)
+    p.drawPath(path)
+    bx, by = 70 + tw + 20, 62                                                  # the "1.0" pill at the end of the wordmark
+    pill = QRectF(bx, by, 118, 52)
+    pill_fill = QLinearGradient(bx, 0, bx + 118, 0)
+    pill_fill.setColorAt(0, QColor("#7aa2f7"))
+    pill_fill.setColorAt(1, QColor("#e09bff"))
+    glow(bx + 59, by + 26, 90, "#b98cff", 120)
+    p.setBrush(pill_fill)
+    p.drawRoundedRect(pill, 26, 26)
+    pill_font = QFont("Inter")
+    pill_font.setPixelSize(34)
+    pill_font.setBold(True)
+    p.setFont(pill_font)
+    p.setPen(QColor("#12102a"))
+    p.drawText(pill, Qt.AlignCenter, "1.0")
+
+    def fit(font: QFont, text: str, size: int, room: int) -> None:          # the line stops short of the record
+        font.setPixelSize(size)
+        while size > 12 and QFontMetrics(font).horizontalAdvance(text) > room:
+            size -= 1
+            font.setPixelSize(size)
+
+    font = QFont("Inter")
+    font.setWeight(QFont.DemiBold)
+    fit(font, tagline, 30, 740)
+    p.setFont(font)
+    p.setPen(QColor("#f1ecff"))
+    p.drawText(QPointF(74, 236), tagline)
+    font.setWeight(QFont.Medium)
+    fit(font, sub, 18, 760)
+    p.setFont(font)
+    p.setPen(QColor(205, 200, 240, 205))
+    p.drawText(QPointF(74, 272), sub)
     if chips:                                                                  # what is new, as a row of small badges
         chip_font = QFont("Inter")
-        chip_font.setPixelSize(15 * scale)
+        chip_font.setPixelSize(15)
         chip_font.setWeight(QFont.DemiBold)
         metrics = QFontMetrics(chip_font)
-        pad, gap = 16 * scale, 10 * scale
-        widths = [metrics.horizontalAdvance(c) + 2 * pad for c in chips]
-        x0 = (w - (sum(widths) + gap * (len(chips) - 1))) / 2
-        for text, cw in zip(chips, widths):
-            box = QRectF(x0, 342 * scale, cw, 32 * scale)
-            edge = QColor("#cba6f7")
-            edge.setAlpha(90)
-            fill = QColor("#cba6f7")
-            fill.setAlpha(26)
+        x0 = 74
+        for text in chips:
+            cw = metrics.horizontalAdvance(text) + 32
+            box = QRectF(x0, 296, cw, 32)
+            edge = QColor("#ffb338")
+            edge.setAlpha(150)
+            fill_c = QColor("#ffb338")
+            fill_c.setAlpha(34)
             p.setPen(edge)
-            p.setBrush(fill)
-            p.drawRoundedRect(box, 16 * scale, 16 * scale)
+            p.setBrush(fill_c)
+            p.drawRoundedRect(box, 16, 16)
             p.setFont(chip_font)
-            p.setPen(QColor("#e4dcfb"))
+            p.setPen(QColor("#ffe7bd"))
             p.drawText(box, Qt.AlignCenter, text)
-            x0 += cw + gap
+            x0 += cw + 10
+    p.end()
+
+    p = QPainter(canvas)
+    p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
     shot_img = QImage(str(shot))
     width = 1010 * scale
     scaled = shot_img.scaledToWidth(width, Qt.SmoothTransformation)
     card = rounded(scaled, 18 * scale)
-    x, y = (w - width) // 2, 400 * scale
+    x, y = (w - width) // 2, 372 * scale
+    g = QRadialGradient(w / 2, y + 120 * scale, width * 0.62)                  # the warm light of the display spills around the window
+    c = QColor("#ffa21f")
+    c.setAlpha(80)
+    g.setColorAt(0, c)
+    c.setAlpha(0)
+    g.setColorAt(1, c)
+    p.setPen(Qt.NoPen)
+    p.setBrush(g)
+    p.drawEllipse(QPointF(w / 2, y + 120 * scale), width * 0.62, width * 0.46)
     for i in range(14):  # soft shadow
-        shadow = QColor(0, 0, 0, 12)
-        p.setPen(Qt.NoPen)
-        p.setBrush(shadow)
+        p.setBrush(QColor(0, 0, 0, 14))
         p.drawRoundedRect(QRectF(x - i * 3, y + 12 * scale - i * 2, width + i * 6, card.height() + i * 5), 24 * scale, 24 * scale)
-    outline = QColor("#ffffff")
-    outline.setAlpha(28)
     p.setBrush(Qt.NoBrush)
-    p.setPen(outline)
+    p.setPen(QColor(255, 255, 255, 40))
     p.drawRoundedRect(QRectF(x, y, width, card.height()), 18 * scale, 18 * scale)
     p.drawImage(x, y, card)
-    fade = QLinearGradient(0, h - 150 * scale, 0, h)
-    fade.setColorAt(0, QColor(13, 13, 21, 0))
-    fade.setColorAt(1, QColor(13, 13, 21, 255))
-    p.fillRect(0, h - 150 * scale, w, 150 * scale, fade)
+    fade = QLinearGradient(0, h - 170 * scale, 0, h)
+    fade.setColorAt(0, QColor(26, 11, 46, 0))
+    fade.setColorAt(1, QColor(26, 11, 46, 255))
+    p.fillRect(0, h - 170 * scale, w, 170 * scale, fade)
     p.end()
     canvas.save(str(out), "PNG")
     print("wrote", out)
@@ -409,11 +476,11 @@ def main() -> None:
     window.close()
 
     make_hero(out / "screenshot-main.png", out / "hero.png",
-              "A modern music player for Linux", "Three panes. Airsonic streaming. Internet radio. Instant with 50,000+ tracks.",
+              "A modern music player for Linux & Android", "Three panes. Airsonic streaming. Internet radio. Instant with 50,000+ tracks.",
               ("Media keys", "Crossfade", "Lyrics in any language", "An equalizer for everyone"))
     translator.set_language("es")
     make_hero(out / "screenshot-main-es.png", out / "hero-es.png",
-              "Un reproductor de música moderno para Linux", "Tres paneles. Streaming Airsonic. Radio por Internet. Instantáneo con más de 50.000 pistas.",
+              "Un reproductor de música moderno para Linux y Android", "Tres paneles. Streaming Airsonic. Radio por Internet. Instantáneo con más de 50.000 pistas.",
               ("Teclas multimedia", "Crossfade", "Letras en cualquier idioma", "Un ecualizador para todos"))
 
     svg = ICON_SVG.read_bytes()
