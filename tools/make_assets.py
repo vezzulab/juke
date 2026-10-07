@@ -452,8 +452,15 @@ def main() -> None:
     window.toggle_equalizer()
     dialog = window._eq_dialog
     dialog.move(0, 0)
-    settle(200)
+    dialog.setMinimumSize(0, 0)
+    dialog.resize(1080, 820)                                   # the offscreen screen is small: give it the room a desktop would
+    settle(300)
     grab(dialog, out / "screenshot-equalizer.png")
+    dialog.btn_advanced.setChecked(True)                       # the Advanced view: dB grid and the echo / reverb rack
+    dialog.resize(1180, 1000)
+    settle(400)
+    grab(dialog, out / "screenshot-equalizer-advanced.png")
+    dialog.btn_advanced.setChecked(False)
     window._eq_dialog.hide()
 
     # Airsonic settings tab

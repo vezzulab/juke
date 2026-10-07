@@ -175,9 +175,10 @@ figure { margin:18px 0; } figure img { border-radius:14px; border:1px solid var(
 .pill { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:2px 9px; border-radius:99px; background:var(--surface); color:var(--sub); margin-bottom:2px; } .plat.linux .pill { color:var(--accent); } .plat.android .pill { color:#6fcf7b; }
 .il.linux { color:var(--accent); } .il.android { color:#6fcf7b; } .il::before { content:""; }
 .lang { display:none; } .lang.on { display:block; }
+html, body { overflow-x:clip; } .layout > * { min-width:0; } main { overflow-wrap:anywhere; } pre { max-width:100%; overflow-x:auto; } img { max-width:100%; height:auto; }
 @media (min-width:901px) { aside summary { pointer-events:none; } }
 @media (max-width:900px) {
-  .layout { grid-template-columns:1fr; gap:18px; padding-top:18px; } aside { position:static; max-height:none; }
+  .layout { grid-template-columns:minmax(0,1fr); gap:18px; padding-top:18px; } aside { position:static; max-height:none; }
   aside details { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:12px 14px; }
   aside summary { margin:0; font-size:13px; } aside summary::after { content:" ▾"; } aside details[open] summary { margin-bottom:10px; } aside details[open] summary::after { content:" ▴"; }
   nav .in { gap:8px; height:54px; } .brand small { display:none; } .tool { padding:6px 10px; }

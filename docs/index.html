@@ -52,18 +52,8 @@ nav .links a:hover { color: var(--text); background: var(--surface); }
 @media (max-width: 720px) { nav .links a.hide-sm { display: none; } }
 
 /* hero */
-.hero { position: relative; overflow: hidden; text-align: center; padding: 76px 0 40px; background: #05040d; color: #f1ecff;
+.hero { position: relative; overflow: hidden; text-align: center; padding: 76px 0 40px; background: #05040d url(assets/hero-bg.jpg) center top / cover no-repeat; color: #f1ecff;
   --text: #f1ecff; --sub: #c9c2ee; --muted: #a39cd0; --panel: #150e30; --surface: #1f1648; --border: #2c2150; --accent: #9a86ff; --accent2: #e09bff; }
-.hero::before, .hero::after { content: ""; position: absolute; border-radius: 50%; pointer-events: none; }
-.hero::before { inset: 0; border-radius: 0; background:
-  radial-gradient(1px 1px at 12% 22%, #fff, transparent 60%), radial-gradient(1px 1px at 31% 68%, #cfd8ff, transparent 60%),
-  radial-gradient(1.4px 1.4px at 47% 14%, #fff, transparent 60%), radial-gradient(1px 1px at 63% 52%, #ffe9c4, transparent 60%),
-  radial-gradient(1.2px 1.2px at 78% 28%, #fff, transparent 60%), radial-gradient(1px 1px at 91% 74%, #cfd8ff, transparent 60%),
-  radial-gradient(1px 1px at 22% 88%, #fff, transparent 60%), radial-gradient(1.4px 1.4px at 86% 10%, #ffe9c4, transparent 60%),
-  radial-gradient(60% 70% at 20% 0%, rgba(91,108,240,.42), transparent 70%), radial-gradient(55% 70% at 85% 0%, rgba(176,76,240,.38), transparent 70%),
-  linear-gradient(160deg, #04030c, #0d0722 55%, #1a0b2e);
-  background-size: 420px 420px, 380px 380px, 460px 460px, 350px 350px, 400px 400px, 440px 440px, 360px 360px, 480px 480px, auto, auto, auto; }
-.hero::after { width: 900px; height: 520px; left: calc(50% - 450px); bottom: -300px; background: radial-gradient(closest-side, rgba(255,154,31,.5), transparent); filter: blur(30px); }
 .hero > .wrap { position: relative; }
 .hero .logo { width: 104px; height: 104px; margin: 0 auto 22px; filter: drop-shadow(0 18px 34px rgba(154,108,255,.5)); }
 h1 { font-size: clamp(44px, 8vw, 84px); line-height: 1; letter-spacing: -.035em; margin: 0 0 14px; font-weight: 800; }
@@ -82,6 +72,15 @@ h1 span { background: var(--grad); -webkit-background-clip: text; background-cli
 .fine { margin: 16px 0 0; font-size: 13.5px; color: var(--muted); }
 .shot { margin: 46px auto 0; border-radius: 16px; border: 1px solid rgba(255,255,255,.09); overflow: hidden; box-shadow: 0 40px 90px -20px rgba(0,0,0,.65), 0 0 0 1px rgba(0,0,0,.4); background: var(--base); }
 .hero .shot { max-width: 1040px; }
+
+/* the equalizer, up front */
+.eqsec { background: linear-gradient(180deg, var(--mantle), var(--base)); }
+.two-eq { display: grid; grid-template-columns: 1fr 1.15fr; gap: 44px; align-items: center; }
+.two-eq > * { min-width: 0; } .two-eq .shot { margin: 0; }
+.eqlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.eqlist li { padding-left: 18px; border-left: 3px solid var(--amber); }
+.eqlist b { display: block; font-size: 17px; margin-bottom: 2px; } .eqlist span { color: var(--sub); font-size: 15px; }
+@media (max-width: 860px) { .two-eq { grid-template-columns: 1fr; gap: 28px; } }
 
 /* sections */
 section { padding: 88px 0; }
@@ -239,6 +238,22 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
   </div>
 </header>
 
+<section id="equalizer" class="eqsec">
+  <div class="wrap two-eq">
+    <div>
+      <p class="eyebrow" data-i18n="e_eyebrow">The equalizer</p>
+      <h2 data-i18n="e_title">The equalizer Linux players never got right.</h2>
+      <p class="intro" data-i18n="e_intro">Most players give you ten sliders and wish you luck. Juke tells you what each bar does, fixes the room you are listening in, and keeps a curve for every song.</p>
+      <ul class="eqlist">
+        <li><b data-i18n="e1_t">Every bar says what it changes</b><span data-i18n="e1_p">Deep bass, Voice, Clarity, Sparkle — no need to be a sound engineer. 35 presets, from Cumbia to K-Pop.</span></li>
+        <li><b data-i18n="e2_t">Advanced: tidy up the room</b><span data-i18n="e2_p">One-tap controls for echo, reverb, clarity, shrill voices and tight bass, plus a setting for small rooms, speakers, headphones, 5.1 and 7.1.</span></li>
+        <li><b data-i18n="e3_t">A curve for every song</b><span data-i18n="e3_p">Give one song, or a whole group, its own equalizer. The general one comes back for the rest.</span></li>
+      </ul>
+    </div>
+    <div class="shot"><img src="assets/screenshot-equalizer-advanced.png" alt="Juke's Advanced equalizer" width="2400" height="2000" loading="lazy"></div>
+  </div>
+</section>
+
 <section id="features">
   <div class="wrap">
     <p class="eyebrow" data-i18n="f_eyebrow">Features</p>
@@ -321,7 +336,8 @@ footer a { color: var(--sub); text-decoration: none; } footer a:hover { color: v
       <button class="tab" role="tab" aria-selected="false" data-shot="screenshot-light" data-cap="cap_light" data-i18n="tab_light">Light theme</button>
       <button class="tab" role="tab" aria-selected="false" data-shot="screenshot-folders" data-cap="cap_folders" data-i18n="tab_folders">Airsonic folders</button>
       <button class="tab" role="tab" aria-selected="false" data-shot="screenshot-queue" data-cap="cap_queue" data-i18n="tab_queue">Queue</button>
-      <button class="tab" role="tab" aria-selected="false" data-shot="screenshot-equalizer" data-cap="cap_eq" data-small="1" data-i18n="tab_eq">Equalizer</button>
+      <button class="tab" role="tab" aria-selected="false" data-shot="screenshot-equalizer" data-cap="cap_eq" data-i18n="tab_eq">Equalizer</button>
+      <button class="tab" role="tab" aria-selected="false" data-shot="screenshot-equalizer-advanced" data-cap="cap_eq_adv" data-i18n="tab_eq_adv">Advanced equalizer</button>
       <button class="tab" role="tab" aria-selected="false" data-shot="screenshot-settings" data-cap="cap_settings" data-small="1" data-i18n="tab_settings">Settings</button>
     </div>
     <div class="shot" id="gallery-frame"><img id="gallery-img" src="assets/screenshot-main.png" alt="" loading="lazy"></div>
@@ -459,6 +475,11 @@ const T = {
     g3_t: "Hecho para tu escritorio",
     g3_p: "Rápido, ligero y bonito.",
     lead: "Un reproductor de música moderno para Linux",
+    e_eyebrow: "El ecualizador", e_title: "El ecualizador que los reproductores de Linux nunca lograron.",
+    e_intro: "La mayoría te da diez deslizadores y mucha suerte. Juke te dice qué hace cada barra, corrige el cuarto donde escuchas y guarda una curva para cada canción.",
+    e1_t: "Cada barra dice qué cambia", e1_p: "Graves profundos, Voz, Claridad, Brillo — sin ser ingeniero de sonido. 35 presets, de Cumbia a K-Pop.",
+    e2_t: "Avanzado: ordena el cuarto", e2_p: "Controles de un toque para eco, reverberación, claridad, voces chillonas y graves firmes, y un ajuste para cuartos pequeños, parlantes, audífonos, 5.1 y 7.1.",
+    e3_t: "Una curva para cada canción", e3_p: "Dale a una canción, o a todo un grupo, su propio ecualizador. El general vuelve para las demás.",
     sublead: "Tres paneles, un ecualizador de 10 bandas, streaming Airsonic y radio por Internet — instantáneo con más de 50.000 pistas y amable con la batería.",
     cta_download: "Descargar AppImage", cta_github: "Ver en GitHub",
     fine: "Linux x86_64 · glibc 2.35+ · todo incluido en un solo archivo",
@@ -487,13 +508,14 @@ const T = {
     c22_t: "Ve lo que ya sonó", c22_p: "Una marca verde indica cada canción que ya sonó desde que abriste Juke, y unas barras bailan junto a la que suena ahora.",
     c16_t: "Cuéntanos qué falla", c16_p: "Envía comentarios y lee el registro desde el menú ⋯. El reporte se abre como un problema en GitHub para que lo revises, con tus carpetas, contraseñas y dirección del servidor ocultas.",
     s_eyebrow: "Capturas", s_title: "Míralo en acción",
-    tab_main: "Biblioteca", tab_radio: "Radio", tab_light: "Tema claro", tab_folders: "Carpetas Airsonic", tab_queue: "Cola", tab_eq: "Ecualizador", tab_settings: "Ajustes",
+    tab_main: "Biblioteca", tab_radio: "Radio", tab_light: "Tema claro", tab_folders: "Carpetas Airsonic", tab_queue: "Cola", tab_eq: "Ecualizador", tab_eq_adv: "Ecualizador avanzado", tab_settings: "Ajustes",
     cap_main: "Biblioteca con la pantalla LCD, el panel lateral y la tabla de canciones.",
     cap_radio: "Mis Emisoras, la insignia EN VIVO y la canción que suena en la emisora.",
     cap_light: "La misma ventana con el tema claro, o siguiendo a tu escritorio automáticamente.",
     cap_folders: "La jerarquía de carpetas de tu servidor, desplegable en el panel lateral.",
     cap_queue: "La cola actual: a continuación, añadidas a la cola y luego la lista de origen.",
-    cap_eq: "Ecualizador con curva de respuesta en vivo, presets, velocidad y balance estéreo.",
+    cap_eq: "Diez bandas en palabras claras, curva de respuesta en vivo, 35 presets, velocidad y balance estéreo.",
+    cap_eq_adv: "La vista Avanzada: cuadrícula de dB, eco, reverberación, claridad, voz chillona y graves firmes, y un ajuste según dónde escuchas.",
     cap_settings: "Idioma, carpetas de música y tu servidor Airsonic / Subsonic.",
     i_eyebrow: "Instalar", i_title: "Descárgalo y ábrelo.",
     i_intro: "Todo va dentro del archivo, así que no hay nada más que instalar. La primera vez que se ejecuta, Juke se añade a tu menú de aplicaciones.",
@@ -518,7 +540,8 @@ Object.assign(T.en, EN, {
   cap_light: "The same window in the light theme, or following your desktop automatically.",
   cap_folders: "Your server's folder hierarchy, expandable in the sidebar.",
   cap_queue: "The current queue: play next, added to the queue, then the list you started from.",
-  cap_eq: "Equalizer with a live response curve, presets, playback speed and stereo balance.",
+  cap_eq: "Ten bands in plain words, a live response curve, 35 presets, speed and stereo balance.",
+  cap_eq_adv: "The Advanced view: dB grid, echo, reverb, clarity, shrill voice and tight bass, and a setting for where you listen.",
   cap_settings: "Language, music folders and your Airsonic / Subsonic server."
 });
 
