@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QPixmap, QRadialGradient
 from PySide6.QtWidgets import (QAbstractButton, QFrame, QHBoxLayout, QLabel, QStackedWidget, QToolButton, QVBoxLayout,
                                QWidget)
 
@@ -93,8 +93,8 @@ class SpectrumWidget(QWidget):
         gap = 3.0
         bar = max(2.0, (width - gap * (self.BARS - 1)) / self.BARS)
         gradient = QLinearGradient(0, 0, width, 0)
-        gradient.setColorAt(0, QColor(styles.ACCENT))
-        gradient.setColorAt(1, QColor(styles.ACCENT2))
+        gradient.setColorAt(0, QColor(styles.LCD_INK))
+        gradient.setColorAt(1, QColor(styles.LCD_INK_SOFT))
         painter.setPen(Qt.NoPen)
         painter.setBrush(gradient)
         for i, level in enumerate(self._levels):
@@ -212,6 +212,53 @@ class LcdDisplay(QFrame):
         root.addLayout(column, 1)
         self.clear()
 
+    def paintEvent(self, event) -> None:  # noqa: N802
+        """A recessed bezel, an amber backlight and a pane of glass over it, like the window of a real player."""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        ink = QColor(styles.LCD_INK)
+        outer = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#14110c"))                          # a thin dark rim, no more
+        painter.drawRoundedRect(outer, 14, 14)
+        window = outer.adjusted(1.5, 1.5, -1.5, -1.5)
+        # An old incandescent / electroluminescent backlight: a warm, slightly uneven glow, brightest a little
+        # above the middle, falling off into a brownish orange at the corners.
+        centre = window.center()
+        centre.setY(window.top() + window.height() * 0.42)
+        light = QRadialGradient(centre, window.width() * 0.58)
+        light.setColorAt(0, QColor(styles.LCD_LAMP))
+        light.setColorAt(0.55, QColor(styles.LCD_LAMP_MID))
+        light.setColorAt(1, QColor(styles.LCD_AMBER_EDGE))
+        painter.setBrush(light)
+        painter.drawRoundedRect(window, 12.5, 12.5)
+        shade = QLinearGradient(0, window.top(), 0, window.bottom())  # the glass is deep: the edges darken
+        shade.setColorAt(0, QColor(ink.red(), ink.green(), ink.blue(), 95))
+        shade.setColorAt(0.2, QColor(ink.red(), ink.green(), ink.blue(), 0))
+        shade.setColorAt(0.75, QColor(ink.red(), ink.green(), ink.blue(), 0))
+        shade.setColorAt(1, QColor(ink.red(), ink.green(), ink.blue(), 85))
+        painter.setBrush(shade)
+        painter.drawRoundedRect(window, 12.5, 12.5)
+        side = QLinearGradient(window.left(), 0, window.right(), 0)
+        side.setColorAt(0, QColor(ink.red(), ink.green(), ink.blue(), 70))
+        side.setColorAt(0.12, QColor(ink.red(), ink.green(), ink.blue(), 0))
+        side.setColorAt(0.88, QColor(ink.red(), ink.green(), ink.blue(), 0))
+        side.setColorAt(1, QColor(ink.red(), ink.green(), ink.blue(), 70))
+        painter.setBrush(side)
+        painter.drawRoundedRect(window, 12.5, 12.5)
+        painter.setClipRect(window.adjusted(4, 3, -4, -3))            # the faint horizontal lines of an old panel
+        painter.setPen(QPen(QColor(ink.red(), ink.green(), ink.blue(), 22), 1))
+        for y in range(int(window.top()) + 3, int(window.bottom()), 3):
+            painter.drawLine(int(window.left()), y, int(window.right()), y)
+        painter.setClipping(False)
+        glass = QLinearGradient(0, window.top(), 0, window.bottom())  # a soft reflection across the upper half
+        glass.setColorAt(0, QColor(255, 244, 214, 58))
+        glass.setColorAt(0.5, QColor(255, 244, 214, 12))
+        glass.setColorAt(0.5001, QColor(255, 244, 214, 0))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(glass)
+        painter.drawRoundedRect(window.adjusted(2, 2, -2, -2), 10.5, 10.5)
+
     def _scrub(self, value: int) -> None:
         if self._length_ms > 0:
             ms = self._length_ms * value / 1000
@@ -274,6 +321,7 @@ class LcdDisplay(QFrame):
         self.seek.setEnabled(True)
 
     def apply_theme(self) -> None:
+        self.update()                            # the lamp changes colour with the theme
         self._show_cover(self._cover)            # the placeholder is drawn in theme colours
 
     def set_cover(self, cover: QPixmap | None) -> None:

@@ -36,6 +36,8 @@ Your own files, your Airsonic / Subsonic server, internet radio and a 10-band eq
 
 **Crossfade.** The next song comes in a few seconds before the current one ends. A green light under the volume shows it is on; one click turns it off.
 
+**A display like a real player.** The song box is a pane of glass over a vintage backlight; its light follows your theme (amber, orange, soft green, aqua or rose).
+
 **An Advanced equalizer.** The amber *Advanced* button opens a bigger equalizer with a dB grid and a rack of one-tap controls — echo, reverb, clarity, shrill voices, tight bass — that tidy up a boomy or echoey room on top of your curve and the listening setting. *Basic* takes you back.
 
 **An equalizer for each song — or for a group.** Right-click one song, or several, ▸ *Equalizer* and give them a curve of their own; the general equalizer comes back for the rest.

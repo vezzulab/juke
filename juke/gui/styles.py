@@ -58,6 +58,24 @@ LIGHT = {
 DARK["IS_DARK"], LIGHT["IS_DARK"] = True, False
 
 
+# The now-playing display is a piece of hardware with an old backlight. Its lamp is a muted vintage colour
+# chosen from the theme (no neon): centre of the glow, middle, edge, and the dark "ink" printed on it.
+LCD_LAMPS = {
+    "amber": {"LCD_LAMP": "#ffc94a", "LCD_LAMP_MID": "#f0a928", "LCD_AMBER_EDGE": "#c4701a", "LCD_INK": "#2b1a00", "LCD_INK_SOFT": "#5a3a08"},
+    "ember": {"LCD_LAMP": "#ffa95a", "LCD_LAMP_MID": "#ec7a30", "LCD_AMBER_EDGE": "#b0431a", "LCD_INK": "#2e0f00", "LCD_INK_SOFT": "#5e2208"},
+    "green": {"LCD_LAMP": "#d6e787", "LCD_LAMP_MID": "#b3cd5a", "LCD_AMBER_EDGE": "#6f9433", "LCD_INK": "#142200", "LCD_INK_SOFT": "#2f4a0c"},
+    "aqua": {"LCD_LAMP": "#a8e6d8", "LCD_LAMP_MID": "#6ec9bd", "LCD_AMBER_EDGE": "#2f8c88", "LCD_INK": "#00221f", "LCD_INK_SOFT": "#0b4642"},
+    "rose": {"LCD_LAMP": "#ffc6c2", "LCD_LAMP_MID": "#f2a0a2", "LCD_AMBER_EDGE": "#b95a6a", "LCD_INK": "#3a0c16", "LCD_INK_SOFT": "#6a2230"},
+}
+# theme -> lamp (the two built-in looks and anything not listed keep the amber one)
+LCD_LAMP_FOR = {
+    "sand": "amber", "lemon": "amber", "amber": "amber", "peach": "ember", "sunset": "ember", "ember": "ember", "coral": "ember",
+    "sage": "green", "forest": "green", "mint": "green",
+    "sky": "aqua", "lagoon": "aqua", "ocean": "aqua", "arctic": "aqua", "graphite": "aqua",
+    "rose": "rose", "lavender": "rose", "rosewood": "rose", "twilight": "rose", "neon": "rose",
+}
+
+
 def _mix(a: str, b: str, t: float) -> str:
     ca, cb = [int(a[i:i + 2], 16) for i in (1, 3, 5)], [int(b[i:i + 2], 16) for i in (1, 3, 5)]
     return "#" + "".join(f"{max(0, min(255, round(x + (y - x) * t))):02x}" for x, y in zip(ca, cb))
@@ -108,6 +126,8 @@ COLOR_THEMES = {
 }
 
 THEMES = {"dark": DARK, "light": LIGHT, **{name: _palette(*spec) for name, spec in COLOR_THEMES.items()}}
+for _name, _palette_dict in THEMES.items():
+    _palette_dict.update(LCD_LAMPS[LCD_LAMP_FOR.get(_name, "amber")])
 
 FONT_FAMILY = '"Inter", "Cantarell", "Roboto", "Noto Sans", "DejaVu Sans", sans-serif'
 MONO_FAMILY = '"JetBrains Mono", "DejaVu Sans Mono", "Noto Sans Mono", monospace'
@@ -171,15 +191,12 @@ QLabel#eqGroup {{ font-size: 10px; font-weight: 700; letter-spacing: 1px; color:
 
 /* Top bar & LCD ------------------------------------------------------------------ */
 QWidget#topBar {{ background: {MANTLE}; border-bottom: 1px solid {BORDER}; }}
-QFrame#lcd {{
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {LCD_TOP}, stop:1 {LCD_BOTTOM});
-    border: 1px solid {BORDER}; border-radius: 14px;
-}}
-QLabel#lcdTitle {{ font-size: 15px; font-weight: 600; color: {TEXT}; }}
-QLabel#lcdSub {{ color: {SUBTEXT}; }}
-QLabel#lcdTime {{ font-family: {MONO_FAMILY}; font-size: 12px; color: {ACCENT}; }}
-QLabel#lcdLive {{ color: {SUBTEXT}; font-size: 12px; }}
-QLabel#cover {{ background: {PANEL}; border-radius: 10px; }}
+QFrame#lcd {{ background: transparent; border: none; }}   /* LcdDisplay paints its own glass and backlight */
+QLabel#lcdTitle {{ font-size: 15px; font-weight: 700; color: {LCD_INK}; background: transparent; }}
+QLabel#lcdSub {{ color: {LCD_INK_SOFT}; background: transparent; }}
+QLabel#lcdTime {{ font-family: {MONO_FAMILY}; font-size: 12px; font-weight: 700; color: {LCD_INK}; background: transparent; }}
+QLabel#lcdLive {{ color: {LCD_INK_SOFT}; font-size: 12px; background: transparent; }}
+QLabel#cover {{ background: {PANEL}; border: 1px solid {LCD_INK}; border-radius: 6px; }}
 
 QToolButton {{ background: transparent; border: none; border-radius: 8px; padding: 6px; }}
 QToolButton:hover {{ background: {SURFACE}; }}
@@ -206,8 +223,12 @@ QSlider::handle:horizontal {{ width: 12px; height: 12px; margin: -4px 0; border-
 /* the hover rules keep the geometry, and :hover belongs on the handle: as ":hover::handle" Qt
    paints the state across the whole bar (white on the dark theme, black on the light one) */
 QSlider::handle:horizontal:hover {{ width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; background: {HANDLE_HOVER}; }}
-QSlider#seek::handle:horizontal {{ width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; background: transparent; }}
-QSlider#seek::handle:horizontal:hover {{ width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; background: {HANDLE_HOVER}; }}
+/* the seek bar sits on the amber glass: an engraved slot, a dark played part and a small dark knob */
+QSlider#seek::groove:horizontal {{ height: 5px; background: {rgba(LCD_INK, .27)}; border-radius: 2px; }}
+QSlider#seek::sub-page:horizontal {{ background: {LCD_INK}; border-radius: 2px; }}
+QSlider#seek::add-page:horizontal {{ background: {rgba(LCD_INK, .27)}; border-radius: 2px; }}
+QSlider#seek::handle:horizontal {{ width: 8px; height: 12px; margin: -4px 0; border-radius: 3px; background: {LCD_INK}; }}
+QSlider#seek::handle:horizontal:hover {{ width: 8px; height: 14px; margin: -5px 0; border-radius: 3px; background: {LCD_INK}; }}
 QSlider::groove:vertical {{ width: 4px; background: {OVERLAY}; border-radius: 2px; }}
 QSlider::sub-page:vertical {{ background: {OVERLAY}; border-radius: 2px; }}
 QSlider::add-page:vertical {{
