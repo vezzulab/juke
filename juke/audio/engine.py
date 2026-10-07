@@ -405,8 +405,8 @@ class AudioEngine(QObject):
             self._vlc_eq = None
             return
         native = self._vlc.AudioEqualizer()
-        native.set_preamp(max(-20.0, min(20.0, eq.preamp + VLC_UNITY_PREAMP)))
-        for band, gain in enumerate(eq.gains):
+        native.set_preamp(max(-20.0, min(20.0, eq.effective_preamp() + VLC_UNITY_PREAMP)))
+        for band, gain in enumerate(eq.effective_gains()):
             native.set_amp_at_index(gain, band)
         self._player.set_equalizer(native)
         self._vlc_eq = native

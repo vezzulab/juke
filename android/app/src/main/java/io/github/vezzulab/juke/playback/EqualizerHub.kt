@@ -45,6 +45,14 @@ object EqualizerHub {
         "Headphones" to listOf(3, 3, 2, 0, -1, -1, 0, 2, 3, 3), "Live" to listOf(-2, 0, 2, 3, 3, 3, 2, 2, 2, 1),
     ).mapValues { (_, v) -> v.map { it.toFloat() } }
 
+    // Where and how you listen, in dB added on top of the curve (which stays as it is); same as Juke for Linux.
+    val SETUPS: Map<String, List<Float>> = linkedMapOf(
+        "Small Room" to listOf(-2, -3, -3, -1, 0, 1, 0, -1, -2, -2), "Small Speakers" to listOf(4, 4, 2, 1, 0, 0, 1, 2, 2, 2),
+        "Medium Speakers" to listOf(2, 2, 1, 1, 0, 0, 1, 1, 2, 2), "Large Speakers" to listOf(-2, -1, 0, 0, 0, 1, 1, 2, 2, 2),
+        "Headphones" to listOf(3, 3, 2, 0, -1, -1, 0, 2, 3, 3), "Surround 5.1" to listOf(-3, -2, -1, 0, 0, 1, 1, 2, 2, 2),
+        "Surround 7.1" to listOf(-3, -2, -1, 0, 0, 1, 2, 2, 3, 3),
+    ).mapValues { (_, v) -> v.map { it.toFloat() } }
+
     /**
      * The preamp a curve has to be played at so that its loudest boost cannot clip. A song is already mastered close
      * to the maximum, so lifting a band by +7 dB has nowhere to go and the sound breaks up. Shifting the whole curve
@@ -58,6 +66,7 @@ object EqualizerHub {
     var enabled by mutableStateOf(false); private set
     var preamp by mutableFloatStateOf(0f); private set
     var preset by mutableStateOf<String?>("Flat"); private set
+    var setup by mutableStateOf<String?>(null); private set
     val gains = mutableStateListOf<Float>().apply { repeat(10) { add(0f) } }
     var available by mutableStateOf(true); private set
 
@@ -70,6 +79,7 @@ object EqualizerHub {
         this.store = store
         store.equalizerJson()?.let { j ->
             enabled = j.optBoolean("enabled"); preamp = j.optDouble("preamp", 0.0).toFloat(); preset = j.optString("preset").ifBlank { null }
+            setup = j.optString("setup").takeIf { it in SETUPS }
             j.optJSONArray("gains")?.let { a -> for (i in 0 until minOf(10, a.length())) gains[i] = a.optDouble(i, 0.0).toFloat() }
         }
     }
@@ -89,16 +99,23 @@ object EqualizerHub {
     fun setGain(band: Int, db: Float) { gains[band] = db.coerceIn(-MAX_DB, MAX_DB); preset = null; changed() }
     fun loadPreset(name: String) { PRESETS[name]?.let { p -> p.forEachIndexed { i, g -> gains[i] = g }; preamp = headroom(p); preset = name; changed() } }
 
+    fun chooseSetup(name: String?) { setup = name?.takeIf { it in SETUPS }; if (setup != null) enabled = true; changed() }
+
+    /** What the listening setup adds to one band (0 for Normal). */
+    fun extra(i: Int): Float = SETUPS[setup]?.get(i) ?: 0f
+
     private fun changed() { apply(); persist() }
 
     /** The 10-band curve read at one frequency. */
     private fun curveAt(hz: Double): Float {
-        if (hz <= BANDS_HZ.first()) return gains.first()
-        if (hz >= BANDS_HZ.last()) return gains.last()
+        if (hz <= BANDS_HZ.first()) return gains.first() + extra(0)
+        if (hz >= BANDS_HZ.last()) return gains.last() + extra(9)
         val i = BANDS_HZ.indexOfLast { it <= hz }
         val (lo, hi) = BANDS_HZ[i].toDouble() to BANDS_HZ[i + 1].toDouble()
         val t = ((ln(hz) - ln(lo)) / (ln(hi) - ln(lo))).toFloat()
-        return gains[i] + (gains[i + 1] - gains[i]) * t
+        val a = gains[i] + extra(i)
+        val b = gains[i + 1] + extra(i + 1)
+        return a + (b - a) * t
     }
 
     /**
@@ -127,7 +144,7 @@ object EqualizerHub {
                 val center = e.getCenterFreq(b) / 1000.0
                 val edges = runCatching { e.getBandFreqRange(b) }.getOrNull()
                 val gain = gainForBand((edges?.get(0) ?: 0) / 1000.0, (edges?.get(1) ?: 0) / 1000.0, center)
-                val level = ((gain + preamp) * 100).toInt().coerceIn(range[0].toInt(), range[1].toInt())
+                val level = ((gain + preamp - (SETUPS[setup]?.maxOrNull()?.coerceAtLeast(0f) ?: 0f)) * 100).toInt().coerceIn(range[0].toInt(), range[1].toInt())
                 e.setBandLevel(b, level.toShort())
             }
             e.enabled = true                        // the levels are in place before the effect starts working
@@ -137,6 +154,6 @@ object EqualizerHub {
 
 
     private fun persist() {
-        store?.saveEqualizer(JSONObject().put("enabled", enabled).put("preamp", preamp.toDouble()).put("preset", preset ?: "").put("gains", JSONArray(gains.map { it.toDouble() })))
+        store?.saveEqualizer(JSONObject().put("enabled", enabled).put("preamp", preamp.toDouble()).put("preset", preset ?: "").put("setup", setup ?: "").put("gains", JSONArray(gains.map { it.toDouble() })))
     }
 }

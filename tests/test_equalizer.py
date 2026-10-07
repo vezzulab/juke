@@ -4,7 +4,7 @@ from pathlib import Path
 
 from . import helpers  # noqa: F401  (sets XDG env first)
 
-from juke.audio.equalizer import BUILTIN_PRESETS, MAX_DB, MIN_DB, headroom
+from juke.audio.equalizer import BUILTIN_PRESETS, MAX_DB, MIN_DB, SETUPS, headroom
 
 ANDROID = Path(__file__).resolve().parent.parent / "android/app/src/main/java/io/github/vezzulab/juke/playback/EqualizerHub.kt"
 
@@ -68,6 +68,86 @@ class PresetTests(unittest.TestCase):
         self.assertEqual(eq.preset, "Dembow")
 
 
+
+
+class SetupTests(unittest.TestCase):
+    def test_android_has_the_same_setups(self):
+        source = ANDROID.read_text()
+        block = source[source.index("val SETUPS"):source.index("fun headroom")]
+        android = {n: tuple(float(x) for x in v.split(",")) for n, v in re.findall(r'"([^"]+)" to listOf\(([^)]*)\)', block)}
+        self.assertEqual({k: tuple(map(float, v)) for k, v in SETUPS.items()}, android)
+
+    def test_a_setup_is_added_to_the_curve_and_never_replaces_it(self):
+        from juke.audio.equalizer import Equalizer
+        from juke.config import Config
+
+        eq = Equalizer(Config(Path(helpers.ROOT) / "eq-setup.json"))
+        eq.set_band(0, 5)
+        eq.set_setup("Small Room")
+        self.assertEqual(eq.gains[0], 5)                                   # the curve is untouched
+        self.assertEqual(eq.effective_gains()[0], 5 + SETUPS["Small Room"][0])
+        self.assertLessEqual(max(g + eq.effective_preamp() for g in [0.0]), 0.0)
+        eq.set_setup(None)
+        self.assertEqual(eq.effective_gains(), eq.gains)
+
+
+class AdvancedTests(unittest.TestCase):
+    def make(self, name):
+        from juke.audio.equalizer import Equalizer
+        from juke.config import Config
+        return Equalizer(Config(Path(helpers.ROOT) / name))
+
+    def test_echo_takes_down_the_low_mids_and_leaves_the_curve_alone(self):
+        eq = self.make("eq-adv1.json")
+        eq.set_advanced("echo", 100)
+        self.assertTrue(eq.enabled)
+        self.assertEqual(eq.gains, [0.0] * 10)
+        self.assertLess(eq.effective_gains()[2], -4)
+        self.assertEqual(eq.effective_gains()[9], 0)
+        eq.reset_advanced()
+        self.assertEqual(eq.effective_gains(), [0.0] * 10)
+
+    def test_the_setting_amount_scales_the_setup_and_it_is_remembered(self):
+        eq = self.make("eq-adv2.json")
+        eq.set_setup("Small Room")
+        full = eq.effective_gains()[2]
+        eq.set_advanced("room", 50)
+        self.assertAlmostEqual(eq.effective_gains()[2], full / 2)
+        from juke.audio.equalizer import Equalizer
+        again = Equalizer(eq._config)
+        self.assertEqual(again.advanced["room"], 50)
+        self.assertEqual(again.setup, "Small Room")
+
+    def test_shrill_voice_takes_down_the_harsh_mids_only(self):
+        eq = self.make("eq-adv4.json")
+        eq.set_advanced("shrill", 100)
+        gains = eq.effective_gains()
+        self.assertLess(gains[5], -3)
+        self.assertLess(gains[6], -4)
+        self.assertEqual(gains[0], 0)
+        self.assertEqual(gains[9], 0)
+
+    def test_advanced_boosts_never_clip(self):
+        eq = self.make("eq-adv3.json")
+        eq.set_advanced("clarity", 100)
+        top = max(g + eq.effective_preamp() for g in eq.effective_gains())
+        self.assertLessEqual(top, 1e-9)
+
+
+class UpdatePresetTests(unittest.TestCase):
+    def test_a_song_curve_can_be_kept_in_the_preset_it_came_from(self):
+        from juke.audio.equalizer import Equalizer
+        from juke.config import Config
+
+        eq = Equalizer(Config(Path(helpers.ROOT) / "eq-upd.json"))
+        eq.set_band(0, 3)
+        eq.save_custom("Mine")
+        eq.set_band(1, 7)                                              # an edit, which is not in the preset yet
+        self.assertEqual(eq.custom["Mine"]["gains"][1], 0)
+        self.assertTrue(eq.update_preset())
+        self.assertEqual(eq.custom["Mine"]["gains"][1], 7)
+        eq.load_preset("Rock")
+        self.assertFalse(eq.update_preset())                           # a built-in preset never changes
 
 
 class EngineLevelTests(unittest.TestCase):

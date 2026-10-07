@@ -65,6 +65,38 @@ BUILTIN_PRESETS: dict[str, tuple[float, ...]] = {
 }
 
 
+# Where and how you listen: name -> dB added on top of whatever curve is set, so your own curves are never replaced.
+# A graphic equalizer cannot remove a real echo; the small-room curve takes down the low-mids that boom and the harsh
+# highs that bounce, which is what makes a small room sound echoey. The surround ones are for Juke's stereo going
+# through a 5.1 / 7.1 receiver: the subwoofer already carries the bass, so less of it here.
+SETUPS: dict[str, tuple[float, ...]] = {
+    "Small Room":      (-2, -3, -3, -1, 0, 1, 0, -1, -2, -2),
+    "Small Speakers":  (4, 4, 2, 1, 0, 0, 1, 2, 2, 2),
+    "Medium Speakers": (2, 2, 1, 1, 0, 0, 1, 1, 2, 2),
+    "Large Speakers":  (-2, -1, 0, 0, 0, 1, 1, 2, 2, 2),
+    "Headphones":      (3, 3, 2, 0, -1, -1, 0, 2, 3, 3),
+    "Surround 5.1":    (-3, -2, -1, 0, 0, 1, 1, 2, 2, 2),
+    "Surround 7.1":    (-3, -2, -1, 0, 0, 1, 2, 2, 3, 3),
+}
+
+
+# The advanced controls, each a shape that is added to the curve in proportion to its slider (0-100 %). They are for
+# the places where echo and reverb are heard: the low-mid boom that rooms pile up, the long tail of bright highs, the
+# presence that keeps the direct sound ahead of the room, and bass that is tight instead of one long note. They shape
+# the sound; they cannot take a real echo or reverb out of a recording.
+ADVANCED: dict[str, tuple[float, ...]] = {
+    "echo":    (-1, -3, -5, -5, -2, 0, 0, 0, 0, 0),
+    "reverb":  (0, 0, 0, 0, 0, 0, -2, -4, -5, -5),
+    "clarity": (0, 0, 0, 0, 1, 3, 4, 2, 0, 0),
+    "tight":   (1, 0, -3, -2, 0, 0, 0, 0, 0, 0),
+    "shrill":  (0, 0, 0, 0, -1, -4, -5, -2, 0, 0),
+}
+ADVANCED_LEVELS = {"room": (50, 75, 100, 125, 150), "echo": (0, 25, 50, 75, 100), "reverb": (0, 25, 50, 75, 100),
+                   "clarity": (0, 25, 50, 75, 100), "tight": (0, 25, 50, 75, 100),
+                   "shrill": (0, 25, 50, 75, 100)}   # the buttons of the advanced deck
+ADVANCED_DEFAULT = {"room": 100, "echo": 0, "reverb": 0, "clarity": 0, "tight": 0, "shrill": 0}   # room: how much of the setup to use
+
+
 def headroom(gains) -> float:
     """The preamp a curve has to be played at so that its loudest boost cannot clip.
 
@@ -96,6 +128,13 @@ class Equalizer(QObject):
         self.preamp: float = _clamp(state["preamp"])
         self.gains: list[float] = [_clamp(g) for g in state["gains"]]
         self.preset: str | None = state["preset"]
+        self.origin: str | None = self.preset              # the preset the curve in play came from, even after a bar moved
+        stored = config.get("advanced_eq", {})
+        self.advanced: dict[str, int] = {
+            k: max(0, min(150 if k == "room" else 100, int(stored.get(k, d)))) if isinstance(stored, dict) else d
+            for k, d in ADVANCED_DEFAULT.items()}
+        saved = config.get("listening_setup", None)
+        self.setup: str | None = saved if saved in SETUPS else None
         self.custom: dict[str, dict] = {
             name: {"preamp": _clamp(p["preamp"]), "gains": [_clamp(g) for g in p["gains"]]}
             for name, p in config.get("custom_presets", {}).items()
@@ -118,6 +157,52 @@ class Equalizer(QObject):
     def _emit(self) -> None:
         self._persist()
         self.changed.emit()
+
+    def set_setup(self, name: str | None) -> None:
+        """Choose where/how you listen (None = nothing added); it is added to the curve, which stays as it is."""
+        self.setup = name if name in SETUPS else None
+        if self.setup is not None:
+            self.enabled = True
+        self._config.set("listening_setup", self.setup)
+        self._emit()
+
+    def set_advanced(self, key: str, value: int) -> None:
+        """One advanced control (``room`` 0-150 %, the others 0-100 %); moving one away from its rest turns the
+        equalizer on."""
+        if key not in ADVANCED_DEFAULT:
+            return
+        self.advanced[key] = max(0, min(150 if key == "room" else 100, int(value)))
+        if self.advanced[key] != ADVANCED_DEFAULT[key]:
+            self.enabled = True
+        self._config.set("advanced_eq", dict(self.advanced))
+        self._emit()
+
+    def reset_advanced(self) -> None:
+        self.advanced = dict(ADVANCED_DEFAULT)
+        self._config.set("advanced_eq", dict(self.advanced))
+        self._emit()
+
+    def setup_offsets(self) -> list[float]:
+        """What is added on top of the curve for each band: the listening setup (scaled by ``room``) plus the
+        advanced controls. All zeros for Normal with the advanced controls at rest."""
+        base = SETUPS.get(self.setup, (0.0,) * 10)
+        out = [b * self.advanced["room"] / 100 for b in base]
+        for key, shape in ADVANCED.items():
+            amount = self.advanced[key] / 100
+            out = [o + s * amount for o, s in zip(out, shape)]
+        return out
+
+    def setup_preamp_offset(self) -> float:
+        """What the listening setup adds to the preamp (it only ever lowers it)."""
+        return -max(0.0, max(self.setup_offsets()))
+
+    def effective_gains(self) -> list[float]:
+        """The curve that is actually played: yours plus the listening setup."""
+        return [_clamp(g + e) for g, e in zip(self.gains, self.setup_offsets())]
+
+    def effective_preamp(self) -> float:
+        """The preamp, lowered by the biggest boost the setup adds so that it cannot clip."""
+        return _clamp(self.preamp + self.setup_preamp_offset())
 
     def set_enabled(self, enabled: bool) -> None:
         self.enabled = bool(enabled)
@@ -159,6 +244,7 @@ class Equalizer(QObject):
         self.preamp, gains = presets[name]
         self.gains = list(gains)
         self.preset = name
+        self.origin = name
         self._emit()
 
     def save_custom(self, name: str) -> bool:
@@ -168,6 +254,17 @@ class Equalizer(QObject):
             return False
         self.custom[name] = {"preamp": self.preamp, "gains": list(self.gains)}
         self.preset = name
+        self.origin = name
+        self._emit()
+        return True
+
+    def update_preset(self) -> bool:
+        """Keep the curve in play in the preset it came from too (only presets of your own can change)."""
+        name = self.origin
+        if name not in self.custom:
+            return False
+        self.preset = self._matching_preset()
+        self.custom[name] = {"preamp": self.preamp, "gains": list(self.gains)}
         self._emit()
         return True
 
@@ -219,10 +316,11 @@ class Equalizer(QObject):
                 self.end_song()
             return
         if not had:
-            self._general = (self.enabled, self.preamp, list(self.gains), self.preset)
+            self._general = (self.enabled, self.preamp, list(self.gains), self.preset, self.origin)
         self.song_id = song_id
         self.enabled, self.preamp, self.gains = True, _clamp(curve["preamp"]), [_clamp(g) for g in curve["gains"]]
         self.preset = curve.get("name") or self._matching_preset()
+        self.origin = curve.get("name") or None
         self.changed.emit()
 
     def end_song(self) -> None:
@@ -231,7 +329,7 @@ class Equalizer(QObject):
             return
         self.song_id = None
         if self._general is not None:
-            self.enabled, self.preamp, gains, self.preset = self._general
+            self.enabled, self.preamp, gains, self.preset, self.origin = self._general
             self.gains = list(gains)
         self._general = None
         self.changed.emit()

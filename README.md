@@ -13,7 +13,7 @@ Your own files, your Airsonic / Subsonic server, internet radio and a 10-band eq
 
 <br>
 
-![Version](https://img.shields.io/badge/version-1.0-cba6f7?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.0.2-cba6f7?style=for-the-badge)
 ![Linux](https://img.shields.io/badge/platform-Linux-7aa2f7?style=for-the-badge&logo=linux&logoColor=white)
 ![AppImage](https://img.shields.io/badge/package-AppImage-cba6f7?style=for-the-badge)
 ![Python](https://img.shields.io/badge/python-3.10+-7aa2f7?style=for-the-badge&logo=python&logoColor=white)
@@ -102,7 +102,7 @@ An idle Juke makes **no wake-ups at all**. Playing on battery it uses about **1 
 <td valign="top">
 
 ### 10-band equalizer
-Ten bands (60 Hz – 16 kHz), ±20 dB preamp, thirty-five built-in presets (including **Dembow, Reggaeton, Salsa, Merengue, Bachata, Cumbia, Afrobeat and K-Pop**, and fixes for small speakers or night listening) and your own. Every bar says in plain words what it changes (*Deep bass*, *Voice*, *Clarity*, *Sparkle*…), grouped under BASS / MIDDLE / TREBLE, with a tooltip for the details. Every preset is played with its own headroom, so a bass boost never makes the sound break up. It runs through libVLC's native equalizer on one long-lived player, so switching songs — or tuning in a radio station — never resets it.
+Ten bands (60 Hz – 16 kHz), ±20 dB preamp, thirty-five built-in presets (including **Dembow, Reggaeton, Salsa, Merengue, Bachata, Cumbia, Afrobeat and K-Pop**, and fixes for night listening; tabs for where you listen — small room (less echo), small / medium / large speakers, headphones, 5.1 and 7.1 — that sit on top of your own curve) and your own. Every bar says in plain words what it changes (*Deep bass*, *Voice*, *Clarity*, *Sparkle*…), grouped under BASS / MIDDLE / TREBLE, with a tooltip for the details. Every preset is played with its own headroom, so a bass boost never makes the sound break up. It runs through libVLC's native equalizer on one long-lived player, so switching songs — or tuning in a radio station — never resets it.
 
 </td>
 <td valign="top">

@@ -383,6 +383,8 @@ La primera barra, *Nivel*, es el nivel general del ecualizador. Si el sonido se 
 
 Treinta y cinco curvas listas: *Plano*, *Rock*, *Pop*, *Jazz*, *Clásica*, *Electrónica*, *Heavy Metal*, *Techno*, *Hip-Hop*, *R&B*, *Baile*, *Acústica*, *Blues*, *Country*, *Reggae*, *Latina*, *Dembow*, *Reggaetón*, *Salsa*, *Merengue*, *Bachata*, *Cumbia*, *Afrobeat*, *K-Pop*, *Voces*, *Voz / Podcast*, *En vivo*, y ajustes para el lugar o la manera de escuchar: *Graves potentes*, *Menos graves*, *Agudos brillantes*, *Menos agudos*, *Realce a bajo volumen*, *Altavoces pequeños*, *Auriculares* y *Noche (silencioso)*.
 
+El botón **Avanzado** (arriba a la derecha del ecualizador) lo agranda, con un gráfico en dB y controles de eco y reverberación: *Eco* (el retumbo que acumula un cuarto pequeño), *Reverberación* (la cola brillante), *Claridad* y *Graves firmes*, y cuánto usar del ajuste de *Escucha*. Moldean el sonido; ningún ecualizador puede quitar un eco real de una grabación.
+
 Mueve una barra y el preset pasa a *Personalizado*. **Guardar preset…** conserva tu propia curva con un nombre; *Borrar* la quita. *Restablecer* vuelve a *Plano*. El ecualizador sigue encendido cuando cambia la canción.
 
 ---

@@ -181,10 +181,21 @@ fun EqualizerSheet(visible: Boolean, onDismiss: () -> Unit) {
                 )
             }
         }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf<String?>(null) .plus(EqualizerHub.SETUPS.keys).forEach { name ->
+                val on = EqualizerHub.setup == name
+                Text(
+                    name ?: "Normal", Modifier.clip(RoundedCornerShape(11.dp)).background(if (on) AccentSoft else androidx.compose.ui.graphics.SolidColor(colors.surfaceContainerLow))
+                        .clickable { EqualizerHub.chooseSetup(name) }.padding(horizontal = 13.dp, vertical = 8.dp),
+                    color = if (on) colors.onSurface else colors.onSurfaceVariant, style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth().chassis(18.dp, colors.surfaceContainerLowest).padding(vertical = 12.dp, horizontal = 6.dp), Arrangement.SpaceEvenly) {
             EqualizerHub.BANDS_HZ.forEachIndexed { i, hz ->
-                Band(if (hz >= 1000) "${hz / 1000}k" else "$hz", EqualizerHub.gains[i], EqualizerHub.enabled) { EqualizerHub.setGain(i, it) }
+                Band(if (hz >= 1000) "${hz / 1000}k" else "$hz", EqualizerHub.gains[i] + EqualizerHub.extra(i), EqualizerHub.enabled, EqualizerHub.extra(i)) { EqualizerHub.setGain(i, it - EqualizerHub.extra(i)) }
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -202,11 +213,11 @@ fun EqualizerSheet(visible: Boolean, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun Band(label: String, gain: Float, enabled: Boolean, onChange: (Float) -> Unit) {
+private fun Band(label: String, gain: Float, enabled: Boolean, moved: Float, onChange: (Float) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val update = rememberUpdatedState(onChange)
     Column(Modifier.width(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("%+.0f".format(gain), style = Meter, color = if (gain == 0f) colors.onSurfaceVariant else AccentA)
+        Text("%+.0f".format(gain), style = Meter, color = if (moved > 0f) Color(0xFF3FB950) else if (moved < 0f) Color(0xFFF85149) else if (gain == 0f) colors.onSurfaceVariant else AccentA)
         Canvas(
             Modifier.height(150.dp).fillMaxWidth().padding(vertical = 6.dp)
                 .pointerInput(enabled) { if (enabled) detectTapGestures { update.value(level(it.y, size.height.toFloat())) } }
