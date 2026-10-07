@@ -36,6 +36,8 @@ Your own files, your Airsonic / Subsonic server, internet radio and a 10-band eq
 
 **Crossfade.** The next song comes in a few seconds before the current one ends. A green light under the volume shows it is on; one click turns it off.
 
+**An Advanced equalizer.** The amber *Advanced* button opens a bigger equalizer with a dB grid and a rack of one-tap controls — echo, reverb, clarity, shrill voices, tight bass — that tidy up a boomy or echoey room on top of your curve and the listening setting. *Basic* takes you back.
+
 **An equalizer for each song — or for a group.** Right-click one song, or several, ▸ *Equalizer* and give them a curve of their own; the general equalizer comes back for the rest.
 
 **Drop songs where they go.** With a folder or a playlist open, drop songs (or files from your file manager) right on its list.
@@ -59,7 +61,7 @@ Your own files, your Airsonic / Subsonic server, internet radio and a 10-band eq
 </tr>
 </table>
 
-Already using Juke? It offers 1.0 by itself: *Update now* replaces the AppImage in place, and on Android it downloads and installs the new APK. Your library, playlists and settings are kept.
+Already using Juke? It offers the new version by itself (or press *Check for updates…* in the menu or in *Settings ▸ General*): *Update now* replaces the AppImage in place, and on Android it downloads and installs the new APK. Your library, playlists and settings are kept.
 
 ## The manual
 
@@ -240,7 +242,7 @@ Everything Juke needs — Python, Qt, libVLC and yt-dlp — is inside the file; 
 - PulseAudio or PipeWire for sound (present on practically every desktop)
 - FUSE 2 (`libfuse2`) — or run it with `--appimage-extract-and-run`
 
-**Updating:** Juke tells you when a new release is out (or use *menu ▸ Check for updates…*). If the AppImage sits in a folder you can write to, *Update now* replaces it in place and offers to restart.
+**Updating:** Juke tells you when a new release is out (or press *Check for updates…* in the menu or in *Settings ▸ General*). If the AppImage sits in a folder you can write to, *Update now* replaces it in place and offers to restart.
 
 ### From source
 
