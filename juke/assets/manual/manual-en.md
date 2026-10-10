@@ -117,7 +117,7 @@ Juke lists the music on your card or in the phone's storage, **by folders**, as 
 ## Favorites and recent songs
 
 <!--linux-->
-Right-click a song ▸ *Mark as favorite*. Show your favorites, the songs you played recently and the current queue from the ⋯ menu ▸ *Show*.
+Right-click a song ▸ *Mark as favorite*. Your favorites are always one tap away in the **Favorites** tab on the right edge of the window (`Ctrl` + `K`): it slides out with every favorite song; double-click one to play it, right-click to remove it. The songs you played recently are in the ⋯ menu ▸ *Show*.
 <!--/linux-->
 <!--android-->
 Mark a song as a favorite from its menu. Your favorites are in the library.
@@ -172,9 +172,11 @@ Click or drag the time bar to jump to another point. Double-click a song, or sel
 
 ## The queue
 
-Right-click a song ▸ **Play next** puts it right after the current song. **Add to queue** puts it at the end. The queue is temporary and independent: when it is empty, the list you started from continues. See it all under *Current Queue* (<!--linux-->⋯ menu ▸ *Show*<!--/linux--><!--android-->in the player<!--/android-->): what is playing, what you queued, and what follows.
+Right-click a song ▸ **Play next** puts it right after the current song. **Add to the end of the queue** puts it at the end. The queue is temporary and independent: when it is empty, the list you started from continues. See it all under *Current Queue* (<!--linux-->the **Queue** tab on the right edge of the window, or `Ctrl` + `J`<!--/linux--><!--android-->in the player<!--/android-->): what is playing, what you queued, and what follows.
 
 <!--linux-->
+The Queue tab slides out with only the songs you chose and how long they play in total. Drag them to change the order, double-click one to play it now, or right-click to move it or take it out. The display under the song shows which one comes next. The queue is saved as you change it, so it is still there the next time you open Juke.
+
 If you take a song out of the playlist or folder that is playing, it also leaves the queue; a song you put in waits at the end.
 <!--/linux-->
 

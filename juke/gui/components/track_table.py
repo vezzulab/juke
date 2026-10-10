@@ -442,6 +442,7 @@ class TrackTable(QTableView):
         self.track_model = TrackModel(db, self)
         self.setModel(self.track_model)
         self.queue_mode = False
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)      # no bar beside the list: the wheel, the keys and a drag scroll it
         self.playlist_mode = False
         self.folder_mode = False                    # showing one of the user's folders: songs can be taken out of it
         self.duplicate_mode: str | None = None      # showing copies of songs ("same" | "exact")
@@ -682,8 +683,12 @@ class TrackTable(QTableView):
         menu = QMenu(self)
         play = menu.addAction(tr("menu.play"))
         play.triggered.connect(lambda: self._emit_play(index.row()))
-        menu.addAction(tr("menu.play_next"), lambda: self.play_next_requested.emit(ids))
-        menu.addAction(tr("menu.add_to_queue"), lambda: self.queue_requested.emit(ids))
+        menu.addSeparator()                        # the two queue entries, set apart and with their own icon
+        menu.addAction(icons.icon("next", styles.ACCENT, size=16), tr("menu.play_next"),
+                       lambda: self.play_next_requested.emit(ids))
+        menu.addAction(icons.icon("queue", styles.ACCENT, size=16), tr("menu.add_to_queue"),
+                       lambda: self.queue_requested.emit(ids))
+        menu.addSeparator()
         if self.queue_mode:
             menu.addAction(tr("menu.remove_from_queue"), lambda: self.remove_from_queue_requested.emit(ids))
         playlists = menu.addMenu(tr("menu.add_to_playlist"))

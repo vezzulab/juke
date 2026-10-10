@@ -143,7 +143,7 @@ class LcdDisplay(QFrame):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("lcd")
-        self.setFixedHeight(94)
+        self.setFixedHeight(104)
         self.setMinimumWidth(440)
         self._length_ms = 0
         self._track: Track | None = None
@@ -160,6 +160,8 @@ class LcdDisplay(QFrame):
         self.title.setObjectName("lcdTitle")
         self.subtitle = ElidedLabel()
         self.subtitle.setObjectName("lcdSub")
+        self.next_up = ElidedLabel()                    # the song that comes after this one
+        self.next_up.setObjectName("lcdNext")
         self.spectrum = SpectrumWidget()
         self.spectrum.setFixedWidth(150)
 
@@ -188,6 +190,7 @@ class LcdDisplay(QFrame):
         text.setSpacing(1)
         text.addLayout(title_row)
         text.addWidget(self.subtitle)
+        text.addWidget(self.next_up)
         self.progress_stack = QStackedWidget()
         self.progress_stack.setFixedHeight(20)
         self.progress_stack.addWidget(self.seek)
@@ -281,6 +284,7 @@ class LcdDisplay(QFrame):
         self._track, self._station, self._cover = None, station, cover
         self._length_ms = 0
         self.title.setText(station.name)
+        self.next_up.hide()
         self.subtitle.setText(tr("radio.connecting"))
         self._connecting = True
         self.live_info.setText(self._station_line(station) or tr("radio.streaming"))
@@ -288,6 +292,10 @@ class LcdDisplay(QFrame):
         self.elapsed.setText("0:00")
         self.seek.setEnabled(False)
         self._live_mode(True)
+
+    def set_next(self, text: str) -> None:
+        self.next_up.setText(text)
+        self.next_up.setVisible(bool(text) and self._station is None)
 
     def set_now_playing(self, text: str) -> None:
         self._connecting = False
@@ -300,6 +308,7 @@ class LcdDisplay(QFrame):
         self._track = None
         self._length_ms = 0
         self.title.setText("Juke")
+        self.next_up.hide()
         self.subtitle.setText(tr("lcd.idle"))
         self.cover.setPixmap(icons.placeholder_cover(self.COVER))
         self.elapsed.setText("0:00")
@@ -533,6 +542,9 @@ class TopBar(QWidget):
 
     def set_now_playing(self, text: str) -> None:
         self.lcd.set_now_playing(text)
+
+    def set_next(self, text: str) -> None:
+        self.lcd.set_next(text)
 
     def set_crossfade(self, seconds: int) -> None:
         self.crossfade.set_seconds(seconds)

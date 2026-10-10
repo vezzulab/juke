@@ -7,6 +7,7 @@ _ROOT = tempfile.mkdtemp(prefix="juke-test-")
 for name, sub in (("XDG_CONFIG_HOME", "config"), ("XDG_DATA_HOME", "data"), ("XDG_CACHE_HOME", "cache")):
     os.environ[name] = os.path.join(_ROOT, sub)
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ["JUKE_NO_WHATS_NEW"] = "1"      # a window that waits for a click would stop every test
 os.environ["JUKE_NO_MPRIS"] = "1"          # tests never claim a name on the real session bus
 ROOT = _ROOT
 

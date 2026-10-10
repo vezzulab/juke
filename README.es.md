@@ -13,7 +13,7 @@ Tus archivos, tu servidor Airsonic / Subsonic, radio por Internet y un ecualizad
 
 <br>
 
-![Versión](https://img.shields.io/badge/versi%C3%B3n-1.0.2-cba6f7?style=for-the-badge)
+![Versión](https://img.shields.io/badge/versi%C3%B3n-1.0.3-cba6f7?style=for-the-badge)
 ![Linux](https://img.shields.io/badge/plataforma-Linux-7aa2f7?style=for-the-badge&logo=linux&logoColor=white)
 ![Android](https://img.shields.io/badge/plataforma-Android-cba6f7?style=for-the-badge&logo=android&logoColor=white)
 

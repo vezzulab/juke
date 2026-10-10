@@ -117,7 +117,7 @@ Juke lista la música de tu tarjeta o del almacenamiento del teléfono, **por ca
 ## Favoritas y canciones recientes
 
 <!--linux-->
-Clic derecho en una canción ▸ *Marcar como favorita*. Muestra tus favoritas, las canciones que reprodujiste hace poco y la cola actual desde el menú ⋯ ▸ *Mostrar*.
+Clic derecho en una canción ▸ *Marcar como favorita*. Tus favoritas están siempre a un toque en la pestaña **Favoritas** del borde derecho de la ventana (`Ctrl` + `K`): se desliza con todas tus canciones favoritas; doble clic para reproducir una, clic derecho para quitarla. Las canciones que reprodujiste hace poco están en el menú ⋯ ▸ *Mostrar*.
 <!--/linux-->
 <!--android-->
 Marca una canción como favorita desde su menú. Tus favoritas están en la biblioteca.
@@ -172,9 +172,11 @@ Haz clic o arrastra la barra de tiempo para saltar a otro punto. Haz doble clic 
 
 ## La cola
 
-Clic derecho en una canción ▸ **Reproducir a continuación** la pone justo después de la actual. **Añadir a la cola** la pone al final. La cola es temporal e independiente: cuando queda vacía, sigue la lista desde la que empezaste. Verla toda en *Cola actual* (<!--linux-->menú ⋯ ▸ *Mostrar*<!--/linux--><!--android-->en el reproductor<!--/android-->): lo que suena, lo que agregaste y lo que sigue.
+Clic derecho en una canción ▸ **Reproducir a continuación** la pone justo después de la actual. **Añadir al final de la cola** la pone al final. La cola es temporal e independiente: cuando queda vacía, sigue la lista desde la que empezaste. Verla toda en *Cola actual* (<!--linux-->la pestaña **Cola** del borde derecho de la ventana, o `Ctrl` + `J`<!--/linux--><!--android-->en el reproductor<!--/android-->): lo que suena, lo que agregaste y lo que sigue.
 
 <!--linux-->
+La pestaña Cola se desliza solo con las canciones que elegiste y cuánto duran en total. Arrástralas para cambiar el orden, doble clic para reproducir una ya, o clic derecho para moverla o quitarla. El display bajo la canción muestra cuál sigue. La cola se guarda mientras la cambias, así que sigue ahí la próxima vez que abras Juke.
+
 Si sacas una canción de la lista o carpeta que está sonando, también sale de la cola; una canción que agregas espera al final.
 <!--/linux-->
 

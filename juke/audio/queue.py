@@ -90,6 +90,24 @@ class PlayQueue:
             if track_id in self.user:
                 self.user.remove(track_id)
 
+    def move_in_queue(self, source: int, target: int) -> None:
+        """Take the song at ``source`` of the user queue and put it where ``target`` is (indexes into ``user``)."""
+        if not (0 <= source < len(self.user)):
+            return
+        target = max(0, min(target, len(self.user) - 1))
+        self.user.insert(target, self.user.pop(source))
+
+    def peek_next(self) -> int | None:
+        """The song that comes after the current one, if it is already known (not with shuffle's end-of-list reshuffle
+        or repeat-one, where the answer is the song itself)."""
+        if self.repeat == "one":
+            return self.current
+        if self.user:
+            return self.user[0]
+        if self.cursor + 1 < len(self.order):
+            return self.order[self.cursor + 1]
+        return None
+
     def clear_user_queue(self) -> None:
         self.user.clear()
 

@@ -197,6 +197,20 @@ class DatabaseTests(unittest.TestCase):
 
 
 class PlayQueueTests(unittest.TestCase):
+    def test_queue_songs_can_be_moved_and_the_next_one_is_known(self):
+        q = PlayQueue()
+        q.set_context([1, 2, 3], 1)
+        self.assertEqual(q.peek_next(), 2)
+        q.add_to_queue([10, 11, 12])
+        self.assertEqual(q.peek_next(), 10)
+        q.move_in_queue(2, 0)
+        self.assertEqual(q.user, [12, 10, 11])
+        q.move_in_queue(0, 99)                       # past the end: it goes last
+        self.assertEqual(q.user, [10, 11, 12])
+        q.play_next([20])                            # before the song that was next in the queue
+        self.assertEqual(q.peek_next(), 20)
+        self.assertEqual([q.next(), q.next()], [20, 10])
+
     def test_a_song_taken_out_of_the_playing_list_does_not_play_again(self):
         q = PlayQueue()
         q.set_context([1, 2, 3, 2, 4], 1, 0)                   # playing a playlist in which song 2 is there twice

@@ -13,7 +13,7 @@ Your own files, your Airsonic / Subsonic server, internet radio and a 10-band eq
 
 <br>
 
-![Version](https://img.shields.io/badge/version-1.0.2-cba6f7?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.0.3-cba6f7?style=for-the-badge)
 ![Linux](https://img.shields.io/badge/platform-Linux-7aa2f7?style=for-the-badge&logo=linux&logoColor=white)
 ![Android](https://img.shields.io/badge/platform-Android-cba6f7?style=for-the-badge&logo=android&logoColor=white)
 

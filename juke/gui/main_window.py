@@ -11,7 +11,7 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QFile, QProcess, QSize, QThread, QTimer, Qt, QUrl
+from PySide6.QtCore import QEasingCurve, QEvent, QFile, QProcess, QSize, QThread, QTimer, Qt, QUrl, QVariantAnimation
 from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QGuiApplication, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QSizePolicy, QSplitter, QStackedWidget, QToolButton, QVBoxLayout,
@@ -40,6 +40,8 @@ from ..workers import AsyncWorker
 from . import icons, styles
 from .components.device_view import DeviceView
 from .components.lyrics_panel import LyricsPanel
+from .components.favorites_panel import FavoritesPanel
+from .components.queue_panel import OverlayHost, QueueDock, QueuePanel, QueueTab
 from .components.radio_view import RadioView
 from .components.sidebar import Sidebar
 from .components.top_bar import TopBar
@@ -83,6 +85,7 @@ class MainWindow(QMainWindow):
         self._extra_scanner: LibraryScanner | None = None
         self._pending_files: list[str] = []
         self.queue = PlayQueue()
+        self._queue_loaded = False              # until the saved queue is read back, nothing may overwrite it
         self.queue.shuffle = bool(config.get("shuffle"))
         self.queue.repeat = config.get("repeat")
         self.resolver = SourceResolver(lambda: self.airsonic)
@@ -203,6 +206,13 @@ class MainWindow(QMainWindow):
         side_layout.addLayout(footer)
         self.lyrics_panel = LyricsPanel()
         self.lyrics_panel.hide()
+        self.queue_panel = QueuePanel()          # the last column: lyrics and queue can be open at the same time
+        self.queue_panel.hide()
+        self.queue_tab = QueueTab()              # the folder tab on the queue's edge; it stays when the queue is shut
+        self.favorites_panel = FavoritesPanel()  # a second drawer, under the queue's tab
+        self.favorites_panel.hide()
+        self.favorites_tab = QueueTab("favorites.title", "favorites.tab_tip", favorites=True)
+        self.queue_dock = QueueDock([(self.queue_tab, self.queue_panel), (self.favorites_tab, self.favorites_panel)])
         self.splitter.addWidget(side)
         self.splitter.addWidget(main_view)
         self.splitter.addWidget(self.lyrics_panel)
@@ -214,8 +224,15 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
         root.addWidget(self.top_bar)
-        root.addWidget(self.splitter, 1)
+        self.queue_host = OverlayHost(self.splitter, self.queue_dock)    # the queue floats over the list while it slides
+        root.addWidget(self.queue_host, 1)
         self.setCentralWidget(central)
+        self._drawer: str | None = None          # which drawer is out: "queue", "favorites" or none
+        self._queue_anim = QVariantAnimation(self)
+        self._queue_anim.setDuration(280)
+        self._queue_anim.setEasingCurve(QEasingCurve.InOutCubic)
+        self._queue_anim.valueChanged.connect(self._queue_slide)
+        self._queue_anim.finished.connect(self._queue_slid)
 
         self.status_label = QLabel()
         self.progress = QProgressBar()
@@ -246,6 +263,7 @@ class MainWindow(QMainWindow):
         self.retranslate()
         self._configure_airsonic()
         self.refresh_library()
+        self._restore_queue()
         self.sidebar.select("all")
         self._show_view("all", None)
         QTimer.singleShot(2500, self._startup_tasks)   # let the window appear before any disk work
@@ -271,6 +289,18 @@ class MainWindow(QMainWindow):
         eng.position_changed.connect(tb.set_position)
         eng.position_changed.connect(lambda elapsed, _total: self.lyrics_panel.set_position(elapsed))
         self.lyrics_panel.closed.connect(self._close_lyrics)
+        fp = self.favorites_panel
+        self.favorites_tab.clicked.connect(self.toggle_favorites_panel)
+        fp.closed.connect(lambda: self._show_drawer(None))
+        fp.play_requested.connect(self._play_favorite)
+        fp.unfavorite_requested.connect(lambda ids: self._set_favorite(ids, False))
+        qp = self.queue_panel
+        self.queue_tab.clicked.connect(self.toggle_queue_panel)
+        qp.closed.connect(lambda: self._show_queue_panel(False))
+        qp.moved.connect(self._queue_moved)
+        qp.remove_requested.connect(self._queue_rows_removed)
+        qp.play_requested.connect(self._queue_row_play)
+        qp.clear_requested.connect(self._queue_cleared)
         self.lyrics_panel.edit_requested.connect(lambda: self.current_track and self._edit_lyrics(self.current_track.id))
         self.lyrics_panel.find_requested.connect(lambda: self.current_track and self._find_lyrics(self.current_track.id))
         self.table.lyrics_requested.connect(self._edit_lyrics)
@@ -349,7 +379,7 @@ class MainWindow(QMainWindow):
                            ("Ctrl+Right", lambda: self._advance(auto=False)), ("Ctrl+Left", self._previous),
                            ("Ctrl+Q", self.close), ("Ctrl+N", lambda: self._new_playlist()),
                            ("Ctrl+Shift+N", lambda: self._new_folder()), ("Ctrl+T", self.toggle_theme),
-                           ("Ctrl+L", self.toggle_lyrics),
+                           ("Ctrl+L", self.toggle_lyrics), ("Ctrl+J", self.toggle_queue_panel), ("Ctrl+K", self.toggle_favorites_panel),
                            # the keys of a keyboard, headset or remote when the desktop hands them to the focused window
                            ("Media Play", self._play_pressed), ("Media Pause", self.engine.pause),
                            ("Media Toggle Play/Pause", self._play_pressed), ("Media Stop", self._stop),
@@ -597,7 +627,7 @@ class MainWindow(QMainWindow):
     def save_state(self) -> None:
         self.config.set("window.geometry", bytes(self.saveGeometry()).hex())
         sizes = self.splitter.sizes()
-        self.config.set("window.splitter", [sizes[0], sizes[1] + (sizes[2] if len(sizes) > 2 else 0)])
+        self.config.set("window.splitter", [sizes[0], sizes[1] + sum(sizes[2:])])
         if not self._follow:                         # following the computer: Juke's own volume stays what it was
             self.config.set("volume", self.engine.volume)
             self.config.set("muted", self.engine.muted)
@@ -640,11 +670,83 @@ class MainWindow(QMainWindow):
     def _show_lyrics_panel(self, visible: bool) -> None:
         if visible == self.lyrics_panel.isVisible():
             return
+        self._show_column(self.lyrics_panel, visible)
+
+    def _show_column(self, panel: QWidget, visible: bool, wanted: int = 340) -> None:
+        """Open or close a column on the right; the song list gives up (or gets back) the room."""
         sizes = self.splitter.sizes()
-        self.lyrics_panel.setVisible(visible)
+        panel.setVisible(visible)
         if visible:
-            wanted = 340
-            self.splitter.setSizes([sizes[0], max(320, sizes[1] - wanted), wanted])
+            sizes[self.splitter.indexOf(panel)] = wanted
+            sizes[1] = max(320, sizes[1] - wanted)
+            self.splitter.setSizes(sizes)
+
+    @property
+    def _queue_open(self) -> bool:
+        return self._drawer == "queue"
+
+    def _show_queue_panel(self, visible: bool) -> None:
+        if visible:
+            self._show_drawer("queue")
+        elif self._drawer == "queue":
+            self._show_drawer(None)
+
+    def _show_drawer(self, name: str | None) -> None:
+        """Slide a drawer out from the right edge (its tab comes out with it), swap to the other one, or put it away."""
+        if name == self._drawer:
+            return
+        before, self._drawer = self._drawer, name
+        panels = {"queue": self.queue_panel, "favorites": self.favorites_panel}
+        tabs = {"queue": self.queue_tab, "favorites": self.favorites_tab}
+        for key, tab in tabs.items():
+            tab.setChecked(key == name)
+        for key, panel in panels.items():
+            panel.setVisible(key == name or (name is None and key == before))      # the one leaving stays until it has slid away
+        host = self.queue_host
+        self._queue_anim.stop()
+        if name == "queue":
+            self._refresh_queue_view()
+        elif name == "favorites":
+            self._refresh_favorites()
+        if before is not None and name is not None:        # from one drawer to the other: the same room, no sliding
+            host.set_shown(QueueTab.WIDTH + QueueDock.PANEL_WIDTH)
+            return
+        # The list settles into its final width at once (one step, nothing keeps moving in it, scroll bar included)
+        # and the drawer slides over the room: into the gap when it opens, away over the list when it closes.
+        full = QueueTab.WIDTH + QueueDock.PANEL_WIDTH
+        host.set_reserved(full if name else QueueTab.WIDTH)
+        self._queue_anim.setStartValue(host.shown)
+        self._queue_anim.setEndValue(full if name else QueueTab.WIDTH)
+        self._queue_anim.start()
+
+    def _queue_slide(self, width) -> None:
+        self.queue_host.set_shown(int(round(width)))
+
+    def _queue_slid(self) -> None:
+        if self._drawer is None:
+            self.queue_panel.hide()
+            self.favorites_panel.hide()
+
+    def toggle_queue_panel(self) -> None:
+        """Ctrl+J or the queue's tab on the right edge."""
+        self._show_drawer(None if self._drawer == "queue" else "queue")
+
+    def toggle_favorites_panel(self) -> None:
+        """Ctrl+K or the favourites tab on the right edge."""
+        self._show_drawer(None if self._drawer == "favorites" else "favorites")
+
+    def _refresh_favorites(self) -> None:
+        count = self.db.count_favorites()
+        self.favorites_tab.set_count(count)
+        if self._drawer == "favorites":
+            self.favorites_panel.set_tracks(self.db.tracks_by_ids(self.db.query_ids(Scope(favorites=True))))
+
+    def _play_favorite(self, track_id: int) -> None:
+        ids = self.db.query_ids(Scope(favorites=True))
+        if track_id in ids:
+            self.queue.set_context(ids, track_id)
+            self._context = None
+            self._start(track_id)
 
     def toggle_lyrics(self) -> None:
         """Ctrl+L: open or close the column by hand (shut, it stays shut for this song)."""
@@ -828,6 +930,12 @@ class MainWindow(QMainWindow):
         self.theme_button.setToolTip(tr("settings.theme"))
         self._build_theme_menu()
         self.lyrics_panel.retranslate()
+        self.queue_panel.retranslate()
+        self.queue_tab.retranslate()
+        self.favorites_tab.retranslate()
+        self.favorites_panel.retranslate()
+        self.queue_dock.place()
+        self._refresh_queue_view()
         self.support_button.setText("\u2002\u2002" + tr("sidebar.support"))
         self.support_button.setToolTip(tr("sidebar.support_tip"))
         self.sidebar.retranslate()
@@ -861,6 +969,8 @@ class MainWindow(QMainWindow):
         add(tr("menu.equalizer"), self.toggle_equalizer, "Ctrl+E")
         add(tr("menu.toggle_theme"), self.toggle_theme, "Ctrl+T")
         add(tr("menu.lyrics_panel"), self.toggle_lyrics, "Ctrl+L")
+        add(tr("menu.queue_panel"), self.toggle_queue_panel, "Ctrl+J")
+        add(tr("menu.favorites_panel"), self.toggle_favorites_panel, "Ctrl+K")
         menu.addSeparator()
         add(tr("menu.rescan"), self.start_scan)
         self.sync_action = add(tr("menu.sync_airsonic"), self.sync_airsonic)
@@ -1094,6 +1204,7 @@ class MainWindow(QMainWindow):
             all=db.count(), airsonic=db.count(SOURCE_AIRSONIC), favorites=db.count_favorites(),
             queue=len(self.queue.view()) or None, stations=db.count_stations() or None,
         )
+        self._refresh_favorites()
 
     def _scope_for(self, key: str, value: object) -> tuple[Scope, list[int] | None, str | None]:
         if key == "artist":
@@ -1421,6 +1532,7 @@ class MainWindow(QMainWindow):
 
     def _set_repeat(self, mode: str) -> None:
         self.queue.repeat = mode
+        self._update_next_hint()
         self._sync_media()
 
     # ------------------------------------------------------------------------------ queue
@@ -1439,16 +1551,68 @@ class MainWindow(QMainWindow):
     def _queue_changed(self, message: str | None) -> None:
         if message:
             self.notify(message, 3000)
+        if message and not self._queue_open:
+            self._show_queue_panel(True)               # the person just lined something up: show where it went
         if self.queue.current is None and self.engine.state == "stopped" and self.queue.user:
             self._advance(auto=False)  # nothing is playing: start the queue right away
             return
         self._update_counts()
         self._refresh_queue_view()
 
+    def _queue_moved(self, source: int, target: int) -> None:
+        self.queue.move_in_queue(source, target)
+        self._refresh_queue_view()
+        self.queue_panel.queue_list.setCurrentRow(max(0, min(target, len(self.queue.user) - 1)))
+
+    def _queue_rows_removed(self, rows: list[int]) -> None:
+        for row in sorted(rows, reverse=True):
+            if 0 <= row < len(self.queue.user):
+                del self.queue.user[row]
+        self._queue_changed(None)
+
+    def _queue_row_play(self, row: int) -> None:
+        if 0 <= row < len(self.queue.user):
+            self.queue.user.insert(0, self.queue.user.pop(row))
+            self._advance(auto=False)
+
+    def _queue_cleared(self) -> None:
+        self.queue.clear_user_queue()
+        self._queue_changed(None)
+
     def _refresh_queue_view(self) -> None:
         if self._view[0] == "queue":
             self.table.track_model.set_fixed_ids(self.queue.view())
             self._update_heading()
+        self._update_next_hint()
+        self._save_queue()
+        self.queue_tab.set_count(len(self.queue.user))
+        if self._queue_open:
+            self.queue_panel.set_content(self.current_track, [self.db.get_track(i) for i in self.queue.user])
+
+    def _save_queue(self) -> None:
+        """The queue is written as soon as it changes, so closing Juke (or it failing) does not lose it."""
+        if self._queue_loaded and self.config.get("queue") != self.queue.user:
+            self.config.set("queue", list(self.queue.user))
+            self.config.save()
+
+    def _restore_queue(self) -> None:
+        """The songs that were lined up last time, the ones that are still in the library. They wait: nothing starts."""
+        saved = self.config.get("queue")
+        ids = [i for i in saved if isinstance(i, int)] if isinstance(saved, list) else []
+        self.queue.user = [i for i in ids if self.db.get_track(i) is not None]
+        self._queue_loaded = True
+        self._save_queue()
+
+    def _update_next_hint(self) -> None:
+        """The line under the song on the display: what plays after it."""
+        next_id = self.queue.peek_next() if self.current_track is not None else None
+        track = self.db.get_track(next_id) if next_id is not None else None
+        if track is None or next_id == self.queue.current:
+            self.top_bar.set_next("")
+        elif track.artist:
+            self.top_bar.set_next(tr("lcd.next", title=track.title or tr("unknown_title"), artist=track.artist))
+        else:
+            self.top_bar.set_next(tr("lcd.next_title", title=track.title or tr("unknown_title")))
 
     # ------------------------------------------------------------------------------ radio
     def _station_cover(self, station: Station) -> QPixmap | None:
@@ -1484,6 +1648,7 @@ class MainWindow(QMainWindow):
         self.current_station = station
         self._station_refreshed = not refresh
         self.top_bar.set_station(station, self._station_cover(station))
+        self._refresh_queue_view()
         self._sync_radio_state()
         self.setWindowTitle(f"{station.name} · Juke")
         self._sync_media()
@@ -2057,7 +2222,18 @@ class MainWindow(QMainWindow):
             QProcess.startDetached(str(target), [])
             self.close()
 
+    def _show_whats_new(self) -> None:
+        """The first time a version with news runs (installed or updated to it), say what is new, once."""
+        from .whats_new_dialog import WhatsNewDialog, has_news
+
+        if os.environ.get("JUKE_NO_WHATS_NEW") or not has_news(__version__) or self.config.get("whats_new") == __version__:
+            return
+        self.config.set("whats_new", __version__)       # first: if the window fails or Juke closes, it is not asked again
+        self.config.save()
+        WhatsNewDialog(__version__, self).exec()
+
     def _startup_tasks(self) -> None:
+        QTimer.singleShot(900, self._show_whats_new)
         QTimer.singleShot(6_000, self._auto_update_check)
         self._check_server(force=True)
         if self.config.get("scan_on_start") or self.db.count(SOURCE_LOCAL) == 0:

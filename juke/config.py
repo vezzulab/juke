@@ -46,6 +46,8 @@ DEFAULTS: dict[str, Any] = {
     "muted": False,
     "shuffle": False,
     "repeat": "off",  # off | all | one
+    "whats_new": "",  # the last version whose "what is new" window was shown, so it comes up once
+    "queue": [],  # ids of the songs lined up in the queue; written at every change so a crash does not lose them
     "equalizer": {"enabled": False, "preamp": 0.0, "gains": [0.0] * 10, "preset": "Flat"},
     "custom_presets": {},  # name -> {"preamp": float, "gains": [10 floats]}
     "airsonic": {"enabled": False, "url": "", "username": "", "password": "", "auth": "auto"},  # auth: auto | token | password

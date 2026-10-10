@@ -166,8 +166,25 @@ def qcolor(hex_color: str, alpha: int = 255):
     return color
 
 
+def queue_bg() -> str:
+    """The queue drawer's own shade: the side colour with a breath of the accent."""
+    return _mix(MANTLE, ACCENT, .10)
+
+
+def favorites_bg() -> str:
+    """The favourites drawer's own shade: the side colour with a breath of rose."""
+    return _mix(MANTLE, RED, .12)
+
+
+def card_bg() -> str:
+    """The song cards in the drawers: lighter than the drawer in the dark themes, paper-white in the light ones."""
+    return SURFACE if IS_DARK else PANEL
+
+
 def build_stylesheet() -> str:
     g = globals()
+    QUEUE_BG, FAV_BG = queue_bg(), favorites_bg()
+    CARD = card_bg()
     BASE, MANTLE, PANEL, SURFACE, OVERLAY, BORDER = (g[k] for k in ("BASE", "MANTLE", "PANEL", "SURFACE", "OVERLAY", "BORDER"))
     TEXT, SUBTEXT, MUTED, ACCENT, ACCENT2 = (g[k] for k in ("TEXT", "SUBTEXT", "MUTED", "ACCENT", "ACCENT2"))
     ACCENT_HOVER, ACCENT2_HOVER, ON_ACCENT = g["ACCENT_HOVER"], g["ACCENT2_HOVER"], g["ON_ACCENT"]
@@ -181,6 +198,18 @@ QLabel {{ background: transparent; }}
 QLabel#muted {{ color: {SUBTEXT}; }}
 QPlainTextEdit#lyricsText {{ background: transparent; border: none; padding: 6px 18px 30px 18px; font-size: 16px; line-height: 150%; color: {SUBTEXT}; selection-background-color: transparent; }}
 QWidget#lyricsPanel {{ background: {MANTLE}; border-left: 1px solid {BORDER}; }}
+QWidget#queuePanel {{ background: {QUEUE_BG}; }}
+QWidget#favoritesPanel {{ background: {FAV_BG}; }}
+QLabel#queueSection {{ font-size: 10px; font-weight: 700; letter-spacing: 1px; color: {SUBTEXT}; padding: 8px 16px 4px 16px; }}
+QFrame#queueRule {{ background: {OVERLAY}; border: none; }}
+QLabel#queueTotal {{ color: {TEXT}; font-weight: 600; }}
+QLabel#queueNow {{ font-weight: 600; color: {ACCENT}; }}
+QListWidget#queueList {{ background: transparent; border: none; padding: 2px 10px; outline: none; }}
+QListWidget#queueList::item {{ background: {CARD}; border: 1px solid {BORDER}; border-radius: 10px; margin: 3px 0; }}
+QListWidget#queueList::item:hover {{ border-color: {rgba(ACCENT, 0.55)}; }}
+QListWidget#queueList::item:selected {{ background: {rgba(ACCENT, 0.24)}; border-color: {ACCENT}; }}
+QLabel#queueTitle {{ font-weight: 600; color: {TEXT}; background: transparent; }}
+QLabel#queueArtist {{ color: {SUBTEXT}; font-size: 12px; background: transparent; }}
 QLabel#credit {{ color: {MUTED}; font-size: 11px; letter-spacing: 0.4px; }}
 QLabel#metaArt {{ background: {PANEL}; border: 1px solid {BORDER}; border-radius: 12px; color: {SUBTEXT}; }}
 QLabel#heading {{ font-size: 15px; font-weight: 600; }}
@@ -194,6 +223,7 @@ QWidget#topBar {{ background: {MANTLE}; border-bottom: 1px solid {BORDER}; }}
 QFrame#lcd {{ background: transparent; border: none; }}   /* LcdDisplay paints its own glass and backlight */
 QLabel#lcdTitle {{ font-size: 15px; font-weight: 700; color: {LCD_INK}; background: transparent; }}
 QLabel#lcdSub {{ color: {LCD_INK_SOFT}; background: transparent; }}
+QLabel#lcdNext {{ color: {LCD_INK_SOFT}; font-size: 11px; background: transparent; }}
 QLabel#lcdTime {{ font-family: {MONO_FAMILY}; font-size: 12px; font-weight: 700; color: {LCD_INK}; background: transparent; }}
 QLabel#lcdLive {{ color: {LCD_INK_SOFT}; font-size: 12px; background: transparent; }}
 QLabel#cover {{ background: {PANEL}; border: 1px solid {LCD_INK}; border-radius: 6px; }}

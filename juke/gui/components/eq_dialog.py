@@ -414,6 +414,22 @@ class EqualizerDialog(QDialog):
         height = min(room, max(need, 880)) if advanced else min(room, need + 40)
         needed_width = self._inner.minimumSizeHint().width() + 4
         self.resize(max(self.width() if advanced else 0, self.minimumWidth(), needed_width), height)
+        self._center()
+
+    def _center(self) -> None:
+        """In the middle of the Juke window (or of the screen), whichever size the Basic / Advanced view has now."""
+        parent = self.parentWidget()
+        window = parent.window() if parent is not None else None
+        area = window.frameGeometry() if window is not None and window.isVisible() else None
+        screen = (window.screen() if window is not None else None) or QGuiApplication.primaryScreen()
+        available = screen.availableGeometry() if screen else None
+        centre = area.center() if area is not None else (available.center() if available else self.rect().center())
+        target = self.frameGeometry()
+        target.moveCenter(centre)
+        if available is not None:                           # never partly off the screen
+            target.moveLeft(max(available.left(), min(target.left(), available.right() - target.width() + 1)))
+            target.moveTop(max(available.top(), min(target.top(), available.bottom() - target.height() + 1)))
+        self.move(target.topLeft())
 
     # -- state ---------------------------------------------------------------------------------------
     def _sync(self) -> None:
@@ -545,6 +561,8 @@ class EqualizerDialog(QDialog):
         if not getattr(self, "_fitted", False):             # the first time the fonts and styles are real, so the size is too
             self._fitted = True
             self._fit(self.btn_advanced.isChecked())
+        else:
+            self._center()
         super().showEvent(event)
 
     def closeEvent(self, event) -> None:  # noqa: N802

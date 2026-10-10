@@ -16,6 +16,7 @@ from juke.config import Config
 from juke.db.database import SOURCE_AIRSONIC, SOURCE_LOCAL, Database, Scope
 import juke.gui.main_window as main_window_module
 from juke.gui import icons, styles
+from juke.gui.components.queue_panel import play_time
 from juke.gui.components.sidebar import COUNT_ROLE
 from juke.gui.main_window import MainWindow
 from juke.i18n import tr, translator
@@ -48,6 +49,55 @@ def make_window(name, n=200):
     window.show()
     pump(100)
     return window, cfg, db, engine, eq
+
+
+class PlayTimeTests(unittest.TestCase):
+    def test_play_time_reads_in_seconds_minutes_and_hours(self):
+        self.assertEqual(play_time(45), "45 s")
+        self.assertEqual(play_time(12 * 60 + 30), "12 min")
+        self.assertEqual(play_time(3600 + 5 * 60), "1 h 5 min")
+
+
+class WhatsNewTests(unittest.TestCase):
+    def test_the_news_window_comes_up_once_per_version(self):
+        import os
+        from juke import __version__
+        from juke.gui import whats_new_dialog
+
+        window, cfg, db, engine, eq = make_window("gui-news", n=3)
+        shown = []
+        original = whats_new_dialog.WhatsNewDialog.exec
+        whats_new_dialog.WhatsNewDialog.exec = lambda self: shown.append(self.windowTitle()) or 0
+        os.environ.pop("JUKE_NO_WHATS_NEW")
+        try:
+            self.assertTrue(whats_new_dialog.has_news(__version__), "this version has no news entry")
+            cfg.set("whats_new", "")
+            window._show_whats_new()
+            window._show_whats_new()                                   # the second time nothing comes up
+            self.assertEqual(len(shown), 1)
+            self.assertEqual(Config(Path(cfg.path)).get("whats_new"), __version__)   # and it is remembered on disk
+            saved = dict(whats_new_dialog.NEWS)
+            whats_new_dialog.NEWS.clear()                              # a version without news shows nothing
+            cfg.set("whats_new", "")
+            window._show_whats_new()
+            self.assertEqual(len(shown), 1)
+            whats_new_dialog.NEWS.update(saved)
+        finally:
+            os.environ["JUKE_NO_WHATS_NEW"] = "1"
+            whats_new_dialog.WhatsNewDialog.exec = original
+        window.close()
+
+    def test_news_window_texts_exist_in_both_languages(self):
+        from juke.gui.whats_new_dialog import NEWS, WhatsNewDialog
+
+        for lang in ("en", "es"):
+            translator.set_language(lang)
+            for version, news in NEWS.items():
+                keys = [k for card in news["cards"] for k in card[2:]] + news["lines"]
+                for key in keys:
+                    self.assertNotEqual(tr(key), key, f"{lang}: {key} is not translated")
+                self.assertIn(version, WhatsNewDialog(version).windowTitle())
+        translator.set_language("en")
 
 
 class GuiTests(unittest.TestCase):
@@ -94,6 +144,67 @@ class GuiTests(unittest.TestCase):
         window.sidebar.select("queue")
         window._show_view("queue", None)
         self.assertEqual(window.table.track_model.ids()[:5], [ids[0], ids[5], ids[7], ids[8], ids[1]])
+        window.close()
+
+    def test_queue_column_reorders_and_the_display_shows_what_is_next(self):
+        translator.set_language("en")
+        window, cfg, db, engine, eq = make_window("gui3b", n=30)
+        ids = db.query_ids()
+        window.queue.set_context(ids, ids[0])
+        window._start = lambda _id: None
+        window.current_track = db.get_track(ids[0])
+        window.queue.current = ids[0]
+        self.assertFalse(window.queue_panel.isVisible())
+        window._add_to_queue([ids[7], ids[8], ids[9]])
+        self.assertTrue(window._queue_open)            # lining songs up opens the column
+        self.assertEqual(window.queue_panel.queue_list.count(), 3)    # only what was chosen
+        total = sum(db.get_track(i).duration for i in (ids[7], ids[8], ids[9]))
+        self.assertIn("3 songs", window.queue_panel.summary.text())
+        self.assertIn(play_time(total), window.queue_panel.summary.text())
+        window._queue_moved(2, 0)
+        self.assertEqual(window.queue.user, [ids[9], ids[7], ids[8]])
+        window._play_next([ids[20]])
+        self.assertEqual(window.queue.peek_next(), ids[20])
+        self.assertIn(db.get_track(ids[20]).title, window.top_bar.lcd.next_up.text())
+        window._queue_rows_removed([0])
+        self.assertEqual(window.queue.user, [ids[9], ids[7], ids[8]])
+        window.close()
+
+    def test_the_queue_is_kept_when_juke_closes_or_fails(self):
+        window, cfg, db, engine, eq = make_window("gui3c", n=30)
+        ids = db.query_ids()
+        window._start = lambda _id: None
+        window.queue.set_context(ids, ids[0])
+        window.queue.current = ids[0]
+        window.current_track = db.get_track(ids[0])
+        window._add_to_queue([ids[4], ids[5], ids[6]])
+        window._queue_moved(2, 0)
+        saved = Config(Path(cfg.path)).get("queue")                  # read back from the file, as the next start would
+        self.assertEqual(saved, [ids[6], ids[4], ids[5]])
+        window.close()
+        again = MainWindow(Config(Path(cfg.path)), db, AudioEngine(), Equalizer(cfg))
+        again.avail.want = lambda tracks: None
+        self.assertEqual(again.queue.user, [ids[6], ids[4], ids[5]])
+        self.assertEqual(again.engine.state, "stopped")              # it waits; nothing starts by itself
+        again.close()
+
+    def test_favorites_drawer_lists_the_songs_marked_as_favorite(self):
+        translator.set_language("en")
+        window, cfg, db, engine, eq = make_window("gui3d", n=30)
+        ids = db.query_ids()
+        window._set_favorite([ids[2], ids[3]], True)
+        window.toggle_favorites_panel()
+        self.assertEqual(window._drawer, "favorites")
+        self.assertEqual(window.favorites_panel.list.count(), 2)
+        window._set_favorite([ids[4]], True)                       # while it is open, it follows
+        self.assertEqual(window.favorites_panel.list.count(), 3)
+        window.favorites_panel.unfavorite_requested.emit([ids[2]])
+        self.assertEqual(window.favorites_panel.list.count(), 2)
+        window.toggle_queue_panel()                                # the other drawer takes its place
+        self.assertEqual(window._drawer, "queue")
+        self.assertFalse(window.favorites_panel.isVisible())
+        window.toggle_queue_panel()
+        self.assertIsNone(window._drawer)
         window.close()
 
     def test_favorites_toggle(self):
