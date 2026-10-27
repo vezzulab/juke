@@ -22,4 +22,4 @@
 - **Linux:** descarga `Juke-x86_64.AppImage`. **Android:** descarga `Juke-1.0.4.apk` (Android 8 o más nuevo).
 - Una ventana de *Novedades* aparece una sola vez, la primera vez que abres esta versión.
 
-<!-- juke-build:mac=1793112697 -->
+<!-- juke-build:mac=1793113158 -->

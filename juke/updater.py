@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -26,6 +27,8 @@ from .system import IS_MAC
 # JUKE_UPDATE_URL points the check at another server (used by the tests and by anyone developing the updater).
 API_LATEST = os.environ.get("JUKE_UPDATE_URL") or "https://api.github.com/repos/vezzulab/juke/releases/latest"
 RECHECK_INTERVAL_S = 30 * 60    # while Juke stays open; it also checks at every start
+RETRY_INTERVAL_S = 5 * 60       # after a look that failed (offline, or GitHub is asking everybody on this network to wait)
+CHECK_CACHE = CACHE_DIR / "update-check.json"
 SNOOZE_S = 24 * 3600            # "Later" silences that version for a day
 
 
@@ -149,17 +152,46 @@ def release_from_json(data: dict, arch: str = "x86_64", mac: bool = False) -> Re
     return release
 
 
-async def fetch_latest(*, transport=None, timeout: float = 10.0) -> ReleaseInfo | None:
-    """The newest published release, or None if there is none yet."""
+def _read_check_cache(path: Path | None) -> tuple[str, dict] | None:
+    if path is None:
+        return None
+    try:
+        saved = json.loads(Path(path).read_text("utf-8"))
+        return (str(saved["etag"]), dict(saved["release"])) if saved.get("etag") and isinstance(saved.get("release"), dict) else None
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _write_check_cache(path: Path | None, etag: str, release: dict) -> None:
+    if path is None or not etag:
+        return
+    try:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(json.dumps({"etag": etag, "release": release}), "utf-8")
+    except OSError:
+        pass
+
+
+async def fetch_latest(*, transport=None, timeout: float = 10.0, cache: Path | None = None) -> ReleaseInfo | None:
+    """The newest published release, or None if there is none yet. With ``cache``, a look that finds nothing new is answered
+    by GitHub with "not modified", which does not count against the hourly allowance of the network."""
     import httpx
 
     headers = {"Accept": "application/vnd.github+json", "User-Agent": f"Juke/{__version__}"}
+    stored = _read_check_cache(cache)
+    if stored:
+        headers["If-None-Match"] = stored[0]
     async with httpx.AsyncClient(headers=headers, timeout=timeout, transport=transport, follow_redirects=True) as client:
         response = await client.get(API_LATEST)
         if response.status_code == 404:
             return None
-        response.raise_for_status()
-        release = release_from_json(response.json(), mac=IS_MAC)
+        if response.status_code == 304 and stored:
+            data = stored[1]
+        else:
+            response.raise_for_status()
+            data = response.json()
+            _write_check_cache(cache, response.headers.get("etag", ""), data)
+        release = release_from_json(data, mac=IS_MAC)
     if release is not None:
         release.installed_sha256 = await asyncio.to_thread(running_build_sha256)
         release.installed_build = running_build_id()

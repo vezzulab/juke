@@ -36,6 +36,7 @@ data class UpdateRelease(
 object Updater {
     private const val API = "https://api.github.com/repos/vezzulab/juke/releases/latest"
     const val RECHECK_MS = 30 * 60 * 1000L
+    const val RETRY_MS = 5 * 60 * 1000L
     const val SNOOZE_MS = 24 * 60 * 60 * 1000L
     private val client = Http.client(15, 60)
     private val agent get() = "Juke-Android/${BuildConfig.VERSION_NAME}"
@@ -69,11 +70,19 @@ object Updater {
 
     /** The newest stable release with an APK attached, or null if there is none. */
     suspend fun latest(context: Context): UpdateRelease? = withContext(Dispatchers.IO) {
-        val request = Request.Builder().url(API).header("Accept", "application/vnd.github+json").header("User-Agent", agent).build()
+        val saved = context.getSharedPreferences("update-check", Context.MODE_PRIVATE)
+        val etag = saved.getString("etag", null)?.takeIf { saved.getString("release", null) != null }
+        val request = Request.Builder().url(API).header("Accept", "application/vnd.github+json").header("User-Agent", agent)
+            .apply { if (etag != null) header("If-None-Match", etag) }.build()
         val body = client.newCall(request).execute().use { r ->
-            if (r.code == 404) return@withContext null
-            if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
-            r.body?.string().orEmpty()
+            when {
+                r.code == 404 -> return@withContext null
+                r.code == 304 && etag != null -> saved.getString("release", "").orEmpty()
+                !r.isSuccessful -> throw IOException("HTTP ${r.code}")
+                else -> r.body?.string().orEmpty().also { text ->
+                    r.header("ETag")?.let { saved.edit().putString("etag", it).putString("release", text).apply() }
+                }
+            }
         }
         val json = JSONObject(body)
         if (json.optBoolean("draft") || json.optBoolean("prerelease")) return@withContext null

@@ -2414,7 +2414,7 @@ class MainWindow(QMainWindow):
         Juke just before a release wait a day for it.) "Skip" and "Later" keep it from nagging."""
         if self.config.get("update.enabled"):
             self.check_for_updates(manual=False)
-        self._recheck_timer.start()
+        self._recheck_timer.start(updater.RECHECK_INTERVAL_S * 1000)
 
     def check_for_updates(self, manual: bool = False) -> None:
         """Ask GitHub for the latest release. Automatic checks are silent unless there is news."""
@@ -2422,7 +2422,7 @@ class MainWindow(QMainWindow):
             return
 
         async def look(_progress):
-            return await updater.fetch_latest()
+            return await updater.fetch_latest(cache=updater.CHECK_CACHE)
 
         worker = AsyncWorker(look, self)
         self._update_worker = worker
@@ -2433,9 +2433,16 @@ class MainWindow(QMainWindow):
             self._update_checked(release, manual)
 
         worker.result.connect(found)
-        worker.failed.connect(lambda message: self.notify(tr("update.check_failed", error=message), 8000) if manual else None)
+        worker.failed.connect(lambda message: self._update_check_failed(message, manual))
         worker.finished.connect(lambda: (setattr(self, "_update_worker", None), worker.deleteLater()))
         worker.start()
+
+    def _update_check_failed(self, message: str, manual: bool) -> None:
+        if manual:
+            self.notify(tr("update.check_failed", error=message), 8000)
+            return
+        log.info("Update check failed (%s); trying again in %d minutes", message.splitlines()[0], updater.RETRY_INTERVAL_S // 60)
+        self._recheck_timer.start(updater.RETRY_INTERVAL_S * 1000)
 
     def _ask_update(self, release: updater.ReleaseInfo) -> str:
         from .update_dialog import UpdateDialog

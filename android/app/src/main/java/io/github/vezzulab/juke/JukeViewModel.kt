@@ -575,22 +575,24 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
     private var updateJob: Job? = null
 
     /** Looks at GitHub. The automatic look honours "Later" (24 h) and "Skip"; the manual one from Settings always answers. */
-    fun checkForUpdate(manual: Boolean) {
-        if (updateProgress != null && updateProgress != -1 && updateProgress != -2) return        // busy downloading
-        viewModelScope.launch {
-            if (manual) updateStatus = "checking"
-            val release = try { Updater.latest(getApplication()) } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                AppLog.w("update", "Could not look for updates", e)
-                if (manual) updateStatus = "failed"
-                return@launch
-            }
-            if (!Updater.isUpdate(release)) { if (manual) updateStatus = "current"; return@launch }
-            release!!
-            val hidden = !manual && (store.updateSkipped == release.key || (store.updateSnoozeKey == release.key && System.currentTimeMillis() < store.updateSnoozeUntil))
-            if (manual) updateStatus = null
-            if (!hidden && update == null) { update = release; updateProgress = null }
+    fun checkForUpdate(manual: Boolean) { viewModelScope.launch { lookForUpdate(manual) } }
+
+    /** False when the look failed (the automatic loop then tries again sooner). */
+    private suspend fun lookForUpdate(manual: Boolean): Boolean {
+        if (updateProgress != null && updateProgress != -1 && updateProgress != -2) return true        // busy downloading
+        if (manual) updateStatus = "checking"
+        val release = try { Updater.latest(getApplication()) } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            AppLog.w("update", "Could not look for updates", e)
+            if (manual) updateStatus = "failed"
+            return false
         }
+        if (!Updater.isUpdate(release)) { if (manual) updateStatus = "current"; return true }
+        release!!
+        val hidden = !manual && (store.updateSkipped == release.key || (store.updateSnoozeKey == release.key && System.currentTimeMillis() < store.updateSnoozeUntil))
+        if (manual) updateStatus = null
+        if (!hidden && update == null) { update = release; updateProgress = null }
+        return true
     }
 
     fun updateLater() { update?.let { store.updateSnoozeKey = it.key; store.updateSnoozeUntil = System.currentTimeMillis() + Updater.SNOOZE_MS }; dismissUpdate() }
@@ -619,8 +621,8 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {                       // a few seconds after opening, then every 30 minutes for as long as the app lives
             kotlinx.coroutines.delay(6_000)
             while (true) {
-                if (updatesAuto) checkForUpdate(manual = false)
-                kotlinx.coroutines.delay(Updater.RECHECK_MS)
+                val worked = if (updatesAuto) lookForUpdate(manual = false) else true
+                kotlinx.coroutines.delay(if (worked) Updater.RECHECK_MS else Updater.RETRY_MS)
             }
         }
         EqualizerHub.init(store)

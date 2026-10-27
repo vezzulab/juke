@@ -756,6 +756,28 @@ class UpdaterTests(unittest.TestCase):
         none_yet = self.run_async(fetch_latest(transport=httpx.MockTransport(lambda r: httpx.Response(404))))
         self.assertIsNone(none_yet)                                                  # repository has no release yet
 
+    def test_a_look_that_finds_nothing_new_costs_nothing(self):
+        import tempfile
+        from juke.updater import fetch_latest
+        payload = self.payload()
+        seen = []
+
+        def handler(request):
+            seen.append(request.headers.get("if-none-match"))
+            if request.headers.get("if-none-match") == '"abc"':
+                return httpx.Response(304)
+            return httpx.Response(200, json=payload, headers={"etag": '"abc"'})
+
+        with tempfile.TemporaryDirectory() as d:
+            cache = Path(d) / "check.json"
+            first = self.run_async(fetch_latest(transport=httpx.MockTransport(handler), cache=cache))
+            again = self.run_async(fetch_latest(transport=httpx.MockTransport(handler), cache=cache))
+            self.assertEqual(seen, [None, '"abc"'])                                 # the second look asked "has it changed?"
+            self.assertEqual((again.tag, again.asset_sha256), (first.tag, first.asset_sha256))
+            cache.write_text("not json")                                              # a damaged note is ignored, not fatal
+            self.assertEqual(self.run_async(fetch_latest(transport=httpx.MockTransport(handler), cache=cache)).tag, first.tag)
+            self.assertEqual(seen[-1], None)
+
     def test_download_verifies_checksum_and_size_and_cleans_up(self):
         import tempfile
         from juke.updater import ReleaseInfo, UpdateError, download_asset, release_from_json

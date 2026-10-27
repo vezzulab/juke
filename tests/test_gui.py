@@ -1122,6 +1122,18 @@ class UpdateFlowTests(unittest.TestCase):
         self.window._auto_update_check()
         self.assertEqual(calls, [False])                                             # switched off: never asks GitHub
 
+    def test_a_failed_automatic_look_is_repeated_in_five_minutes_and_then_back_to_thirty(self):
+        notices = []
+        self.window.notify = lambda text, ms=0: notices.append(text)
+        self.window._update_check_failed("403 rate limit exceeded", manual=False)
+        self.assertEqual(notices, [])                                                # quiet: nobody asked
+        self.assertEqual(self.window._recheck_timer.interval(), 5 * 60 * 1000)
+        self.cfg.set("update.enabled", False)
+        self.window._auto_update_check()
+        self.assertEqual(self.window._recheck_timer.interval(), 30 * 60 * 1000)      # when the look works the usual rhythm returns
+        self.window._update_check_failed("403 rate limit exceeded", manual=True)
+        self.assertEqual(len(notices), 1)                                            # the person who pressed the key is told
+
     def test_later_snoozes_only_that_version_for_a_day(self):
         import time as _time
         self.answer = "later"
