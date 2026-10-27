@@ -364,6 +364,25 @@ class MergeTests(unittest.TestCase):
         self.assertIn("new", b[0].playlist_meta())
 
 
+class WindowSyncTests(unittest.TestCase):
+    def test_changes_reach_the_cloud_only_when_sync_is_set_up(self):
+        from juke.gui.main_window import MainWindow
+
+        asked = []
+
+        class Stub:
+            def __init__(self, code):
+                self.config = {"sync.code": code}
+                self.config = type("C", (), {"get": lambda _s, key: code if key == "sync.code" else None})()
+                self.autosync = type("A", (), {"request": lambda _s, *args: asked.append(args)})()
+
+        MainWindow._sync_soon(Stub(""))
+        self.assertEqual(asked, [])                                         # no code: nothing to send, and the sync part is never loaded
+        MainWindow._sync_soon(Stub("ABCDE-FGHJK-LMNPQ-RSTUV"))
+        MainWindow._sync_soon(Stub("ABCDE-FGHJK-LMNPQ-RSTUV"), 500)
+        self.assertEqual(asked, [(), (500,)])
+
+
 class AutoSyncTests(unittest.TestCase):
     """Whole rounds, against the fake server: no button is pressed."""
 

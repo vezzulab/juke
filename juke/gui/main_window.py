@@ -1037,7 +1037,7 @@ class MainWindow(QMainWindow):
         if not self.config.get("sync.code"):
             return
         if delay_ms is None:
-            self._sync_soon()
+            self.autosync.request()
         else:
             self.autosync.request(delay_ms)
 
