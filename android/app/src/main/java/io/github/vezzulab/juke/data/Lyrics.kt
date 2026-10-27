@@ -100,7 +100,7 @@ object LrcLib {
         val isSynced get() = synced.isNotBlank()
     }
 
-    private val client = OkHttpClient.Builder().connectTimeout(12, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build()
+    private val client = Http.client(12, 15)
     private const val BASE = "https://lrclib.net/api"
     private const val AGENT = "Juke-Android/0.3.3 (https://github.com/vezzulab/juke)"
 

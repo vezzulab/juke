@@ -18,7 +18,7 @@ class SubsonicException(val code: Int, message: String) : Exception(message)
 /** Airsonic / Subsonic client: token auth (password fallback for servers that answer error 41), API version negotiation. */
 class AirsonicClient(baseUrl: String, private val user: String, private val password: String) {
     private val base = baseUrl.trim().trimEnd('/')
-    private val http = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
+    private val http = Http.client(10, 30)
 
     @Volatile private var version = "1.16.1"
     @Volatile private var legacyAuth = false

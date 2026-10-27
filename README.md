@@ -26,6 +26,7 @@ Make playlists with songs from the web and your own music — and play them on L
 
 ## New in 1.0.4
 
+- **Security update.** Stricter checks on every download and update, a safer default for server addresses, and a faster, lighter Android app.
 - **Songs from the web.** Search any song or artist and play just its audio — no video, no ads, nothing downloaded. Search an artist and you get the whole repertoire. Add what you like to a playlist and play it later without searching again. On Linux, Mac and Android.
 - **Playlists that follow you.** Your playlists, radio stations and a few settings stay the same on Linux, Mac and Android by themselves — edits and deletions too. The copy is encrypted with a code only you have.
 - **Playlists on Android.** A new *Playlists* tab with a search box and a choice of order (by name, most recent, most songs). Songs the phone does not have show greyed.

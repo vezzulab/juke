@@ -17,13 +17,12 @@ from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMa
                                QProgressBar, QPushButton, QSizePolicy, QSplitter, QStackedWidget, QToolButton, QVBoxLayout,
                                QWidget)
 
-from .. import REPO_URL, __version__, autosync, integration, macmedia, mpris, updater
+from .. import REPO_URL, __version__, integration, macmedia, mpris, updater
 from ..availability import Availability
 from ..awake import StayAwake
 from ..sysvolume import SystemVolume
 from ..system import IS_MAC
 from ..api import radio as radio_api
-from ..api import youtube
 from ..api.airsonic import AirsonicClient, normalize_base_url
 from ..audio.engine import AudioEngine
 from ..audio.equalizer import Equalizer
@@ -31,7 +30,6 @@ from ..audio.queue import PlayQueue
 from ..audio.sources import SourceError, SourceResolver
 from ..config import AUDIO_EXTENSIONS, Config
 from ..db.database import SOURCE_AIRSONIC, SOURCE_LOCAL, SOURCE_YOUTUBE, Database, Scope, Station, Track
-from .. import lyrics as lyrics_lib
 from ..db.folders import DB_NAME, PACKAGE_NAME, FolderStore, prepare_package
 from ..devices import mtp, transfer
 from ..devices.manager import DeviceManager
@@ -76,9 +74,8 @@ class MainWindow(QMainWindow):
         self.theme = theme or ThemeManager(QApplication.instance(), config.get("theme"))
         self.theme.apply()          # palette + stylesheet first, so every icon below is built in the right colours
         self.config, self.db, self.engine, self.equalizer = config, db, engine, equalizer
-        self.autosync = autosync.AutoSync(db, config, self)           # playlists, stations and settings follow the person between devices
-        self.autosync.finished.connect(self._autosync_done)
-        equalizer.changed.connect(lambda: self.autosync.request())
+        self._autosync = None                                         # playlists, stations and settings follow the person between devices; loaded when sync is set up
+        equalizer.changed.connect(lambda: self._sync_soon())
         # Music.juke, the folders the user organises the music in (main.py puts it in the Music folder)
         self.folders = folders or FolderStore(prepare_package(Path(config.path).parent / PACKAGE_NAME) / DB_NAME)
         self.db.attach_folders(self.folders.path)
@@ -677,7 +674,12 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------------------ lyrics
     def _lyrics_of(self, track: Track) -> str:
         """What is known for this song: what was saved in Juke, then a .lrc beside the file, then the file's own tag."""
-        return self.db.get_lyrics(track) or (lyrics_lib.local_lyrics(track.location) if track.is_local else "")
+        saved = self.db.get_lyrics(track)
+        if saved or not track.is_local:
+            return saved or ""
+        from .. import lyrics as lyrics_lib
+
+        return lyrics_lib.local_lyrics(track.location)
 
     def _load_lyrics(self, track: Track) -> None:
         """A new song began: show its lyrics if it has any and open the column by itself, otherwise leave it shut."""
@@ -826,6 +828,7 @@ class MainWindow(QMainWindow):
         tried.add(track.id)
 
         async def look(_progress):
+            from .. import lyrics as lyrics_lib
             return await lyrics_lib.get_exact(track.title, track.artist, track.album, track.duration)
 
         worker = AsyncWorker(look, self)
@@ -927,7 +930,8 @@ class MainWindow(QMainWindow):
         self.media.unregister()
         self.sysvol.stop()
         self.devices.shutdown()
-        self.autosync.shutdown()
+        if self._autosync is not None:
+            self._autosync.shutdown()
         self.radio_view.cancel()
         for worker in list(self._radio_workers):
             worker.cancel()
@@ -1019,6 +1023,29 @@ class MainWindow(QMainWindow):
         from .backup_dialog import BackupDialog
 
         BackupDialog(self).exec()
+
+    @property
+    def autosync(self):
+        if self._autosync is None:
+            from .. import autosync
+
+            self._autosync = autosync.AutoSync(self.db, self.config, self)
+            self._autosync.finished.connect(self._autosync_done)
+        return self._autosync
+
+    def _sync_soon(self, delay_ms: int | None = None) -> None:
+        if not self.config.get("sync.code"):
+            return
+        if delay_ms is None:
+            self._sync_soon()
+        else:
+            self.autosync.request(delay_ms)
+
+    @staticmethod
+    def _refresh_web_songs() -> None:
+        from ..api import youtube
+
+        youtube.refresh_if_stale()
 
     def _autosync_done(self, ok: bool, changed: bool, message: str) -> None:
         if changed:                                       # another device's news came in: show it
@@ -1573,6 +1600,7 @@ class MainWindow(QMainWindow):
         self._update_heading()
 
         async def look(_progress):
+            from ..api import youtube
             return await asyncio.to_thread(youtube.search, query)
 
         worker = AsyncWorker(look, self)
@@ -1615,6 +1643,7 @@ class MainWindow(QMainWindow):
         self.notify(tr("youtube.connecting", title=track.title), 15000)
 
         async def find(_progress):
+            from ..api import youtube
             return await asyncio.to_thread(youtube.resolve_stream, track.location)
 
         def ready(url: str) -> None:
@@ -1640,6 +1669,7 @@ class MainWindow(QMainWindow):
             return
 
         async def warm(_progress):
+            from ..api import youtube
             return await asyncio.to_thread(youtube.resolve_stream, track.location)
 
         worker = AsyncWorker(warm, self)
@@ -1652,6 +1682,7 @@ class MainWindow(QMainWindow):
             return
 
         async def fetch(_progress) -> str:
+            from ..api import youtube
             data = await asyncio.to_thread(youtube.download_thumbnail, video_id)      # urllib: no httpx (13 MB) for one picture
             return key if save_cover(key, data) else ""
 
@@ -1833,7 +1864,8 @@ class MainWindow(QMainWindow):
         """The songs that were lined up last time, the ones that are still in the library. They wait: nothing starts."""
         saved = self.config.get("queue")
         ids = [i for i in saved if isinstance(i, int)] if isinstance(saved, list) else []
-        self.queue.user = [i for i in ids if self.db.get_track(i) is not None]
+        alive = self.db.existing_ids(ids)
+        self.queue.user = [i for i in ids if i in alive]
         self._queue_loaded = True
         self.db.cleanup_youtube(keep_ids=self.queue.user)
         self._save_queue()
@@ -1971,7 +2003,7 @@ class MainWindow(QMainWindow):
         self._show_view("stations", None)
 
     def _after_stations_changed(self) -> None:
-        self.autosync.request()
+        self._sync_soon()
         self._update_counts()
         self.radio_view.refresh()
         self._update_heading()
@@ -2222,7 +2254,7 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------------------ playlists
     def refresh_playlists(self) -> None:
-        self.autosync.request()                          # a playlist changed (or was just made so by a sync): tell the cloud soon
+        self._sync_soon()                                # a playlist changed (or was just made so by a sync): tell the cloud soon
         self._playlists = self.db.playlists()
         self.sidebar.set_playlists(self._playlists)
         self.table.set_playlists([(pid, name) for pid, name, _ in self._playlists])
@@ -2480,8 +2512,9 @@ class MainWindow(QMainWindow):
     def _startup_tasks(self) -> None:
         QTimer.singleShot(900, self._show_whats_new)
         QTimer.singleShot(6_000, self._auto_update_check)
-        self.autosync.start()
-        threading.Thread(target=youtube.refresh_if_stale, daemon=True).start()          # a newer yt-dlp, for anyone who uses YouTube
+        if self.config.get("sync.code"):
+            self.autosync.start()
+        threading.Thread(target=self._refresh_web_songs, daemon=True).start()          # a newer yt-dlp, for anyone who uses YouTube
         self._check_server(force=True)
         if self.config.get("scan_on_start") or self.db.count(SOURCE_LOCAL) == 0:
             self.start_scan()
@@ -2679,7 +2712,7 @@ class MainWindow(QMainWindow):
         if self.config.get("airsonic") != old_airsonic and self.airsonic is not None:
             self.sync_airsonic()
         self._update_empty_text()
-        self.autosync.request()
+        self._sync_soon()
 
     def _integrate_first_time(self) -> None:
         """The first time the AppImage runs it adds itself to the applications menu, with no question asked. It only

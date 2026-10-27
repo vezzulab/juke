@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 /** Radio-Browser directory (community list of stations); tries several mirrors. */
 object RadioBrowser {
     private val mirrors = listOf("de1.api.radio-browser.info", "nl1.api.radio-browser.info", "at1.api.radio-browser.info")
-    private val http = OkHttpClient.Builder().connectTimeout(6, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS).build()
+    private val http = Http.client(6, 12)
 
     private suspend fun get(path: String, query: Map<String, String>): JSONArray = withContext(Dispatchers.IO) {
         var last: Exception? = null

@@ -210,6 +210,7 @@ class Database:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()
+        self._distinct_cache: dict[str, tuple[tuple, list]] = {}
         self._folders_file: Path | None = None
         conn = self.connect()
         conn.executescript(SCHEMA)
@@ -441,6 +442,16 @@ class Database:
             f"SELECT {_COLUMNS} FROM tracks WHERE source_type=? AND location=?", (source_type, location)
         ).fetchone()
         return Track.from_row(row) if row else None
+
+    def existing_ids(self, ids: Sequence[int]) -> set[int]:
+        """Which of ``ids`` are still tracks in the library."""
+        found: set[int] = set()
+        conn = self.connect()
+        for start in range(0, len(ids), 500):
+            chunk = list(ids[start:start + 500])
+            marks = ",".join("?" * len(chunk))
+            found.update(r[0] for r in conn.execute(f"SELECT id FROM tracks WHERE id IN ({marks})", chunk))
+        return found
 
     def tracks_by_ids(self, ids: Sequence[int]) -> list[Track]:
         """Rows for ``ids`` in the same order (ids that no longer exist are dropped)."""
@@ -770,8 +781,15 @@ class Database:
         """(value, track count) for artist / album / genre, case-insensitively grouped."""
         if field not in ("artist", "album", "genre"):
             raise ValueError(field)
-        cur = self.connect().execute(
+        conn = self.connect()
+        stamp = (id(conn), conn.total_changes, conn.execute("PRAGMA data_version").fetchone()[0])   # own writes + other connections' writes
+        cached = self._distinct_cache.get(field)
+        if cached and cached[0] == stamp:
+            return list(cached[1])
+        cur = conn.execute(
             f"SELECT {field}, COUNT(*) FROM tracks WHERE source_type != ? GROUP BY {field} COLLATE NOCASE "
             f"ORDER BY ({field} = '') , {field} COLLATE NOCASE", (SOURCE_YOUTUBE,)
         )
-        return [(r[0], r[1]) for r in cur]
+        result = [(r[0], r[1]) for r in cur]
+        self._distinct_cache[field] = (stamp, result)
+        return list(result)

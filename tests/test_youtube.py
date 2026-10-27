@@ -112,7 +112,9 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual((target / "yt_dlp" / "version.py").read_text().strip(), "__version__ = '2099.01.01'")
         self.assertFalse((target.parent / "evil.py").exists())                  # nothing outside yt_dlp/ is written
         with self.assertRaises(ValueError):
-            youtube.install_wheel(b"not a zip", "", target)
+            youtube.install_wheel(b"not a zip", hashlib.sha256(b"not a zip").hexdigest(), target)
+        with self.assertRaises(ValueError):
+            youtube.install_wheel(data, "", target)                            # no checksum from PyPI: nothing is installed
 
     def test_it_updates_only_when_pypi_has_something_newer(self):
         import hashlib

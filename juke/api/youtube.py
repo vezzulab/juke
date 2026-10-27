@@ -145,7 +145,7 @@ def _fetch(url: str, limit: int) -> bytes:
 def install_wheel(data: bytes, expected_sha256: str, target: Path | None = None) -> None:
     """Unpack a yt-dlp wheel (a zip with the yt_dlp folder inside) into ``target``, replacing what was there. Raises ValueError."""
     target = target or YTDLP_DIR
-    if expected_sha256 and hashlib.sha256(data).hexdigest() != expected_sha256.lower():
+    if not expected_sha256 or hashlib.sha256(data).hexdigest() != expected_sha256.lower():
         raise ValueError("checksum")
     staging = Path(tempfile.mkdtemp(prefix="juke-ytdlp-", dir=target.parent if target.parent.is_dir() else None))
     try:

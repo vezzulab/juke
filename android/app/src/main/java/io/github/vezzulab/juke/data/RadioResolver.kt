@@ -21,7 +21,7 @@ class NoAudioException : Exception("no audio signal")
  * Stations change their stream address constantly, so the caller keeps the page address to look again.
  */
 object RadioResolver {
-    private val http = OkHttpClient.Builder().connectTimeout(6, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS)
+    private val http = Http.client(6, 8).newBuilder()
         .followRedirects(true).followSslRedirects(true).build()
 
     private class Probe(val url: String, val kind: Kind, val live: Boolean, val name: String, val bitrate: Int, val codec: String, val text: String = "")

@@ -8,6 +8,7 @@ redistributed or used to make a similar work. Do not reproduce or adapt it.
 from __future__ import annotations
 
 import base64
+import functools
 import hashlib
 import hmac
 import json
@@ -20,6 +21,7 @@ import zlib
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"        # no 0/O or 1/I/L: the code is read aloud and typed on a phone
 CODE_LENGTH = 20                                      # 100 bits
 MAX_BLOB = 512 * 1024
+MAX_TEXT = 16 * 1024 * 1024
 PROTOCOL = b"\x01"
 TIMEOUT = 15
 
@@ -47,6 +49,7 @@ def clean_code(text: str) -> str:
     return "-".join(raw[i:i + 5] for i in range(0, CODE_LENGTH, 5))
 
 
+@functools.lru_cache(maxsize=4)
 def _keys(code: str) -> tuple[str, str, bytes, bytes]:
     material = hashlib.pbkdf2_hmac("sha256", clean_code(code).replace("-", "").encode(), b"juke-sync-v1", 20000, dklen=112)
     return material[:16].hex(), material[16:48].hex(), material[48:80], material[80:112]
@@ -86,7 +89,11 @@ def unseal(code: str, blob: str) -> str:
         raise SyncError("corrupt")
     nonce, cipher = body[1:17], body[17:]
     try:
-        return zlib.decompress(_xor(cipher, _stream(enc, nonce, len(cipher)))).decode("utf-8")
+        inflater = zlib.decompressobj()
+        text = inflater.decompress(_xor(cipher, _stream(enc, nonce, len(cipher))), MAX_TEXT)
+        if inflater.unconsumed_tail or not inflater.eof:
+            raise SyncError("corrupt")
+        return text.decode("utf-8")
     except (zlib.error, UnicodeDecodeError) as exc:
         raise SyncError("corrupt") from exc
 

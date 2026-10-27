@@ -44,12 +44,13 @@ object YouTube {
     const val ARTIST_LIMIT = 100                         // an artist's own songs are listed far beyond the first twenty
     private const val LONG_SONG = 11 * 60
     private const val URL_TTL_MS = 30 * 60 * 1000L
+    private const val SEARCH_TTL_MS = 5 * 60 * 1000L
     private const val WATCH = "https://www.youtube.com/watch?v="
 
     fun thumbnail(id: String) = "https://i.ytimg.com/vi/$id/mqdefault.jpg"
 
     private class Net : Downloader() {
-        private val client = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
+        private val client = Http.client(10, 20)
         override fun execute(request: Request): Response {
             val body = request.dataToSend()?.toRequestBody()
             val builder = okhttp3.Request.Builder().url(request.url()).method(request.httpMethod(), body)
@@ -114,6 +115,7 @@ object YouTube {
     suspend fun search(query: String): List<YtSong> = withContext(Dispatchers.IO) {
         val text = query.trim()
         if (text.isEmpty()) return@withContext emptyList()
+        recentSearch(text)?.let { return@withContext it }
         guarded {
             var songs = found(text)
             val channel = artistChannel(songs, text)
@@ -124,7 +126,20 @@ object YouTube {
                 limit = ARTIST_LIMIT
             }
             rank(songs, text, limit).map { it.copy(title = cleanTitle(it.title, it.channel), channel = cleanChannel(it.channel)) }
+                .also { rememberSearch(text, it) }
         }
+    }
+
+    private val searches = object : LinkedHashMap<String, Pair<Long, List<YtSong>>>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, List<YtSong>>>) = size > 20
+    }
+
+    private fun recentSearch(text: String): List<YtSong>? = synchronized(searches) {
+        searches[text.lowercase()]?.takeIf { System.currentTimeMillis() - it.first < SEARCH_TTL_MS }?.second
+    }
+
+    private fun rememberSearch(text: String, songs: List<YtSong>) {
+        if (songs.isNotEmpty()) synchronized(searches) { searches[text.lowercase()] = System.currentTimeMillis() to songs }
     }
 
     /** The audio-only address of a video, fresh enough to play now. Blocks for a second or two. */
@@ -181,12 +196,13 @@ object YouTube {
         val asked = normalize(query)
         val words = asked.split(' ').filter { it.isNotEmpty() }
         if (words.isEmpty()) return results.take(limit)
+        val starts = words.map { Regex("(?<![a-z0-9])${Regex.escape(it)}") }
         val scored = ArrayList<Scored>()
         results.forEachIndexed { position, item ->
             val title = normalize(item.title)
             val channel = normalize(item.channel)
             val text = "$title $channel"
-            val hit = words.count { w -> Regex("(?<![a-z0-9])${Regex.escape(w)}").containsMatchIn(text) }
+            val hit = starts.count { it.containsMatchIn(text) }
             val coverage = hit.toDouble() / words.size
             if (has(title, NOT_MUSIC) && !has(asked, NOT_MUSIC)) return@forEachIndexed
             val compilation = has(title, COMPILATION) && !has(asked, COMPILATION)

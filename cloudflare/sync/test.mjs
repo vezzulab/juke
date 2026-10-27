@@ -79,13 +79,30 @@ test("it stops taking saves long before D1's free daily limit", async () => {
   assert.equal((await call(env, "PUT", SECRET, { blob: "one", base: 0 })).status, 200);
   const day = new Date().toISOString().slice(0, 10);
   assert.equal(env.DB.raw.prepare("SELECT writes FROM usage WHERE day = ?").get(day).writes, 1);
-  env.DB.raw.exec(`UPDATE usage SET writes = 25000`);
+  env.DB.raw.exec(`UPDATE usage SET writes = 18000`);
   env.DB.raw.exec("UPDATE syncs SET updated = updated - 10000");
   assert.equal((await call(env, "PUT", SECRET, { blob: "two", base: -1 })).status, 503);
   assert.equal((await call(env, "DELETE")).status, 503);
   assert.equal((await call(env, "GET")).status, 200);                  // reading is still fine
-  env.DB.raw.exec(`UPDATE usage SET day = '2000-01-01'`);              // a new day: the budget is back
+  env.DB.raw.exec(`UPDATE usage SET day = '2000-01-01|' || day`);              // a new day: the budget is back
   assert.equal((await call(env, "PUT", SECRET, { blob: "two", base: -1 })).status, 200);
   await worker.scheduled({}, env);
-  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM usage WHERE day = '2000-01-01'").get().n, 0);
+  assert.equal(env.DB.raw.prepare("SELECT COUNT(*) AS n FROM usage WHERE day LIKE '2000-01-01%'").get().n, 0);
+});
+
+test("one network address cannot spend the day for everybody", async () => {
+  const env = { DB: d1() };
+  const from = (ip) => (method, id, body) => worker.fetch(new Request(`https://x.test/v1/${id}`, {
+    method, headers: { authorization: `Bearer ${SECRET}`, "cf-connecting-ip": ip }, body: JSON.stringify(body),
+  }), env);
+  const a = from("203.0.113.7"), b = from("198.51.100.9");
+  const code = (n) => n.toString(16).padStart(32, "0");
+  for (let n = 1; n <= 10; n++) assert.equal((await a("PUT", code(n), { blob: "x", base: 0 })).status, 200);
+  assert.equal((await a("PUT", code(11), { blob: "x", base: 0 })).status, 429);          // the 11th new code today from that address
+  assert.equal((await b("PUT", code(11), { blob: "x", base: 0 })).status, 200);          // somebody else is not affected
+  env.DB.raw.exec("UPDATE usage SET writes = 1000 WHERE day LIKE '%|%' AND day NOT LIKE '%|new'");
+  env.DB.raw.exec("UPDATE syncs SET updated = updated - 10000");
+  assert.equal((await a("PUT", code(1), { blob: "y", base: -1 })).status, 429);          // too many saves today from that address
+  const stored = env.DB.raw.prepare("SELECT group_concat(day) AS d FROM usage").get().d;
+  assert.ok(!stored.includes("203.0.113.7"));                                           // addresses are never kept
 });

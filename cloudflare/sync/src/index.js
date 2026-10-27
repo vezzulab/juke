@@ -6,9 +6,11 @@ const MAX_BLOB = 512 * 1024;        // characters; a library with thousands of p
 const MIN_GAP_MS = 5000;            // one write per code every few seconds is plenty and keeps D1 writes far below the free limit
 const MAX_ROWS = 20000;             // refuse new codes beyond this, so nobody can fill the free 5 GB
 const KEEP_MS = 365 * 24 * 3600 * 1000;
-// D1's free plan allows 100,000 rows written a day. A save writes about 3 rows (the copy, its index, the counter), so
-// stopping at 25,000 saves keeps the day near 75,000 and leaves room for the nightly cleanup. Reads are not limited here.
-const MAX_SAVES_PER_DAY = 25000;
+// D1's free plan allows 100,000 rows written a day. A save writes about 4 rows (the copy, its index, the two counters), so
+// stopping at 18,000 saves keeps the day near 72,000 and leaves room for the nightly cleanup. Reads are not limited here.
+const MAX_SAVES_PER_DAY = 18000;
+const MAX_SAVES_PER_ADDRESS = 1000;  // per network address and day: one person (or home) cannot spend everybody's day
+const MAX_NEW_PER_ADDRESS = 10;      // new codes per network address and day
 const today = () => new Date().toISOString().slice(0, 10);       // Cloudflare's day starts at 00:00 UTC too
 
 const ID = /^[0-9a-f]{32}$/;
@@ -46,7 +48,11 @@ async function handle(request, env) {
   if (request.method !== "DELETE" && request.method !== "PUT") return json(405, { error: "method not allowed" });
   const used = await env.DB.prepare("SELECT writes FROM usage WHERE day = ?").bind(today()).first();
   if (used && used.writes >= MAX_SAVES_PER_DAY) return json(503, { error: "busy today" });
-  const counted = () => env.DB.prepare("INSERT INTO usage (day, writes) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET writes = writes + 1").bind(today()).run();
+  const from = `${today()}|${(await sha256(request.headers.get("cf-connecting-ip") || "unknown")).slice(0, 16)}`;   // never stored as an address
+  const mine = await env.DB.prepare("SELECT writes FROM usage WHERE day = ?").bind(from).first();
+  if (mine && mine.writes >= MAX_SAVES_PER_ADDRESS) return json(429, { error: "too many today" });
+  const bump = (key) => env.DB.prepare("INSERT INTO usage (day, writes) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET writes = writes + 1").bind(key).run();
+  const counted = async () => { await bump(today()); await bump(from); };
 
   if (request.method === "DELETE") {
     if (!row) return json(404, { error: "nothing saved yet" });
@@ -74,6 +80,9 @@ async function handle(request, env) {
   } else {
     const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM syncs").first();
     if (count.n >= MAX_ROWS) return json(507, { error: "full" });
+    const fresh = await env.DB.prepare("SELECT writes FROM usage WHERE day = ?").bind(`${from}|new`).first();
+    if (fresh && fresh.writes >= MAX_NEW_PER_ADDRESS) return json(429, { error: "too many today" });
+    await bump(`${from}|new`);
     await env.DB.prepare("INSERT INTO syncs (id, secret_hash, blob, updated) VALUES (?, ?, ?, ?)").bind(id, hash, body.blob, now).run();
   }
   await counted();

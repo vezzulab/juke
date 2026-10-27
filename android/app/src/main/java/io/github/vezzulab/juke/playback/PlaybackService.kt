@@ -31,7 +31,7 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         EqualizerHub.init(Store(this))
-        val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
+        val client = io.github.vezzulab.juke.data.Http.client(15, 20)
         val player = ExoPlayer.Builder(this)
             // files on the card come in as content:// and file://, streams over http: this factory serves both
             .setMediaSourceFactory(

@@ -97,7 +97,7 @@ fun PlaylistsScreen(vm: JukeViewModel) {
                     Key(R.drawable.ic_trash, stringResource(R.string.delete_playlist), { confirmDelete = true }, size = 44.dp, icon = 19.dp, tint = colors.onSurfaceVariant)
                 }
                 if (current.tracks.size > 1) SearchField(query, { query = it }, stringResource(R.string.search_in_playlist))
-                val songs = visible(current.tracks, query, songOrder)
+                val songs = remember(current.tracks, query, songOrder) { visible(current.tracks, query, songOrder) }
                 if (current.tracks.isEmpty()) EmptyState(R.drawable.ic_note, stringResource(R.string.playlist_empty), stringResource(R.string.playlist_empty_hint))
                 else if (songs.isEmpty()) EmptyState(R.drawable.ic_search, stringResource(R.string.no_match), "")
                 else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {

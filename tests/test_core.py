@@ -66,6 +66,19 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(count, 10)
         self.assertGreater(seconds, 1000)
 
+    def test_existing_ids_and_the_cached_groups_follow_every_change(self):
+        db = make_db("exists.db")
+        db.upsert_many([row(i) for i in range(1200)])
+        ids = db.query_ids()
+        self.assertEqual(db.existing_ids(ids + [10**9]), set(ids))               # more than one chunk of 500, and an id that is not there
+        before = db.distinct("artist")
+        self.assertEqual(db.distinct("artist"), before)
+        db.upsert_many([row(5000, artist="Somebody New")])
+        self.assertIn("Somebody New", [name for name, _ in db.distinct("artist")])   # a change shows at once
+        other = Database(db.path)
+        other.upsert_many([row(6000, artist="From Another Connection")])
+        self.assertIn("From Another Connection", [name for name, _ in db.distinct("artist")])
+
     def test_tracks_by_ids_preserves_order_and_drops_missing(self):
         db = make_db("ids.db")
         db.upsert_many([row(i) for i in range(5)])
@@ -337,6 +350,9 @@ class AirsonicTests(unittest.TestCase):
     def test_url_normalisation(self):
         self.assertEqual(normalize_base_url("music.local:4040/"), "http://music.local:4040")
         self.assertEqual(normalize_base_url("https://h/airsonic/rest"), "https://h/airsonic")
+        self.assertEqual(normalize_base_url("192.168.1.20:4040"), "http://192.168.1.20:4040")      # a home server
+        self.assertEqual(normalize_base_url("music.example.com"), "https://music.example.com")     # on the internet: secure by default
+        self.assertEqual(normalize_base_url("http://music.example.com"), "http://music.example.com")  # an explicit choice is kept
 
     def test_token_auth_is_md5_of_password_plus_salt(self):
         seen = {}
@@ -759,6 +775,10 @@ class UpdaterTests(unittest.TestCase):
                 self.run_async(download_asset(wrong_sum, Path(d), transport=httpx.MockTransport(handler)))
             self.assertEqual(str(ctx.exception), "checksum")
             self.assertFalse(part(d).exists())                                       # a rejected file is never kept
+            no_sum = ReleaseInfo("v0.2.0", "0.2.0", "", "", rel.asset_url, len(body), "")
+            with self.assertRaises(UpdateError):                                     # a file with no published checksum is not installed
+                self.run_async(download_asset(no_sum, Path(d), transport=httpx.MockTransport(handler)))
+            self.assertFalse(part(d).exists())
             wrong_size = ReleaseInfo("v0.2.0", "0.2.0", "", "", rel.asset_url, len(body) + 5, "")
             with self.assertRaises(UpdateError):
                 self.run_async(download_asset(wrong_size, Path(d), transport=httpx.MockTransport(handler)))

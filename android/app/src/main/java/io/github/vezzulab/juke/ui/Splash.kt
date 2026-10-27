@@ -27,7 +27,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun Splash(onDone: () -> Unit) {
     var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { shown = true; delay(1500); onDone() }
+    LaunchedEffect(Unit) { shown = true; delay(900); onDone() }
     val enter by animateFloatAsState(if (shown) 1f else 0f, tween(650), label = "splash")
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

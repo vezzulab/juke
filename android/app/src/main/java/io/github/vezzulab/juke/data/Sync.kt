@@ -4,6 +4,7 @@ package io.github.vezzulab.juke.data
 // redistributed or used to make a similar work. Do not reproduce or adapt it.
 
 
+import io.github.vezzulab.juke.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -30,7 +31,7 @@ object Sync {
     private const val ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     private const val CODE_LENGTH = 20
     private const val MAX_BLOB = 512 * 1024
-    private val http = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
+    private val http = Http.client(10, 20)
     private val random = SecureRandom()
 
     fun newCode(): String = (1..CODE_LENGTH).map { ALPHABET[random.nextInt(ALPHABET.length)] }.joinToString("").chunked(5).joinToString("-")
@@ -43,8 +44,15 @@ object Sync {
 
     private class Keys(val address: String, val secret: String, val enc: ByteArray, val mac: ByteArray)
 
+    @Volatile private var cached: Pair<String, Keys>? = null
+
     private fun keys(code: String): Keys {
         val clean = cleanCode(code)?.replace("-", "") ?: throw SyncException("code")
+        cached?.let { if (it.first == clean) return it.second }
+        return derive(clean).also { cached = clean to it }
+    }
+
+    private fun derive(clean: String): Keys {
         val material = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
             .generateSecret(PBEKeySpec(clean.toCharArray(), "juke-sync-v1".toByteArray(), 20000, 112 * 8)).encoded
         fun hex(b: ByteArray) = b.joinToString("") { "%02x".format(it) }
@@ -66,7 +74,7 @@ object Sync {
     private fun xor(data: ByteArray, pad: ByteArray) = ByteArray(data.size) { (data[it].toInt() xor pad[it].toInt()).toByte() }
 
     private fun zip(text: ByteArray): ByteArray {
-        val deflater = Deflater(9)
+        val deflater = Deflater(6)
         deflater.setInput(text); deflater.finish()
         val out = ByteArrayOutputStream()
         val buffer = ByteArray(8192)
@@ -116,7 +124,7 @@ object Sync {
 
     private fun call(server: String, code: String, method: String, body: JSONObject? = null): JSONObject {
         val base = server.trim().trimEnd('/')
-        if (!base.startsWith("https://") && !base.startsWith("http://127.0.0.1") && !base.startsWith("http://10.0.2.2")) throw SyncException("url")
+        if (!base.startsWith("https://") && !base.startsWith("http://127.0.0.1") && !(BuildConfig.DEBUG && base.startsWith("http://10.0.2.2"))) throw SyncException("url")
         val k = keys(code)
         val request = Request.Builder().url("$base/v1/${k.address}").header("Authorization", "Bearer ${k.secret}").header("User-Agent", "Juke-Android")
             .method(method, body?.toString()?.toRequestBody("application/json".toMediaType())).build()

@@ -53,12 +53,27 @@ def _as_list(value: Any) -> list:
     return value if isinstance(value, list) else [value]
 
 
+def is_local_address(url: str) -> bool:
+    """True for a server on this computer or this network (the usual home setup), where plain http is expected."""
+    import ipaddress
+    from urllib.parse import urlsplit
+
+    host = (urlsplit(url if "://" in url else "//" + url).hostname or "").lower()
+    if not host or host == "localhost" or host.endswith((".local", ".lan", ".home", ".internal")) or "." not in host:
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.is_private or address.is_loopback or address.is_link_local
+
+
 def normalize_base_url(url: str) -> str:
     url = url.strip().rstrip("/")
     if url.endswith("/rest"):
         url = url[:-5]
     if url and "://" not in url:
-        url = "http://" + url
+        url = ("http://" if is_local_address(url) else "https://") + url
     return url
 
 
@@ -95,7 +110,7 @@ class AirsonicClient:
         self.base_url = normalize_base_url(base_url)
         self.username = username
         self.auth_mode = "password" if auth == "password" else "token"   # what requests use right now
-        self._may_fall_back = auth == "auto"
+        self._may_fall_back = auth == "auto" and (self.base_url.startswith("https://") or is_local_address(self.base_url))
         self.api_version = API_VERSION
         self.incomplete = False        # set by sync_library when some part of the server could not be read
         self._password = password

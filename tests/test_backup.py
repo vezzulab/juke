@@ -6,6 +6,7 @@ import json
 import threading
 import time
 import unittest
+import unittest.mock
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -62,6 +63,20 @@ class CodeAndCryptoTests(unittest.TestCase):
         for damaged in (flipped, blob[:-4], "", "!!!"):
             with self.assertRaises(sync.SyncError):
                 sync.unseal(code, damaged)
+
+    def test_a_copy_that_inflates_beyond_the_limit_is_refused(self):
+        code = sync.new_code()
+        with unittest.mock.patch.object(sync, "MAX_TEXT", 1000):
+            with self.assertRaises(sync.SyncError) as ctx:
+                sync.unseal(code, sync.seal(code, "a" * 5000))
+        self.assertEqual(ctx.exception.code, "corrupt")
+        self.assertEqual(sync.unseal(code, sync.seal(code, "a" * 5000)), "a" * 5000)
+
+    def test_keys_are_derived_once_per_code(self):
+        code = sync.new_code()
+        sync._keys.cache_clear()
+        sync.seal(code, "x"); sync.unseal(code, sync.seal(code, "y")); sync.address(code)
+        self.assertEqual(sync._keys.cache_info().misses, 1)
 
     def test_address_and_secret_are_what_the_worker_expects(self):
         code = sync.new_code()

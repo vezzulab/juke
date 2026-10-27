@@ -26,6 +26,7 @@ Arma tus playlists con canciones de la web y de tu música — y tócalas en Lin
 
 ## Novedades de la 1.0.4
 
+- **Actualización de seguridad.** Comprobaciones más estrictas en cada descarga y actualización, una opción más segura por defecto para las direcciones de servidor y una app de Android más rápida y ligera.
 - **Canciones de la web.** Busca cualquier canción o artista y escucha solo su audio — sin video, sin anuncios y sin descargar nada. Si buscas un artista, sale todo su repertorio. Añade lo que te guste a una playlist y tócala después sin volver a buscar. En Linux, Mac y Android.
 - **Playlists que te siguen.** Tus playlists, emisoras de radio y algunos ajustes se mantienen iguales en Linux, Mac y Android por sí solos — con lo que cambias y lo que borras. La copia va cifrada con un código que solo tú tienes.
 - **Playlists en Android.** Una pestaña nueva, *Listas*, con caja de búsqueda y orden a elegir (por nombre, más recientes, más canciones). Las canciones que el teléfono no tiene salen en gris.

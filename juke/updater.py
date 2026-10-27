@@ -191,7 +191,7 @@ async def download_asset(release: ReleaseInfo, directory: Path, progress: Callab
                             progress(percent)
         if release.asset_size and done != release.asset_size:
             raise UpdateError("The download was incomplete.")
-        if release.asset_sha256 and digest.hexdigest() != release.asset_sha256:
+        if not release.asset_sha256 or digest.hexdigest() != release.asset_sha256:
             raise UpdateError("checksum")
         os.chmod(part, 0o755)
         return part

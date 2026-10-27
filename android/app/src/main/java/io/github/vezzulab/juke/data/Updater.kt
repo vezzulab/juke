@@ -37,7 +37,7 @@ object Updater {
     private const val API = "https://api.github.com/repos/vezzulab/juke/releases/latest"
     const val RECHECK_MS = 30 * 60 * 1000L
     const val SNOOZE_MS = 24 * 60 * 60 * 1000L
-    private val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build()
+    private val client = Http.client(15, 60)
     private val agent get() = "Juke-Android/${BuildConfig.VERSION_NAME}"
 
     fun parse(text: String): List<Int>? =
@@ -56,7 +56,10 @@ object Updater {
     fun isUpdate(r: UpdateRelease?): Boolean = r != null && (isNewer(r.version) || r.isRebuild)
 
     /** SHA-256 of the app that is running: its own installed file. */
-    fun installedSha256(context: Context): String = runCatching { sha256(File(context.applicationInfo.sourceDir)) }.getOrDefault("")
+    @Volatile private var installed: String? = null
+
+    fun installedSha256(context: Context): String =
+        installed ?: runCatching { sha256(File(context.applicationInfo.sourceDir)) }.getOrDefault("").also { if (it.isNotEmpty()) installed = it }
 
     fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -110,7 +113,7 @@ object Updater {
             }
             if (release.apkSize > 0 && done != release.apkSize) { target.delete(); throw IOException("incomplete") }
         }
-        if (release.apkSha256.isNotBlank() && sha256(target) != release.apkSha256) { target.delete(); throw IOException("checksum") }
+        if (release.apkSha256.isBlank() || sha256(target) != release.apkSha256) { target.delete(); throw IOException("checksum") }
         target
     }
 
