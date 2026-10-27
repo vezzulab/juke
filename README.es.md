@@ -26,7 +26,7 @@ Arma tus playlists con canciones de la web y de tu música — y tócalas en Lin
 
 ## Novedades de la 1.0.4
 
-- **Actualización de seguridad.** Juke ahora rechaza cualquier actualización o descarga que no coincida con su suma de verificación publicada, usa una conexión segura por defecto con los servidores de internet y ya no envía la contraseña de tu servidor sin protección por `http`. Además, una app de Android más rápida.
+- **Actualización de seguridad.** Actualizaciones y descargas más seguras, conexión segura por defecto con los servidores de internet y sincronización más estricta. [Detalles en las notas de la versión](https://github.com/vezzulab/juke/releases/latest).
 - **Canciones de la web.** Busca cualquier canción o artista y escucha solo su audio — sin video, sin anuncios y sin descargar nada. Si buscas un artista, sale todo su repertorio. Añade lo que te guste a una playlist y tócala después sin volver a buscar. En Linux, Mac y Android.
 - **Playlists que te siguen.** Tus playlists, emisoras de radio y algunos ajustes se mantienen iguales en Linux, Mac y Android por sí solos — con lo que cambias y lo que borras. La copia va cifrada con un código que solo tú tienes.
 - **Playlists en Android.** Una pestaña nueva, *Listas*, con caja de búsqueda y orden a elegir (por nombre, más recientes, más canciones). Las canciones que el teléfono no tiene salen en gris.
