@@ -207,6 +207,19 @@ class MacUpdateTests(unittest.TestCase):
         release.installed_build = ""                       # from source, or a build that did not say
         self.assertFalse(is_update(release))
 
+    def test_a_mac_with_the_published_checksum_still_compares_build_ids(self):
+        from juke import __version__
+        from juke.updater import is_update, release_from_json
+
+        payload = {"tag_name": "v" + __version__, "html_url": "u", "body": "News\n<!-- juke-build:mac=222 -->",
+                   "assets": [{"name": "Juke-macos-arm64.dmg", "browser_download_url": "mac", "size": 2, "digest": "sha256:" + "ab" * 32}]}
+        release = release_from_json(payload, mac=True)
+        release.installed_build = "222"
+        self.assertFalse(is_update(release))                  # the build that is installed is the one published: nothing to offer
+        release.installed_build = "111"
+        self.assertTrue(is_update(release))
+        self.assertEqual(release.asset_id, "222")
+
     def test_stage_then_swap_replaces_the_app_when_the_old_one_has_quit(self):
         import subprocess
         import tempfile

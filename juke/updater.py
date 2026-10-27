@@ -48,6 +48,8 @@ class ReleaseInfo:
 
     @property
     def asset_id(self) -> str:
+        if self.installed_build and not self.installed_sha256:       # a Mac compares build ids with build ids, never with the file's hash
+            return self.asset_build
         return self.asset_sha256 or self.asset_build
 
     @property
