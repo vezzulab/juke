@@ -26,6 +26,8 @@ private enum class Dest(val label: Int, val icon: Int) {
     Card(R.string.nav_library, R.drawable.ic_folder),
     Server(R.string.nav_server, R.drawable.ic_server),
     Radio(R.string.nav_radio, R.drawable.ic_radio),
+    YouTube(R.string.nav_youtube, R.drawable.ic_youtube),
+    Playlists(R.string.nav_playlists, R.drawable.ic_playlist),
     Settings(R.string.nav_settings, R.drawable.ic_gear),
 }
 
@@ -46,6 +48,7 @@ fun JukeRoot(vm: JukeViewModel, onLanguage: (String) -> Unit, onGrantAudio: () -
     BackHandler(enabled = showKaraoke) { showKaraoke = false }
     BackHandler(enabled = showLyrics && !showKaraoke) { showLyrics = false }
     BackHandler(enabled = showAdd) { showAdd = false }
+    BackHandler(enabled = vm.addTarget != null) { vm.dismissAdd() }
     BackHandler(enabled = showEq && !showAdd) { showEq = false }
     BackHandler(enabled = showPlayer && !showEq && !showAdd) { showPlayer = false }
     BackHandler(enabled = !showPlayer && !showEq && !showAdd && dest == Dest.Card && vm.canGoUpLocal) { vm.localUp() }
@@ -63,6 +66,8 @@ fun JukeRoot(vm: JukeViewModel, onLanguage: (String) -> Unit, onGrantAudio: () -
                         Dest.Card -> CardScreen(vm, onGrantAudio)
                         Dest.Server -> ServerScreen(vm)
                         Dest.Radio -> RadioScreen(vm) { showAdd = true }
+                        Dest.YouTube -> YouTubeScreen(vm)
+                        Dest.Playlists -> PlaylistsScreen(vm)
                         Dest.Settings -> SettingsScreen(vm, onLanguage, onEqualizer = { showEq = true }, onRescan = vm::scanLocal)
                     }
                 }
@@ -92,6 +97,9 @@ fun JukeRoot(vm: JukeViewModel, onLanguage: (String) -> Unit, onGrantAudio: () -
             }
         }
         UpdateDialog(vm)
+        AddToPlaylistSheet(vm)
+        val context = androidx.compose.ui.platform.LocalContext.current
+        LaunchedEffect(vm.notice) { vm.notice?.let { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show(); vm.clearNotice() } }
         AddStationSheet(vm, showAdd) { showAdd = false }
         EqualizerSheet(showEq) { showEq = false }
         androidx.compose.animation.AnimatedVisibility(opening, exit = androidx.compose.animation.fadeOut()) { Splash { opening = false } }
@@ -138,11 +146,11 @@ private fun NavKey(dest: Dest, on: Boolean, modifier: Modifier = Modifier, onCli
         modifier.clip(RoundedCornerShape(16.dp))
             .then(if (on) Modifier.background(AccentSoft) else Modifier)
             .clickable(remember { MutableInteractionSource() }, null, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
+            .padding(horizontal = 6.dp, vertical = 9.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         JIcon(dest.icon, tint = if (on) AccentA else colors.onSurfaceVariant, size = 22.dp)
         Text(stringResource(dest.label), Modifier.padding(top = 5.dp), color = if (on) colors.onSurface else colors.onSurfaceVariant,
-            style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.2.sp), maxLines = 1)
     }
 }

@@ -558,7 +558,8 @@ class LightweightTests(unittest.TestCase):
             for k, v in files.items():
                 (d / k).write_text(v + "\n")
 
-        original = power._SUPPLIES
+        original, mac = power._SUPPLIES, power.IS_MAC
+        power.IS_MAC = False                                              # sysfs is the Linux way; a Mac asks pmset
         try:
             with tempfile.TemporaryDirectory() as root:
                 supply(root, "BAT0", type="Battery", status="Discharging")
@@ -575,7 +576,7 @@ class LightweightTests(unittest.TestCase):
             power._SUPPLIES = P("/nonexistent/power_supply")
             self.assertFalse(power.on_battery())
         finally:
-            power._SUPPLIES = original
+            power._SUPPLIES, power.IS_MAC = original, mac
 
     def test_window_freezes_meter_and_slows_polling_when_hidden_or_on_battery(self):
         import juke.gui.main_window as mw

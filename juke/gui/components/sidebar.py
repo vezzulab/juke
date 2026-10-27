@@ -220,6 +220,8 @@ class Sidebar(QTreeWidget):
         radio = header("radio")
         entry(radio, "stations", "radio")
         entry(radio, "explore", "globe")
+        online = header("online")
+        entry(online, "youtube", "youtube")
         lists = header("lists")
         lists.setData(0, ACTION_ROLE, "plus")
         folders = header("folders")
@@ -228,6 +230,7 @@ class Sidebar(QTreeWidget):
         self.expandItem(library)
         self.expandItem(servers)
         self.expandItem(radio)
+        self.expandItem(online)
         self.expandItem(lists)
         self.expandItem(folders)
 
@@ -773,12 +776,12 @@ class Sidebar(QTreeWidget):
 
     def retranslate(self) -> None:
         titles = {"devices": "sidebar.devices", "library": "sidebar.library", "servers": "sidebar.servers", "radio": "sidebar.radio",
-                  "lists": "sidebar.lists", "folders": "sidebar.folders"}
+                  "online": "sidebar.online", "lists": "sidebar.lists", "folders": "sidebar.folders"}
         for name, item in self._headers.items():
             item.setText(0, tr(titles[name]).upper())
         names = {"all": "sidebar.all", "artists": "sidebar.artists", "albums": "sidebar.albums",
                  "genres": "sidebar.genres", "airsonic": "sidebar.airsonic", "stations": "sidebar.stations",
-                 "explore": "sidebar.explore"}
+                 "explore": "sidebar.explore", "youtube": "sidebar.youtube"}
         for key, label in names.items():
             self._items[(key, None)].setText(0, tr(label))
         for name in list(self._filled):

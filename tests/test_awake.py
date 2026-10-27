@@ -13,6 +13,7 @@ class StayAwakeTests(unittest.TestCase):
     """The desktop is faked: what matters is when Juke asks, and that it never asks twice or forgets to let go."""
 
     def setUp(self):
+        self._is_mac, awake.IS_MAC = awake.IS_MAC, False              # these test the D-Bus ways, whatever computer runs them
         self.calls = []
         self.opened, self.closed = [], []
         self._call, self._connect, self._disconnect = awake._call, awake.QDBusConnection.connectToBus, awake.QDBusConnection.disconnectFromBus
@@ -26,6 +27,7 @@ class StayAwakeTests(unittest.TestCase):
         awake.QDBusConnection.disconnectFromBus = staticmethod(lambda name: self.closed.append(name))
 
     def tearDown(self):
+        awake.IS_MAC = self._is_mac
         awake._call, awake.QDBusConnection.connectToBus, awake.QDBusConnection.disconnectFromBus = self._call, self._connect, self._disconnect
 
     def test_it_asks_when_music_starts_and_lets_go_when_it_stops(self):
@@ -78,6 +80,40 @@ class StayAwakeTests(unittest.TestCase):
         self.assertEqual(stay.methods, [])                                                  # nothing to hold, and nothing breaks
         stay.set(False)
         self.assertFalse(stay.active)
+
+
+class MacStayAwakeTests(unittest.TestCase):
+    """On a Mac the way to ask is ``caffeinate``; it is faked here, so the test never holds the computer awake."""
+
+    def setUp(self):
+        self.started, self.ended = [], []
+        self._is_mac, self._popen = awake.IS_MAC, awake.subprocess.Popen
+        awake.IS_MAC = True
+
+        class Process:
+            def terminate(_self):
+                self.ended.append("terminate")
+
+            def wait(_self, timeout=None):
+                self.ended.append("wait")
+
+        awake.subprocess.Popen = lambda command, **kwargs: self.started.append(command) or Process()
+
+    def tearDown(self):
+        awake.IS_MAC, awake.subprocess.Popen = self._is_mac, self._popen
+
+    def test_it_holds_the_sleep_off_while_music_plays_and_lets_go_when_it_stops(self):
+        stay = awake.StayAwake()
+        stay.set(True)
+        stay.set(True)                                                                      # (the next song: nothing new to ask)
+        self.assertEqual(len(self.started), 1)
+        self.assertEqual(self.started[0][0], "caffeinate")
+        self.assertIn("-w", self.started[0])                                                # it ends with Juke, even if Juke crashes
+        self.assertEqual(stay.methods, ["caffeinate"])
+        stay.set(False)
+        self.assertEqual(self.ended, ["terminate", "wait"])
+        self.assertFalse(stay.active)
+        self.assertEqual(stay.methods, [])
 
 
 class WindowKeepsAwakeTests(unittest.TestCase):

@@ -21,7 +21,9 @@ def secrets_of(config) -> list[str]:
     server = config.get("airsonic") or {}
     url = str(server.get("url") or "")
     host = url.split("://", 1)[-1].split("/", 1)[0]
-    return [str(server.get("password") or ""), str(server.get("username") or ""), url, host]
+    cloud = config.get("sync") or {}
+    return [str(server.get("password") or ""), str(server.get("username") or ""), url, host,
+            str(cloud.get("code") or ""), str(cloud.get("server") or "")]
 
 
 class FeedbackDialog(QDialog):

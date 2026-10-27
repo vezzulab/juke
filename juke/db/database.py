@@ -21,6 +21,7 @@ from typing import Iterable, Sequence
 
 SOURCE_LOCAL = "local"
 SOURCE_AIRSONIC = "airsonic"
+SOURCE_YOUTUBE = "youtube"      # songs found on YouTube: kept out of the library, but playlists, favourites and recents hold them
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tracks (
@@ -65,7 +66,16 @@ CREATE TABLE IF NOT EXISTS lyrics (
 CREATE TABLE IF NOT EXISTS playlists (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL,
-    created_at  REAL    NOT NULL DEFAULT 0
+    created_at  REAL    NOT NULL DEFAULT 0,
+    updated_at  REAL    NOT NULL DEFAULT 0
+);
+-- What sync needs to tell a playlist or a station that was deleted from one that was never there: the date it was deleted.
+CREATE TABLE IF NOT EXISTS playlist_tombstones (key TEXT PRIMARY KEY, name TEXT NOT NULL, at REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS station_tombstones (stream_url TEXT PRIMARY KEY, at REAL NOT NULL);
+-- Songs of a playlist that came from another device and are not in this library (yet): kept so they go back out when synced.
+CREATE TABLE IF NOT EXISTS playlist_foreign (
+    playlist_id INTEGER NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
+    ref         TEXT    NOT NULL
 );
 CREATE TABLE IF NOT EXISTS playlist_tracks (
     playlist_id INTEGER NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
@@ -190,6 +200,7 @@ class Scope:
     duplicates: str | None = None  # "same": same title, artist and album; "exact": and the same length and size
     favorites: bool = False
     recent: bool = False
+    with_online: bool = False  # YouTube songs are left out of the library views unless asked for
 
 
 class Database:
@@ -225,6 +236,10 @@ class Database:
         playlist_columns = {row[1] for row in conn.execute("PRAGMA table_info(playlist_tracks)")}
         if playlist_columns and "added_at" not in playlist_columns:
             conn.execute("ALTER TABLE playlist_tracks ADD COLUMN added_at REAL NOT NULL DEFAULT 0")   # 0 = added before Juke kept the date
+        list_columns = {row[1] for row in conn.execute("PRAGMA table_info(playlists)")}
+        if list_columns and "updated_at" not in list_columns:
+            conn.execute("ALTER TABLE playlists ADD COLUMN updated_at REAL NOT NULL DEFAULT 0")
+            conn.execute("UPDATE playlists SET updated_at = created_at")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tracks_folder ON tracks (folder COLLATE NOCASE)")
         conn.commit()
 
@@ -277,6 +292,34 @@ class Database:
         conn = self.connect()
         with conn:
             conn.executemany(sql, params)
+
+    def upsert_youtube(self, results: Iterable[dict]) -> dict[str, int]:
+        """Keep the songs a YouTube search found (video id, title, channel, duration); {video id: track id}."""
+        rows = [{"source_type": SOURCE_YOUTUBE, "location": r["video_id"], "title": r["title"], "artist": r["channel"],
+                 "album": "", "genre": "", "duration": r["duration"], "cover_key": "yt_" + r["video_id"]}
+                for r in results]
+        self.upsert_many(rows)
+        conn = self.connect()
+        ids: dict[str, int] = {}
+        for start in range(0, len(rows), 500):
+            chunk = [r["location"] for r in rows[start:start + 500]]
+            marks = ",".join("?" * len(chunk))
+            ids.update(conn.execute(f"SELECT location, id FROM tracks WHERE source_type=? AND location IN ({marks})",
+                                    (SOURCE_YOUTUBE, *chunk)))
+        return ids
+
+    def cleanup_youtube(self, keep_days: int = 30, keep_ids: Iterable[int] = ()) -> int:
+        """Forget searched songs that nobody kept: not a favourite, in no playlist, not in the queue, not played lately."""
+        cutoff = time.time() - keep_days * 86400
+        keep = list(dict.fromkeys(keep_ids))
+        marks = ",".join("?" * len(keep))
+        extra = f" AND id NOT IN ({marks})" if keep else ""
+        conn = self.connect()
+        with conn:
+            return conn.execute(
+                "DELETE FROM tracks WHERE source_type=? AND favorite=0 AND added_at < ? AND last_played < ? "
+                "AND id NOT IN (SELECT track_id FROM playlist_tracks)" + extra,
+                (SOURCE_YOUTUBE, cutoff, cutoff, *keep)).rowcount
 
     def delete_local_under(self, directories: Iterable[str]) -> int:
         """Take every local song below these directories out of the library (the files stay on the disk)."""
@@ -366,8 +409,11 @@ class Database:
         if source_type:
             row = self.connect().execute("SELECT COUNT(*) FROM tracks WHERE source_type=?", (source_type,)).fetchone()
         else:
-            row = self.connect().execute("SELECT COUNT(*) FROM tracks").fetchone()
+            row = self.connect().execute("SELECT COUNT(*) FROM tracks WHERE source_type != ?", (SOURCE_YOUTUBE,)).fetchone()
         return row[0]
+
+    def favorite_ids(self) -> list[int]:
+        return [r[0] for r in self.connect().execute("SELECT id FROM tracks WHERE favorite=1 ORDER BY id")]
 
     def count_favorites(self) -> int:
         return self.connect().execute("SELECT COUNT(*) FROM tracks WHERE favorite=1").fetchone()[0]
@@ -411,6 +457,9 @@ class Database:
         if scope.source_type:
             clauses.append("source_type = ?")
             args.append(scope.source_type)
+        elif not (scope.with_online or scope.favorites or scope.recent):
+            clauses.append("source_type != ?")
+            args.append(SOURCE_YOUTUBE)
         if scope.artist is not None:
             clauses.append("artist = ? COLLATE NOCASE")
             args.append(scope.artist)
@@ -478,7 +527,13 @@ class Database:
         cur = self.connect().execute(f"SELECT {self._STATION_COLS} FROM stations ORDER BY name COLLATE NOCASE")
         return [Station(*row) for row in cur]
 
-    def add_station(self, station: Station) -> int:
+    def drop_station(self, stream_url: str) -> None:
+        """Remove a station because another device deleted it (the deletion is already known)."""
+        conn = self.connect()
+        with conn:
+            conn.execute("DELETE FROM stations WHERE stream_url=?", (stream_url,))
+
+    def add_station(self, station: Station, added: float | None = None) -> int:
         """Save (or refresh, matched by stream address) a station and return its id."""
         conn = self.connect()
         with conn:
@@ -489,7 +544,8 @@ class Database:
                 "codec=excluded.codec, bitrate=excluded.bitrate, uuid=excluded.uuid, "
                 "source_url=CASE WHEN excluded.source_url != '' THEN excluded.source_url ELSE stations.source_url END",
                 (station.name.strip(), station.stream_url, station.homepage, station.favicon, station.tags,
-                 station.country, station.codec, station.bitrate, station.uuid, station.source_url, time.time()))
+                 station.country, station.codec, station.bitrate, station.uuid, station.source_url, added or time.time()))
+            conn.execute("DELETE FROM station_tombstones WHERE stream_url=?", (station.stream_url,))
             return conn.execute("SELECT id FROM stations WHERE stream_url=?", (station.stream_url,)).fetchone()[0]
 
     def update_station_stream(self, station_id: int, stream_url: str, codec: str = "", bitrate: int = 0, favicon: str = "") -> bool:
@@ -507,6 +563,9 @@ class Database:
     def remove_station(self, station_id: int) -> None:
         conn = self.connect()
         with conn:
+            row = conn.execute("SELECT stream_url FROM stations WHERE id=?", (station_id,)).fetchone()
+            if row:
+                conn.execute("INSERT OR REPLACE INTO station_tombstones (stream_url, at) VALUES (?, ?)", (row[0], time.time()))
             conn.execute("DELETE FROM stations WHERE id=?", (station_id,))
 
     def station_urls(self) -> set[str]:
@@ -523,20 +582,98 @@ class Database:
             "LEFT JOIN playlist_tracks t ON t.playlist_id = p.id GROUP BY p.id ORDER BY p.name COLLATE NOCASE")
         return [(r[0], r[1], r[2]) for r in cur]
 
+    @staticmethod
+    def list_key(name: str) -> str:
+        """Playlists are the same playlist when their names match, whatever the case."""
+        return name.strip().casefold()
+
     def create_playlist(self, name: str) -> int:
         conn = self.connect()
+        now = time.time()
         with conn:
-            return conn.execute("INSERT INTO playlists (name, created_at) VALUES (?, ?)", (name.strip(), time.time())).lastrowid
+            conn.execute("DELETE FROM playlist_tombstones WHERE key=?", (self.list_key(name),))
+            return conn.execute("INSERT INTO playlists (name, created_at, updated_at) VALUES (?, ?, ?)", (name.strip(), now, now)).lastrowid
 
     def rename_playlist(self, playlist_id: int, name: str) -> None:
         conn = self.connect()
+        now = time.time()
         with conn:
-            conn.execute("UPDATE playlists SET name=? WHERE id=?", (name.strip(), playlist_id))
+            old = conn.execute("SELECT name FROM playlists WHERE id=?", (playlist_id,)).fetchone()
+            if old and self.list_key(old[0]) != self.list_key(name):       # to sync, the old name is a playlist that was deleted
+                conn.execute("INSERT OR REPLACE INTO playlist_tombstones (key, name, at) VALUES (?, ?, ?)", (self.list_key(old[0]), old[0], now))
+            conn.execute("DELETE FROM playlist_tombstones WHERE key=?", (self.list_key(name),))
+            conn.execute("UPDATE playlists SET name=?, updated_at=? WHERE id=?", (name.strip(), now, playlist_id))
 
     def delete_playlist(self, playlist_id: int) -> None:
         conn = self.connect()
         with conn:
+            old = conn.execute("SELECT name FROM playlists WHERE id=?", (playlist_id,)).fetchone()
+            if old:
+                conn.execute("INSERT OR REPLACE INTO playlist_tombstones (key, name, at) VALUES (?, ?, ?)", (self.list_key(old[0]), old[0], time.time()))
             conn.execute("DELETE FROM playlists WHERE id=?", (playlist_id,))
+
+    # -- what sync needs to know about playlists and stations -----------------------------------------
+    def playlist_meta(self) -> dict[str, tuple[int, str, float]]:
+        """{key: (id, name, last changed)} of every playlist."""
+        return {self.list_key(r[1]): (r[0], r[1], r[2]) for r in self.connect().execute("SELECT id, name, updated_at FROM playlists")}
+
+    def playlist_tombstones(self) -> dict[str, tuple[str, float]]:
+        """{key: (name, when it was deleted)}"""
+        return {r[0]: (r[1], r[2]) for r in self.connect().execute("SELECT key, name, at FROM playlist_tombstones")}
+
+    def station_tombstones(self) -> dict[str, float]:
+        return {r[0]: r[1] for r in self.connect().execute("SELECT stream_url, at FROM station_tombstones")}
+
+    def stations_added(self) -> dict[str, float]:
+        return {r[0]: r[1] for r in self.connect().execute("SELECT stream_url, added_at FROM stations")}
+
+    def set_tombstones(self, playlists: dict[str, tuple[str, float]], stations: dict[str, float]) -> None:
+        """Remember deletions learned from another device (the newest date wins)."""
+        conn = self.connect()
+        with conn:
+            for key, (name, at) in playlists.items():
+                conn.execute("INSERT INTO playlist_tombstones (key, name, at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET at=MAX(at, excluded.at)", (key, name, at))
+            for url, at in stations.items():
+                conn.execute("INSERT INTO station_tombstones (stream_url, at) VALUES (?, ?) ON CONFLICT(stream_url) DO UPDATE SET at=MAX(at, excluded.at)", (url, at))
+
+    def prune_tombstones(self, before: float) -> None:
+        conn = self.connect()
+        with conn:
+            conn.execute("DELETE FROM playlist_tombstones WHERE at < ?", (before,))
+            conn.execute("DELETE FROM station_tombstones WHERE at < ?", (before,))
+
+    def drop_playlist(self, playlist_id: int) -> None:
+        """Remove a playlist because another device deleted it (no new tombstone: the one that deleted it is already known)."""
+        conn = self.connect()
+        with conn:
+            conn.execute("DELETE FROM playlists WHERE id=?", (playlist_id,))
+
+    def playlist_foreign(self, playlist_id: int) -> list[str]:
+        return [r[0] for r in self.connect().execute("SELECT ref FROM playlist_foreign WHERE playlist_id=? ORDER BY rowid", (playlist_id,))]
+
+    def replace_playlist(self, playlist_id: int, track_ids: Sequence[int], foreign: Sequence[str], updated: float) -> None:
+        """Make a playlist what another device says it is (its songs in its order), without counting that as a local change."""
+        conn = self.connect()
+        with conn:
+            conn.execute("DELETE FROM playlist_tracks WHERE playlist_id=?", (playlist_id,))
+            conn.executemany("INSERT INTO playlist_tracks (playlist_id, track_id, position, added_at) VALUES (?, ?, ?, ?)",
+                             [(playlist_id, tid, i, updated) for i, tid in enumerate(track_ids)])
+            conn.execute("DELETE FROM playlist_foreign WHERE playlist_id=?", (playlist_id,))
+            conn.executemany("INSERT INTO playlist_foreign (playlist_id, ref) VALUES (?, ?)", [(playlist_id, ref) for ref in foreign])
+            conn.execute("UPDATE playlists SET updated_at=? WHERE id=?", (updated, playlist_id))
+
+    def adopt_foreign(self, playlist_id: int, matched: Sequence[tuple[str, int]]) -> None:
+        """Songs that were not in the library and now are: they join the playlist at the end. ``matched`` is (ref text, track id)."""
+        if not matched:
+            return
+        conn = self.connect()
+        with conn:
+            start = conn.execute("SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_tracks WHERE playlist_id=?", (playlist_id,)).fetchone()[0]
+            have = {r[0] for r in conn.execute("SELECT track_id FROM playlist_tracks WHERE playlist_id=?", (playlist_id,))}
+            fresh = [(ref, tid) for ref, tid in matched if tid not in have]
+            conn.executemany("INSERT INTO playlist_tracks (playlist_id, track_id, position, added_at) VALUES (?, ?, ?, ?)",
+                             [(playlist_id, tid, start + i, time.time()) for i, (_ref, tid) in enumerate(fresh)])
+            conn.executemany("DELETE FROM playlist_foreign WHERE playlist_id=? AND ref=?", [(playlist_id, ref) for ref, _tid in matched])
 
     def playlist_track_ids(self, playlist_id: int) -> list[int]:
         cur = self.connect().execute(
@@ -603,6 +740,8 @@ class Database:
                         fresh.append(tid)
             conn.executemany("INSERT INTO playlist_tracks (playlist_id, track_id, position, added_at) VALUES (?, ?, ?, ?)",
                              [(playlist_id, tid, start + i, now) for i, tid in enumerate(fresh)])
+            if fresh:
+                conn.execute("UPDATE playlists SET updated_at=? WHERE id=?", (now, playlist_id))
         return len(fresh)
 
     def remove_from_playlist(self, playlist_id: int, track_ids: Sequence[int]) -> None:
@@ -611,6 +750,7 @@ class Database:
         with conn:
             conn.executemany("DELETE FROM playlist_tracks WHERE playlist_id=? AND track_id=?",
                              [(playlist_id, tid) for tid in track_ids])
+            conn.execute("UPDATE playlists SET updated_at=? WHERE id=?", (time.time(), playlist_id))
 
     def remove_playlist_entries(self, playlist_id: int, positions: Sequence[int]) -> None:
         """Take out exactly these entries (by position): the other copy of a song added twice stays."""
@@ -618,6 +758,7 @@ class Database:
         with conn:
             conn.executemany("DELETE FROM playlist_tracks WHERE playlist_id=? AND position=?",
                              [(playlist_id, pos) for pos in positions])
+            conn.execute("UPDATE playlists SET updated_at=? WHERE id=?", (time.time(), playlist_id))
 
     def folders(self, source_type: str) -> list[str]:
         """Every distinct folder path of a source ("Artist/Album", ...)."""
@@ -630,7 +771,7 @@ class Database:
         if field not in ("artist", "album", "genre"):
             raise ValueError(field)
         cur = self.connect().execute(
-            f"SELECT {field}, COUNT(*) FROM tracks GROUP BY {field} COLLATE NOCASE "
-            f"ORDER BY ({field} = '') , {field} COLLATE NOCASE"
+            f"SELECT {field}, COUNT(*) FROM tracks WHERE source_type != ? GROUP BY {field} COLLATE NOCASE "
+            f"ORDER BY ({field} = '') , {field} COLLATE NOCASE", (SOURCE_YOUTUBE,)
         )
         return [(r[0], r[1]) for r in cur]

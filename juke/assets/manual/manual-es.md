@@ -2,7 +2,14 @@
 
 Juke es un reproductor para tu propia música: los archivos de tu computadora o de tu teléfono, las canciones de tu servidor Airsonic / Subsonic y la radio por internet, todo en un solo lugar que se mantiene rápido y cuida la batería.
 
-Este manual es un libro. El índice del costado lista cada capítulo y cada sección; puedes leerlo desde la primera página o saltar a lo que necesitas. También está dentro de la app (pulsa `F1` en Linux, o *Ajustes ▸ Manual* en Android), así que siempre lo tienes contigo y en tu idioma.
+Este manual es un libro. El índice del costado lista cada capítulo y cada sección; puedes leerlo desde la primera página o saltar a lo que necesitas. También está dentro de la app (pulsa `F1` en Linux y Mac, o *Ajustes ▸ Manual* en Android), así que siempre lo tienes contigo y en tu idioma.
+
+## Qué hay de nuevo en 1.0.4
+
+- **YouTube, solo audio**, en la computadora y en el teléfono: busca una canción, o un artista para ver todo su repertorio, y escucha solo el audio, sin video y sin anuncios. Añade canciones a playlists y tócalas después.
+- **Playlists en Android.** El teléfono ya tiene playlists, con canciones de tu música y de YouTube.
+- **Todo te sigue.** Playlists, emisoras de radio y algunos ajustes se sincronizan solos entre tu Linux, tu Mac y tu Android, borrados incluidos. También hay una copia en un archivo.
+- **Actualizaciones dentro de la app, en todos los sistemas.** En una Mac, *Actualizar ahora* instala la Juke nueva por sí sola, como en Linux y Android. La parte de YouTube también se actualiza sola.
 
 ## Qué hay de nuevo en 1.0
 
@@ -17,7 +24,7 @@ Este manual es un libro. El índice del costado lista cada capítulo y cada secc
 
 ## Cómo está escrito este manual
 
-Las palabras en *cursiva* son nombres que ves en pantalla: menús, botones, pestañas. Las teclas se escriben así: `Ctrl` + `E`. Las partes que solo valen para un sistema lo dicen en el título: **Linux** para la app de computadora, **Android** para la de teléfono y tableta. Todo lo demás es igual en las dos.
+Las palabras en *cursiva* son nombres que ves en pantalla: menús, botones, pestañas. Las teclas se escriben así: `Ctrl` + `E`. Las partes que solo valen para un sistema lo dicen en el título: **Linux** y **Mac** para la app de computadora, **Android** para la de teléfono y tableta. Todo lo demás es igual en todas.
 
 ---
 
@@ -41,6 +48,18 @@ Lo que necesita: Linux x86_64 con glibc 2.35 o más nueva (Ubuntu 22.04, Debian 
 Juke necesita libVLC en el sistema. Luego `pip install -e .` dentro de la carpeta y ejecuta `juke`. Para agregar el lanzador y el icono a tu menú: `juke --install-desktop` (y `--uninstall-desktop` para quitarlos). Los archivos que le des en la línea de comandos se reproducen: `juke cancion.flac`.
 <!--/linux-->
 
+<!--mac-->
+## Instalar en Mac
+
+Juke para Mac es una imagen de disco con la app dentro (Python, Qt y libVLC van incluidos). Es para Mac con chip de Apple (M1 y posteriores) y macOS 15 o más nuevo.
+
+1. Descarga `Juke-macos-arm64.dmg` de la última versión en GitHub (unos 60 MB) y ábrelo.
+2. Arrastra **Juke** a **Aplicaciones**.
+3. La primera vez, macOS dice que no puede verificar la app, porque Juke no está firmado con un certificado de desarrollador de Apple de pago. Cierra el aviso, abre *Ajustes del Sistema ▸ Privacidad y seguridad*, baja hasta *Seguridad* y pulsa **Abrir de todos modos** junto a Juke. Solo lo haces una vez. Si prefieres la terminal: `xattr -dr com.apple.quarantine /Applications/Juke.app`.
+
+Juke lee tu carpeta *Música*; añade otras carpetas en *Ajustes ▸ Biblioteca*. macOS puede pedirte una vez permiso para leer una carpeta: di que sí.
+<!--/mac-->
+
 <!--android-->
 ## Instalar en Android
 
@@ -59,6 +78,10 @@ Juke busca versiones nuevas al abrirse y cada 30 minutos mientras está abierto.
 Si el AppImage está en una carpeta donde puedes escribir, *Actualizar ahora* lo reemplaza en su lugar y ofrece reiniciar. Si no, Juke te dice dónde descargar el archivo nuevo.
 <!--/linux-->
 
+<!--mac-->
+En una Mac, *Actualizar ahora* descarga la nueva imagen de disco, la comprueba y ofrece reiniciar: la Juke nueva ocupa el lugar de la vieja y se abre sola. Si eliges no reiniciar, ocupa su lugar cuando cierres Juke. Si Juke está en una carpeta donde no puedes escribir, o tienes una versión anterior a la 1.0.4, el botón abre la página de la versión: descarga la imagen de disco y arrastra Juke otra vez a *Aplicaciones*. Tu biblioteca y tus ajustes se conservan.
+<!--/mac-->
+
 <!--android-->
 En Android, Juke descarga el APK nuevo, lo verifica y se lo entrega al instalador de Android. La primera vez permites *Instalar apps desconocidas* para Juke.
 <!--/android-->
@@ -69,7 +92,7 @@ Si tienes Juke 0.3 o una versión anterior, te ofrecerá la 1.0 solo, de la mism
 
 # 3. Un recorrido por la ventana
 
-<!--linux-->
+<!--desktop-->
 ![La ventana de Juke](img/linux/main.jpg)
 
 Juke tiene tres paneles:
@@ -79,19 +102,19 @@ Juke tiene tres paneles:
 - **Centro: las canciones.** Una tabla con el título, artista, álbum, tiempo, género, bitrate, origen y las listas en que está cada canción. Haz clic en una columna para ordenar; otra vez para invertir; una tercera para volver al orden natural.
 
 Sobre la tabla está el cuadro de búsqueda (`Ctrl` + `F`), el botón de paleta para los temas de color y el menú ⋯ con todo lo demás: *Mostrar* (Favoritas, Reproducidas recientemente, Cola actual), *Buscar duplicados*, *Ajustes*, *Buscar actualizaciones*, *Enviar comentarios*, *Ver registro* y este manual.
-<!--/linux-->
+<!--/desktop-->
 
 <!--android-->
 ![El reproductor en Android](img/android/player.jpg)
 
-Juke en Android tiene cuatro pestañas abajo (una barra lateral en tableta): **Biblioteca** (tu música, por carpetas), **Servidor** (tu servidor Airsonic / Subsonic), **Radio** y **Ajustes**. Toca la barra del reproductor para abrir el reproductor grande, con la portada, la barra de tiempo y los controles.
+Juke en Android tiene seis pestañas abajo (una barra lateral en tableta): **Biblioteca** (tu música, por carpetas), **Servidor** (tu servidor Airsonic / Subsonic), **Radio**, **YouTube**, **Listas** y **Ajustes**. Toca la barra del reproductor para abrir el reproductor grande, con la portada, la barra de tiempo y los controles.
 <!--/android-->
 
 ## La canción que suena
 
-<!--linux-->
+<!--desktop-->
 La canción que suena tiene una pequeña insignia con barras que se mueven junto a su título. Una ✓ verde marca las canciones que ya sonaron desde que abriste Juke. Las canciones que no se pueden reproducir ahora se ven en gris (mira *Canciones que no están disponibles*).
-<!--/linux-->
+<!--/desktop-->
 <!--android-->
 La canción que suena aparece resaltada en la lista. Las canciones que no se pueden reproducir ahora se ven en gris.
 <!--/android-->
@@ -102,13 +125,13 @@ La canción que suena aparece resaltada en la lista. Las canciones que no se pue
 
 ## La biblioteca
 
-<!--linux-->
+<!--desktop-->
 Agrega tus carpetas de música en *Ajustes ▸ Biblioteca* (o con el botón de la biblioteca vacía). Juke las lee en segundo plano, con baja prioridad, y solo vuelve a leer los archivos que cambiaron. Se mantiene rápido con decenas de miles de canciones: buscar, ordenar y filtrar nunca esperan a toda la biblioteca.
 
 Cada vez que vuelves a la ventana, Juke revisa en silencio si hay canciones agregadas, movidas o borradas. Puedes apagar *Buscar cambios al iniciar Juke* en *Ajustes ▸ Biblioteca*.
 
 Explora tu música en *Biblioteca*: **Todas las canciones**, **Por artista**, **Por álbum** y **Por género**. Escribe en el cuadro de búsqueda para filtrar por título, artista, álbum o género.
-<!--/linux-->
+<!--/desktop-->
 
 <!--android-->
 Juke lista la música de tu tarjeta o del almacenamiento del teléfono, **por carpetas**, como la tienes guardada. Los teléfonos sin tarjeta muestran el almacenamiento interno. Toca una carpeta para abrirla; el botón atrás sube un nivel. Con el botón de ordenar puedes poner carpetas y canciones de A a Z o de Z a A.
@@ -116,14 +139,14 @@ Juke lista la música de tu tarjeta o del almacenamiento del teléfono, **por ca
 
 ## Favoritas y canciones recientes
 
-<!--linux-->
+<!--desktop-->
 Clic derecho en una canción ▸ *Marcar como favorita*. Tus favoritas están siempre a un toque en la pestaña **Favoritas** del borde derecho de la ventana (`Ctrl` + `K`): se desliza con todas tus canciones favoritas; doble clic para reproducir una, clic derecho para quitarla. Las canciones que reprodujiste hace poco están en el menú ⋯ ▸ *Mostrar*.
-<!--/linux-->
+<!--/desktop-->
 <!--android-->
 Marca una canción como favorita desde su menú. Tus favoritas están en la biblioteca.
 <!--/android-->
 
-<!--linux-->
+<!--desktop-->
 ## Editar etiquetas y portadas
 
 Clic derecho en una canción, o selecciona varias (`Ctrl` + `A`, `Ctrl` + clic, `Mayús` + clic) ▸ *Editar metadatos…*. Solo se escriben en los archivos los campos que cambias. Puedes agregar, reemplazar o quitar la portada, o simplemente soltar una imagen sobre la ventana; se guarda dentro del archivo. Esto vale para canciones de tu computadora; las de un servidor no se pueden editar.
@@ -131,11 +154,11 @@ Clic derecho en una canción, o selecciona varias (`Ctrl` + `A`, `Ctrl` + clic, 
 ## Buscar duplicados
 
 El menú ⋯ ▸ *Buscar duplicados* muestra canciones repetidas: las que tienen el mismo título, artista y álbum, o exactamente el mismo archivo.
-<!--/linux-->
+<!--/desktop-->
 
 ---
 
-<!--linux-->
+<!--desktop-->
 # 5. Tus propias carpetas
 
 Bajo **Carpetas** en la barra lateral, Juke guarda tu música como tú la acomodas. No hay paso de importar: lo que hagas, simplemente sucede.
@@ -151,7 +174,7 @@ Bajo **Carpetas** en la barra lateral, Juke guarda tu música como tú la acomod
 Juke crea una carpeta llamada **Music.juke** dentro de tu carpeta Música. Ábrela y encuentras `folders.db` (cómo está organizado todo), un directorio `Folders` con el mismo árbol como accesos a tus canciones, y un README corto. Así tu organización también se ve desde cualquier otro programa.
 
 Si borras o mueves una carpeta en tu administrador de archivos, Juke se da cuenta en cuanto vuelves.
-<!--/linux-->
+<!--/desktop-->
 
 ---
 
@@ -172,21 +195,21 @@ Haz clic o arrastra la barra de tiempo para saltar a otro punto. Haz doble clic 
 
 ## La cola
 
-Clic derecho en una canción ▸ **Reproducir a continuación** la pone justo después de la actual. **Añadir al final de la cola** la pone al final. La cola es temporal e independiente: cuando queda vacía, sigue la lista desde la que empezaste. Verla toda en *Cola actual* (<!--linux-->la pestaña **Cola** del borde derecho de la ventana, o `Ctrl` + `J`<!--/linux--><!--android-->en el reproductor<!--/android-->): lo que suena, lo que agregaste y lo que sigue.
+Clic derecho en una canción ▸ **Reproducir a continuación** la pone justo después de la actual. **Añadir al final de la cola** la pone al final. La cola es temporal e independiente: cuando queda vacía, sigue la lista desde la que empezaste. Verla toda en *Cola actual* (<!--desktop-->la pestaña **Cola** del borde derecho de la ventana, o `Ctrl` + `J`<!--/desktop--><!--android-->en el reproductor<!--/android-->): lo que suena, lo que agregaste y lo que sigue.
 
-<!--linux-->
+<!--desktop-->
 La pestaña Cola se desliza solo con las canciones que elegiste y cuánto duran en total. Arrástralas para cambiar el orden, doble clic para reproducir una ya, o clic derecho para moverla o quitarla. El display bajo la canción muestra cuál sigue. La cola se guarda mientras la cambias, así que sigue ahí la próxima vez que abras Juke.
 
 Si sacas una canción de la lista o carpeta que está sonando, también sale de la cola; una canción que agregas espera al final.
-<!--/linux-->
+<!--/desktop-->
 
 ## Crossfade
 
 El crossfade mete la siguiente canción mientras la actual se va apagando, para que no haya silencio entre ellas.
 
-<!--linux-->
+<!--desktop-->
 Bajo el volumen hay una luz con la palabra **Crossfade**: verde cuando está activo, gris cuando está apagado. Haz clic para encenderlo o apagarlo; vuelve con los segundos que tenía la última vez (5 la primera). Para elegir cuántos segundos (de 1 a 12), abre *Ajustes ▸ Reproducción*.
-<!--/linux-->
+<!--/desktop-->
 <!--android-->
 Enciéndelo y elige los segundos en *Ajustes*.
 <!--/android-->
@@ -198,21 +221,30 @@ El crossfade solo ocurre cuando una canción termina sola. Si saltas una canció
 <!--linux-->
 El control de volumen **es el volumen de la computadora**: las teclas de volumen de tu teclado, el volumen del panel y el mezclador lo mueven, y moverlo los mueve a ellos. El botón del altavoz silencia. Si prefieres un volumen que sea solo de Juke, apaga *El volumen sigue al de la computadora* en *Ajustes ▸ Reproducción*.
 <!--/linux-->
+<!--mac-->
+El control de volumen es el volumen propio de Juke, y el botón del altavoz lo silencia. Las teclas de volumen de la Mac cambian el volumen de toda la computadora, por encima de él.
+<!--/mac-->
 <!--android-->
 Usa las teclas de volumen del teléfono. Juke sigue el volumen del sistema.
 <!--/android-->
 
-<!--linux-->
+<!--desktop-->
 ## Mantener la computadora despierta
 
 Mientras suena una canción o una emisora, Juke le pide al escritorio que no duerma la computadora ni apague la pantalla, para que un portátil no se duerma en plena fiesta. Lo suelta en cuanto pausas o detienes, y la computadora vuelve a dormirse con normalidad. Puedes apagarlo con *Mantener la computadora despierta mientras suena música* en *Ajustes ▸ Reproducción*. Cerrar la tapa sigue lo que digan tus ajustes de energía: si el portátil debe seguir sonando con la tapa cerrada, configúralo en las opciones de energía de tu escritorio.
-<!--/linux-->
+<!--/desktop-->
 
 <!--linux-->
 ## Teclado y teclas multimedia
 
 Reproducir, pausar, detener, siguiente y anterior funcionan con las teclas multimedia de tu teclado o de tus auriculares, con el widget multimedia de tu escritorio (GNOME, KDE y los demás) y con herramientas como `playerctl`. La tecla Play también pausa cuando suena una canción. Los atajos están en el capítulo *Atajos de teclado*.
 <!--/linux-->
+
+<!--mac-->
+## Teclado y teclas multimedia
+
+Reproducir, pausar, siguiente y anterior funcionan con las teclas multimedia de tu teclado o de tus auriculares, y el Centro de control muestra la canción que suena. En este manual `Ctrl` es la tecla `⌘` (Comando) en una Mac: `⌘` + `F` busca, `⌘` + `,` abre los ajustes. Los atajos están en el capítulo *Atajos de teclado*.
+<!--/mac-->
 
 <!--android-->
 ## La pantalla de bloqueo y los auriculares
@@ -225,6 +257,9 @@ Juke sigue sonando con la pantalla apagada. La tarjeta del reproductor en la pan
 <!--linux-->
 En la ventana del ecualizador (mira *El ecualizador*), bajo *Reproducción*: **Velocidad** de 0,5× a 2× y **Balance** entre izquierda y derecha. El balance necesita PulseAudio o PipeWire y una señal estéreo; si no, está desactivado.
 <!--/linux-->
+<!--mac-->
+En la ventana del ecualizador (mira *El ecualizador*), bajo *Reproducción*: **Velocidad** de 0,5× a 2×. El balance entre izquierda y derecha no está disponible en una Mac.
+<!--/mac-->
 <!--android-->
 El ecualizador está en el reproductor o en *Ajustes*.
 <!--/android-->
@@ -235,16 +270,16 @@ El ecualizador está en el reproductor o en *Ajustes*.
 
 ## Crear una lista
 
-<!--linux-->
+<!--desktop-->
 Haz clic en el **+** junto a *Listas* (o `Ctrl` + `N`), escribe un nombre y pulsa *Guardar*. O clic derecho en canciones ▸ *Añadir a la lista* ▸ *Nueva lista…* para crear una que ya tenga esas canciones. Clic derecho en una lista para renombrarla o borrarla. Las listas sobreviven a los reescaneos y a las sincronizaciones del servidor.
-<!--/linux-->
+<!--/desktop-->
 <!--android-->
-Abre el menú de una canción ▸ *Añadir a la lista* ▸ *Nueva lista…*, o agrégala a una que ya tengas.
+Toca la tecla de playlist de cualquier canción (de tu biblioteca, del servidor o de YouTube) ▸ *Nueva playlist*, o elige una que ya tengas. La pestaña **Listas** las muestra: abre una y toca *Reproducir todo*, o cualquier canción.
 <!--/android-->
 
 ## Agregar y quitar canciones
 
-<!--linux-->
+<!--desktop-->
 Clic derecho en una o más canciones ▸ **Añadir a la lista**. En ese menú cada lista muestra lo que tiene:
 
 - **✓ Nombre**: todas las canciones seleccionadas ya están. **Elígela otra vez para sacarlas.**
@@ -256,9 +291,9 @@ Una canción que ya está en una lista **nunca se agrega dos veces**; Juke te di
 Dentro de una lista, clic derecho ▸ *Quitar de la lista* saca las canciones seleccionadas. Las listas hechas antes de la 1.0 pueden tener una canción dos veces; puedes quitar cada copia por separado.
 
 Cada canción de la biblioteca también muestra, en la columna **En listas**, los nombres de las listas que la tienen.
-<!--/linux-->
+<!--/desktop-->
 <!--android-->
-En el menú de una canción, las listas que ya la tienen aparecen marcadas; elige una otra vez para sacar la canción. Una canción nunca se agrega dos veces a la misma lista.
+Una canción nunca se agrega dos veces a la misma lista. Dentro de una playlist, la ✕ junto a una canción la saca, y el bote de basura borra la playlist entera (las canciones se quedan donde están). Una playlist guarda cada canción por lo que es (título, artista), así que suena en cualquier aparato con el que se sincronice; una canción que no está en este teléfono se salta con un aviso y aparece en gris en la lista con *No está en este teléfono*. La pestaña **Listas** y cada playlist tienen una caja de búsqueda y una tecla de orden: las playlists por nombre (A → Z o Z → A), las cambiadas hace poco o las de más canciones; las canciones en el orden de la playlist, por título o por artista.
 <!--/android-->
 
 ---
@@ -269,7 +304,7 @@ Juke puede reproducir la música de tu propio servidor: Airsonic, Airsonic-Advan
 
 ## Conectar tu servidor
 
-Abre <!--linux-->*Ajustes ▸ Airsonic*<!--/linux--><!--android-->*Ajustes* ▸ la sección del servidor<!--/android--> y escribe la dirección del servidor (por ejemplo `http://tu-servidor:4040`), tu usuario y tu contraseña. Pulsa *Probar conexión*. Luego *Sincronizar Airsonic* importa la biblioteca del servidor. Usa `https://` cuando puedas.
+Abre <!--desktop-->*Ajustes ▸ Airsonic*<!--/desktop--><!--android-->*Ajustes* ▸ la sección del servidor<!--/android--> y escribe la dirección del servidor (por ejemplo `http://tu-servidor:4040`), tu usuario y tu contraseña. Pulsa *Probar conexión*. Luego *Sincronizar Airsonic* importa la biblioteca del servidor. Usa `https://` cuando puedas.
 
 Explora el servidor en **Servidores** **por carpetas**, tal como las muestra, o por artista, álbum y género. Una biblioteca de 6.000 canciones se sincroniza en unos 8 segundos. Las canciones que terminas se informan al servidor (scrobble).
 
@@ -299,6 +334,31 @@ En **Radio**: *Mis emisoras* (las tuyas) y *Explorar radio* (el directorio de la
 
 Las emisoras que piden inicio de sesión o usan señales protegidas no se pueden reproducir.
 
+## YouTube
+
+<!--desktop-->
+En **En línea** ▸ **YouTube** puedes buscar cualquier canción y reproducir solo su audio: sin video y sin anuncios. Las canciones se reproducen en streaming, nunca se descargan.
+<!--/desktop-->
+<!--android-->
+La pestaña **YouTube** busca cualquier canción y reproduce solo su audio: sin video y sin anuncios. Las canciones se reproducen en streaming, nunca se descargan.
+<!--/android-->
+
+- **Buscar.** Escribe en la caja de búsqueda y pulsa `Enter` (o espera un momento). Juke muestra lo que pediste: si buscas *Juan Luis Guerra*, salen canciones de Juan Luis Guerra, no de otros artistas. **Si buscas el nombre de un artista sale todo su repertorio**, lo más visto primero, no solo las primeras veinte. Los mixes, los álbumes completos, los covers, el karaoke y las grabaciones en vivo se dejan fuera a menos que los pidas, y el audio de una canción sale antes que su videoclip.
+<!--desktop-->
+- **Reproducir.** Haz doble clic en una canción. El display dice *Conectando…* un momento. El menú del clic derecho tiene *Reproducir a continuación*, *Añadir al final de la cola* y *Añadir a la lista*.
+<!--/desktop-->
+<!--android-->
+- **Reproducir.** Toca una canción; las de abajo suenan después de ella. La tecla de playlist a la derecha de cada canción la añade a una playlist.
+<!--/android-->
+- **Playlists.** Añade lo que te guste a una playlist, igual que cualquier otra canción. La próxima vez abre la playlist y tócala: no hay que volver a buscar.
+- **Necesita internet.** Las canciones se encuentran y se reproducen a través de YouTube, así que no suenan sin conexión. Una canción eliminada o bloqueada en tu país se salta con un aviso.
+<!--desktop-->
+- **Sigue funcionando.** YouTube cambia de vez en cuando. Juke mantiene al día su parte de YouTube por sí solo, una vez por semana y cada vez que YouTube deja de responder, así que no esperas una Juke nueva.
+<!--/desktop-->
+<!--android-->
+- **Sigue funcionando.** YouTube cambia de vez en cuando; la biblioteca que Juke usa para leerlo se actualiza con Juke, y la ventana de actualización te la ofrece.
+<!--/android-->
+
 ---
 
 # 10. Letras
@@ -307,9 +367,9 @@ Las emisoras que piden inicio de sesión o usan señales protegidas no se pueden
 
 Un panel a la derecha se abre solo cuando la canción que suena tiene letra, y se queda cerrado cuando no la tiene. Las letras **sincronizadas** iluminan la línea que se está cantando. Juke lee la letra que guardaste, un archivo `.lrc` junto a la canción y la letra que traiga el archivo en sus etiquetas.
 
-<!--linux-->
+<!--desktop-->
 ![Letra sincronizada junto a la canción](img/linux/lyrics.jpg)
-<!--/linux-->
+<!--/desktop-->
 
 ## Buscar la letra
 
@@ -340,11 +400,11 @@ En Android la pantalla de letras tiene un modo **Karaoke**: líneas grandes y un
 
 # 11. El ecualizador
 
-<!--linux-->
+<!--desktop-->
 Ábrelo con `Ctrl` + `E` o con el botón a la derecha del reproductor.
 
 ![El ecualizador](img/linux/equalizer.jpg)
-<!--/linux-->
+<!--/desktop-->
 <!--android-->
 Abre el ecualizador desde el reproductor.
 <!--/android-->
@@ -393,12 +453,12 @@ Mueve una barra y el preset pasa a *Personalizado*. **Guardar preset…** conser
 
 # 12. Aspecto e idioma
 
-<!--linux-->
+<!--desktop-->
 - **Oscuro, claro o como tu escritorio:** *Ajustes ▸ General ▸ Tema*, o `Ctrl` + `T` para cambiar.
 - **Veinte temas de color** (diez claros, diez oscuros) desde el botón de paleta junto al menú ⋯. Todos están revisados para que se lean bien.
 - **Idioma:** español o inglés, en *Ajustes ▸ General*. Cambia al instante, incluido este manual.
 - El medidor de nivel de la pantalla es decorativo (un medidor animado, no un analizador). *Ajustes ▸ Reproducción* deja que se mueva solo con corriente, siempre, o nunca.
-<!--/linux-->
+<!--/desktop-->
 <!--android-->
 - **Colores:** *Ajustes ▸ Colores* tiene los mismos veinte temas, oscuros y claros.
 - **Idioma:** español o inglés, en *Ajustes*.
@@ -435,8 +495,35 @@ Juke solo copia archivos de música y nunca cambia tu biblioteca.
 | **Biblioteca** | Tus carpetas de música, *Buscar cambios al iniciar Juke* y *Buscar letras en línea*. |
 | **Airsonic** | La dirección del servidor, el usuario y la contraseña, y *Probar conexión*. |
 <!--/linux-->
+<!--mac-->
+Ábrelos con `⌘` + `,` o desde el menú ⋯. Hay cuatro pestañas:
+
+| Pestaña | Qué tiene |
+| --- | --- |
+| **General** | Idioma, tema, *Buscar actualizaciones automáticamente* y su botón *Buscar actualizaciones…*. |
+| **Reproducción** | *Mantener la computadora despierta mientras suena música*, *Crossfade* (segundos, o apagado) y el medidor de nivel. |
+| **Biblioteca** | Tus carpetas de música, *Buscar cambios al iniciar Juke* y *Buscar letras en línea*. |
+| **Airsonic** | La dirección del servidor, el usuario y la contraseña, y *Probar conexión*. |
+<!--/mac-->
 <!--android-->
-*Ajustes* tiene el idioma, los colores, las opciones de letras y de actualizaciones, *Volver a escanear*, el ecualizador y una sección de **Ayuda** con *Enviar comentarios*, el registro de la app (con los datos privados ocultos) y *Apoyar en Ko-fi*.
+*Ajustes* tiene el idioma, los colores, las opciones de letras y de actualizaciones, *Volver a escanear*, el ecualizador una sección de **Copia y sincronización**, y una sección de **Ayuda** con *Enviar comentarios*, el registro de la app (con los datos privados ocultos) y *Apoyar en Ko-fi*.
+<!--/android-->
+
+## Copia y sincronización
+
+<!--desktop-->
+Menú ▸ **Copia y sincronización…**
+<!--/desktop-->
+<!--android-->
+*Ajustes* ▸ **Copia y sincronización**
+<!--/android-->
+mantiene tus playlists, emisoras de radio, favoritos, ecualizador y algunos ajustes iguales en cada aparato que tengas. Tus archivos de música no van incluidos: Juke vuelve a encontrar cada canción en el otro aparato por su título, artista y duración. Las canciones de YouTube se encuentran solas.
+
+- **Automática.** Crea un código en el primer aparato (*Código nuevo*) y escribe el mismo código, con el mismo servidor, en los otros. Desde ese momento se sincronizan solos: al abrir Juke, unos segundos después de que cambies algo (una playlist, una emisora, un ajuste) y cada pocos minutos. Una playlist creada, cambiada o borrada en un aparato se crea, cambia o borra en los otros; gana el cambio más reciente de cada playlist. *Sincronizar ahora* lo hace al instante y el interruptor *Sincronizar automáticamente* lo apaga.
+- **Privada.** La copia se cifra con tu código antes de salir del aparato, así que el servidor guarda un bloque que no puede leer. El código no sale de tus aparatos. No lo compartas: quien lo tenga puede leer tu copia. *Borrar mi copia* la quita del servidor.
+- **Una copia en un archivo.** *Guardar una copia…* escribe `Juke-backup.json`; *Restaurar desde un archivo…* lo lee. Restaurar un archivo solo añade: no se borra nada.
+<!--android-->
+- **Lo que comparte el teléfono.** Playlists, emisoras de radio y el idioma. El ecualizador, los temas y los favoritos de la computadora no los usa el teléfono; los conserva en la copia y los devuelve intactos.
 <!--/android-->
 
 ---
@@ -456,6 +543,11 @@ Juke no tiene cuentas, telemetría ni analíticas. Solo se conecta a:
 | Tu servidor Airsonic / Subsonic | Solo si configuras uno. |
 | `api.github.com` | Al abrirse y cada 30 minutos, para buscar una versión nueva, si dejas la búsqueda activada. Solo se envían el nombre del programa y la versión. |
 | Radio Browser y las emisoras | Solo cuando abres *Explorar radio*, añades una emisora o sintonizas. |
+| YouTube | Solo cuando buscas en *YouTube* o reproduces una de sus canciones. YouTube recibe las palabras de la búsqueda y ve la conexión. |
+| El servidor de sincronización de Juke | Solo si configuras *Copia y sincronización* con un código: al abrir Juke, unos segundos después de que cambie algo y cada pocos minutos. Recibe un bloque cifrado que no puede leer y un número hecho con tu código. |
+<!--desktop-->
+| `pypi.org` | Solo si usas *YouTube*: una vez por semana, o cuando YouTube deja de responder, para descargar una actualización de la parte de YouTube de Juke. |
+<!--/desktop-->
 | `lrclib.net`, `music.163.com`, `api.lyrics.ovh` | Solo cuando pulsas *Buscar letra…*, o si activaste *Buscar letras en línea*. Reciben el nombre, el artista, el álbum y la duración de la canción. |
 
 Tu música, tus listas y tus ajustes siempre son tuyos y se quedan en tu dispositivo.
@@ -465,13 +557,16 @@ Tu música, tus listas y tus ajustes siempre son tuyos y se quedan en tu disposi
 <!--linux-->
 Tu biblioteca es una base de datos en `~/.local/share/juke`, los ajustes están en `~/.config/juke` y las portadas en `~/.cache/juke`. El registro es `juke.log`. Tus carpetas se describen en `Music.juke`, dentro de tu carpeta Música.
 <!--/linux-->
+<!--mac-->
+Tu biblioteca es una base de datos en `~/Library/Application Support/juke`, junto a los ajustes, y las portadas están en `~/Library/Caches/juke`. El registro es `juke.log`. Tus carpetas se describen en `Music.juke`, dentro de tu carpeta Música.
+<!--/mac-->
 <!--android-->
 Todo se queda dentro del almacenamiento propio de la app en el teléfono. Al desinstalar Juke se borra.
 <!--/android-->
 
 ---
 
-<!--linux-->
+<!--desktop-->
 # 16. Atajos de teclado
 
 | Atajo | Acción |
@@ -489,17 +584,17 @@ Todo se queda dentro del almacenamiento propio de la app en el teléfono. Al des
 | `Ctrl` + `,` | Ajustes |
 | `F1` | Este manual |
 | `Ctrl` + `Q` | Salir |
-<!--/linux-->
+<!--/desktop-->
 
 ---
 
 # 17. Cuando algo sale mal
 
-**No hay sonido.** Revisa que PulseAudio o PipeWire estén funcionando y que el volumen no esté silenciado. Si apagaste *El volumen sigue al de la computadora*, revisa también el volumen propio de Juke.
+**No hay sonido.** <!--linux-->Revisa que PulseAudio o PipeWire estén funcionando y que el volumen no esté silenciado. Si apagaste *El volumen sigue al de la computadora*, revisa también el volumen propio de Juke.<!--/linux--><!--mac-->Revisa la salida en *Ajustes del Sistema ▸ Sonido* y que el volumen no esté silenciado. También cuenta el volumen propio de Juke.<!--/mac--><!--android-->Revisa que el volumen no esté silenciado.<!--/android-->
 
-**Mi música no aparece.** <!--linux-->Agrega la carpeta en *Ajustes ▸ Biblioteca*; Juke indexa en segundo plano y la barra de estado muestra el avance.<!--/linux--><!--android-->Revisa que le diste a Juke permiso para leer tu música.<!--/android-->
+**Mi música no aparece.** <!--desktop-->Agrega la carpeta en *Ajustes ▸ Biblioteca*; Juke indexa en segundo plano y la barra de estado muestra el avance.<!--/desktop--><!--android-->Revisa que le diste a Juke permiso para leer tu música.<!--/android-->
 
-**Las teclas multimedia no hacen nada.** <!--linux-->Cierra cualquier otro reproductor que se abrió antes; las teclas van al último que se anunció. Juke se anuncia al escritorio cuando se abre.<!--/linux--><!--android-->Asegúrate de que ningún otro reproductor se quedó con los botones de los auriculares.<!--/android-->
+**Las teclas multimedia no hacen nada.** <!--desktop-->Cierra cualquier otro reproductor que se abrió antes; las teclas van al último que se anunció. Juke se anuncia al escritorio cuando se abre.<!--/desktop--><!--android-->Asegúrate de que ningún otro reproductor se quedó con los botones de los auriculares.<!--/android-->
 
 **Hay canciones en gris.** El servidor no responde o el disco no está conectado. Conéctate o conecta el disco; Juke se da cuenta solo.
 

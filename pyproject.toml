@@ -5,13 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "juke"
 dynamic = ["version"]
-description = "A modern 3-pane music player for Linux with a 10-band equalizer and Airsonic/Subsonic streaming."
+description = "A modern 3-pane music player for Linux and macOS with a 10-band equalizer and Airsonic/Subsonic streaming."
 readme = "README.md"
 requires-python = ">=3.10"
-keywords = ["music", "player", "equalizer", "airsonic", "subsonic", "pyside6", "linux"]
+keywords = ["music", "player", "equalizer", "airsonic", "subsonic", "pyside6", "linux", "macos"]
 classifiers = [
     "Environment :: X11 Applications :: Qt",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
     "Topic :: Multimedia :: Sound/Audio :: Players",
 ]
 dependencies = [
@@ -20,6 +21,7 @@ dependencies = [
     "mutagen>=1.47",
     "python-vlc>=3.0.18",
     "yt-dlp>=2024.1.1",
+    "pyobjc-framework-MediaPlayer>=10; sys_platform == 'darwin'",
 ]
 
 [project.urls]

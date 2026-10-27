@@ -1,17 +1,23 @@
-**Linux**
+**Linux, Mac and Android**
 
-- **A Queue drawer.** A new *Queue* tab on the right edge of the window slides out with the songs you lined up (*Play next* and *Add to the end of the queue*). Drag them to change the order, see how long they play in total, and they are still there the next time you open Juke. Open it with the tab or `Ctrl` + `J`.
-- **A Favorites drawer.** A *Favorites* tab right under it holds every song you mark as favorite: double-click to play, right-click to remove. `Ctrl` + `K` opens it. Each drawer has its own colour (blue for the queue, rose for favorites) in both the dark and light themes.
-- **What comes next, on the display.** The display now says which song plays after the current one.
-- **A "What's new" window** shows once the first time you open this version.
-- The Basic and Advanced equalizer windows now open centered.
+- **YouTube, audio only.** Search a song and Juke shows exactly what you asked for (search *Juan Luis Guerra* and you get Juan Luis Guerra), plays just the audio, with no video and no ads, and never downloads anything. **Search an artist and you get the whole repertoire**, most watched first. Add songs to a playlist and play it later without searching again. Mixes, covers, karaoke and live recordings stay out unless you ask for them. On the computer it is the *YouTube* section under *Online*; on Android, the new *YouTube* tab.
+- **Playlists on Android.** The phone now has playlists (a new *Playlists* tab, with a search box and a choice of order: by name, most recent, most songs), with songs from your music, your server and YouTube. Songs the phone does not have show greyed.
+- **Everything follows you, by itself.** Playlists, radio stations, favorites and a few settings sync between your Linux, Mac and Android: when Juke opens, a few seconds after you change something and every few minutes, deletions included. Menu ▸ *Backup & sync…* (Android: *Settings ▸ Backup & sync*) sets it up with a code only you have; the copy is encrypted, so the server cannot read it. A copy in a file is there too.
+- **Updates inside every app.** On a **Mac**, *Update now* downloads the disk image, checks it and puts the new Juke in place of the old one by itself (before, it only opened the page). On Linux and Android it already did. The YouTube part on the computer updates itself too, so YouTube changes do not break Juke while you wait for a new version.
+- **Mac:** the Dock icon now has the same size as the other apps. Download `Juke-macos-arm64.dmg` (Apple chips, macOS 15 or newer); the first time, macOS asks you to confirm it in *System Settings ▸ Privacy & Security ▸ Open Anyway*.
+- **Linux:** download `Juke-x86_64.AppImage`. **Android:** download `Juke-1.0.4.apk` (Android 8 or newer).
+- A *What's new* window shows once the first time you open this version.
 
 ---
 
-**Linux**
+**Linux, Mac y Android**
 
-- **Un cajón de Cola.** Una pestaña nueva, *Cola*, en el borde derecho de la ventana se desliza con las canciones que pusiste en fila (*Reproducir a continuación* y *Añadir al final de la cola*). Arrástralas para cambiar el orden, mira cuánto duran en total, y siguen ahí la próxima vez que abras Juke. Ábrela con la pestaña o con `Ctrl` + `J`.
-- **Un cajón de Favoritas.** Una pestaña *Favoritas*, justo debajo, guarda todas las canciones que marcas como favoritas: doble clic para reproducir, clic derecho para quitar. `Ctrl` + `K` la abre. Cada cajón tiene su propio color (azul para la cola, rosa para las favoritas) en los temas oscuro y claro.
-- **Qué sigue, en el display.** El display ahora dice cuál canción suena después de la actual.
-- **Una ventana de «Novedades»** aparece una sola vez, la primera vez que abres esta versión.
-- Las ventanas del ecualizador, Básico y Avanzado, ahora se abren centradas.
+- **YouTube, solo audio.** Busca una canción y Juke muestra exactamente lo que pediste (si buscas *Juan Luis Guerra*, salen canciones de Juan Luis Guerra), reproduce solo el audio, sin video y sin anuncios, y no descarga nada. **Si buscas un artista sale todo su repertorio**, lo más visto primero. Añade canciones a una playlist y tócala después sin volver a buscar. Los mixes, covers, karaoke y grabaciones en vivo quedan fuera a menos que los pidas. En la computadora es la sección *YouTube* bajo *En línea*; en Android, la pestaña nueva *YouTube*.
+- **Playlists en Android.** El teléfono ya tiene playlists (una pestaña nueva, *Listas*, con caja de búsqueda y orden a elegir: por nombre, más recientes, más canciones), con canciones de tu música, de tu servidor y de YouTube. Las canciones que el teléfono no tiene salen en gris.
+- **Todo te sigue, solo.** Playlists, emisoras de radio, favoritos y algunos ajustes se sincronizan entre tu Linux, tu Mac y tu Android: al abrir Juke, unos segundos después de que cambies algo y cada pocos minutos, borrados incluidos. Menú ▸ *Copia y sincronización…* (Android: *Ajustes ▸ Copia y sincronización*) lo prepara con un código que solo tú tienes; la copia va cifrada, así que el servidor no puede leerla. También hay una copia en un archivo.
+- **Actualizaciones dentro de cada app.** En una **Mac**, *Actualizar ahora* descarga la imagen de disco, la comprueba y pone la Juke nueva en lugar de la vieja por sí sola (antes solo abría la página). En Linux y Android ya lo hacía. La parte de YouTube en la computadora también se actualiza sola, así que los cambios de YouTube no rompen Juke mientras esperas una versión nueva.
+- **Mac:** el icono del Dock ahora tiene el mismo tamaño que el de las otras apps. Descarga `Juke-macos-arm64.dmg` (chips de Apple, macOS 15 o más nuevo); la primera vez, macOS pide confirmarlo en *Ajustes del Sistema ▸ Privacidad y seguridad ▸ Abrir de todos modos*.
+- **Linux:** descarga `Juke-x86_64.AppImage`. **Android:** descarga `Juke-1.0.4.apk` (Android 8 o más nuevo).
+- Una ventana de *Novedades* aparece una sola vez, la primera vez que abres esta versión.
+
+<!-- juke-build:mac=1793066540 -->

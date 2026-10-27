@@ -24,6 +24,11 @@ MIME_TYPES = (
 )
 
 
+def supported() -> bool:
+    """A menu entry is written only on Linux; a Mac app is a bundle that is simply dragged to Applications."""
+    return sys.platform.startswith("linux")
+
+
 def _data_home() -> Path:
     base = os.environ.get("XDG_DATA_HOME")
     return Path(base) if base and os.path.isabs(base) else Path.home() / ".local" / "share"

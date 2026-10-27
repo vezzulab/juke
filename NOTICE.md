@@ -34,6 +34,19 @@ The AppImage carries these as separate shared libraries, and you can replace the
 | [Python](https://www.python.org) 3.12 (python-build-standalone) | Runs Juke | PSF License |
 | Qt 6 libraries | The interface | LGPL-3.0 |
 
+## Juke for Mac: inside Juke.app
+
+The app carries the Python packages listed above for Linux, plus [PyObjC](https://pyobjc.readthedocs.io) (the media keys and the Now Playing display), and these as separate libraries and plugins that you can replace with your own builds for your own use (they sit in `Juke.app/Contents/Frameworks`). Their source code is available from the projects listed. libVLC and its plugins are the ones VideoLAN publishes in VLC 3.0.24 for Apple Silicon, from which Juke leaves out everything that is not needed to play sound.
+
+| Component | Used for | Licence |
+|---|---|---|
+| [libVLC](https://www.videolan.org/vlc/libvlc.html) and its plugins | Playing sound | LGPL-2.1-or-later; some plugins GPL-2.0-or-later |
+| [FFmpeg](https://ffmpeg.org) libraries (libavcodec, libavformat, libavutil), as built by VideoLAN | Decoding AAC, ALAC, WMA and other formats | LGPL-2.1-or-later / GPL-2.0-or-later (VideoLAN's build) |
+| [PyObjC](https://pyobjc.readthedocs.io) | Media keys and Now Playing | MIT |
+| [PyInstaller](https://pyinstaller.org) | Packaging; its launcher is inside the app | GPL-2.0-or-later with the exception that allows it in any program |
+| [Python](https://www.python.org) | Runs Juke | PSF License |
+| Qt 6 libraries | The interface | LGPL-3.0 |
+
 ## Juke for Android
 
 | Component | Used for | Licence |

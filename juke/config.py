@@ -1,4 +1,4 @@
-"""Global configuration: XDG paths, defaults and JSON persistence."""
+"""Global configuration: XDG paths (Library folders on a Mac), defaults and JSON persistence."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from . import APP_ID
+from .system import IS_MAC
 
 
 def _xdg(env: str, fallback: str) -> Path:
@@ -19,9 +20,16 @@ def _xdg(env: str, fallback: str) -> Path:
     return root / APP_ID
 
 
-CONFIG_DIR = _xdg("XDG_CONFIG_HOME", ".config")
-DATA_DIR = _xdg("XDG_DATA_HOME", ".local/share")
-CACHE_DIR = _xdg("XDG_CACHE_HOME", ".cache")
+def locations(mac: bool = IS_MAC) -> tuple[Path, Path, Path]:
+    """Where settings, the library and the caches live: XDG folders, or the Library folders where a Mac keeps them
+    (an XDG variable somebody set is honoured on both)."""
+    if mac:
+        return (_xdg("XDG_CONFIG_HOME", "Library/Application Support"), _xdg("XDG_DATA_HOME", "Library/Application Support"),
+                _xdg("XDG_CACHE_HOME", "Library/Caches"))
+    return _xdg("XDG_CONFIG_HOME", ".config"), _xdg("XDG_DATA_HOME", ".local/share"), _xdg("XDG_CACHE_HOME", ".cache")
+
+
+CONFIG_DIR, DATA_DIR, CACHE_DIR = locations()
 COVERS_DIR = CACHE_DIR / "covers"
 DB_PATH = DATA_DIR / "library.db"
 CONFIG_PATH = CONFIG_DIR / "settings.json"
@@ -53,6 +61,8 @@ DEFAULTS: dict[str, Any] = {
     "airsonic": {"enabled": False, "url": "", "username": "", "password": "", "auth": "auto"},  # auth: auto | token | password
     "window": {"geometry": "", "splitter": [240, 960]},
     "desktop_integration": {"asked": False, "enabled": False},
+    "sync": {"server": "https://juke-sync.vezzulab.workers.dev", "code": "", "updated": 0, "auto": True, "settings_at": 0,
+             "settings_hash": "", "last_ok": 0.0, "last_error": ""},   # the sync server (cloudflare/sync), this person's code and the copy last seen there
     "update": {"enabled": True, "last_check": 0.0, "skipped": "", "snoozed": "", "snooze_until": 0.0},
 }
 

@@ -11,7 +11,7 @@ from . import APP_ID, APP_NAME, __version__
 
 
 def _parse(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(prog="juke", description="A modern 3-pane music player for Linux.")
+    parser = argparse.ArgumentParser(prog="juke", description="A modern 3-pane music player for Linux and macOS.")
     parser.add_argument("files", nargs="*", help="audio files or file:// URLs to play")
     parser.add_argument("--version", action="version", version=f"Juke {__version__}")
     parser.add_argument("--install-desktop", action="store_true", help="add Juke to the applications menu and exit")
@@ -23,10 +23,10 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse(sys.argv[1:] if argv is None else argv)
 
     # Wayland first, X11 as fallback; must be decided before Qt starts.
-    if os.environ.get("WAYLAND_DISPLAY") and "QT_QPA_PLATFORM" not in os.environ:
+    if sys.platform.startswith("linux") and os.environ.get("WAYLAND_DISPLAY") and "QT_QPA_PLATFORM" not in os.environ:
         os.environ["QT_QPA_PLATFORM"] = "wayland;xcb"
 
-    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtCore import QEvent, QObject, Qt, QTimer
     from PySide6.QtGui import QFontDatabase, QGuiApplication
     from PySide6.QtWidgets import QApplication
 
@@ -38,6 +38,22 @@ def main(argv: list[str] | None = None) -> int:
     app.setApplicationVersion(__version__)
     app.setDesktopFileName(APP_ID)  # matches juke.desktop so Wayland shows the right icon
     app.setQuitOnLastWindowClosed(True)
+
+    opened: list[str] = []            # macOS hands "open with Juke" and drops on the Dock icon over events, not argv
+    window = None
+
+    class OpenEvents(QObject):
+        def eventFilter(self, obj, event):
+            if event.type() == QEvent.Type.FileOpen and event.file():
+                if window is None:
+                    opened.append(event.file())
+                else:
+                    window.open_paths([event.file()])
+                return True
+            return False
+
+    open_events = OpenEvents(app)
+    app.installEventFilter(open_events)
 
     from . import integration
     from .assets import FONTS_DIR
@@ -52,6 +68,9 @@ def main(argv: list[str] | None = None) -> int:
     from .i18n import translator
 
     if args.install_desktop or args.uninstall_desktop:
+        if not integration.supported():
+            print("The applications menu entry is a Linux thing; on a Mac, drag Juke.app to Applications.", file=sys.stderr)
+            return 1
         integration.install() if args.install_desktop else integration.uninstall()
         return 0
 
@@ -78,8 +97,9 @@ def main(argv: list[str] | None = None) -> int:
     equalizer = Equalizer(config)
     window = MainWindow(config, db, engine, equalizer, theme, folders)
     window.show()
-    if args.files:
-        QTimer.singleShot(600, lambda: window.open_paths(args.files))
+    files = [*args.files, *opened]
+    if files:
+        QTimer.singleShot(600, lambda: window.open_paths(files))
 
     if sys.stdin is not None and sys.stdin.isatty():
         # Ctrl+C in a terminal: Python only sees signals while it runs, so give Qt's loop a slow

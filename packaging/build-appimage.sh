@@ -1,18 +1,5 @@
 #!/usr/bin/env bash
-# Build Juke-<arch>.AppImage.
-#
-#   packaging/build-appimage.sh
-#
-# Environment:
-#   PYTHON_PREFIX        relocatable Python install to bundle (e.g. python-build-standalone).
-#                        Default: the host's own Python.
-#   APPIMAGETOOL         path to appimagetool. If absent, the AppImage is assembled with
-#                        mksquashfs and the runtime of an existing AppImage:
-#   RUNTIME_FROM         an existing AppImage whose runtime (the ELF header part) is reused.
-#   OUT_DIR              where to write the result (default: <repo>/dist)
-#
-# Build on the *oldest* distribution you want to support: the AppImage needs at least the glibc it
-# was built against (CI uses Ubuntu 22.04).
+# Part of Juke (Vezzu Studio). Not documented for use by anyone else.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

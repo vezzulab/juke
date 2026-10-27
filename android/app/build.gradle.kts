@@ -31,8 +31,8 @@ android {
         applicationId = "io.github.vezzulab.juke"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "1.0.2"
+        versionCode = 23
+        versionName = "1.0.4"
     }
 
     signingConfigs {
@@ -58,6 +58,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true          // the YouTube library uses Java APIs that Android before 13 does not have
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
@@ -83,6 +84,9 @@ dependencies {
     implementation("androidx.media3:media3-session:1.6.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.6.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
     implementation("io.coil-kt.coil3:coil-compose:3.1.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.1.0")

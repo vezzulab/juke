@@ -1,8 +1,4 @@
-"""Build docs/manual.html, the manual as a web page, from the same Markdown the apps use.
-
-    python tools/make_manual_site.py
-
-The web page shows the whole book, with the parts that belong to one system marked "Linux" or "Android".
+"""The manual as a web page.
 """
 
 from __future__ import annotations
@@ -17,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 from juke import manual  # noqa: E402
 
 # a block: the tags are alone on their lines (a piece inside a sentence is not a block; inline() handles that)
-BLOCK_ONLY = re.compile(r"^<!--(linux|android)-->\n(.*?)^<!--/\1-->\n?", re.DOTALL | re.MULTILINE)
+BLOCK_ONLY = re.compile(r"^<!--(linux|mac|android|desktop)-->\n(.*?)^<!--/\1-->\n?", re.DOTALL | re.MULTILINE)
 
 
 def inline(text: str) -> str:
@@ -27,9 +23,9 @@ def inline(text: str) -> str:
     text = re.sub(r"\*([^*]+)\*", r"<em>\1</em>", text)
     text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)
     # a piece for one system inside a sentence: "(Linux: …)" in its own colour
-    text = re.sub(r"&lt;!--(linux|android)--&gt;(.*?)&lt;!--/\1--&gt;",
+    text = re.sub(r"&lt;!--(linux|mac|android|desktop)--&gt;(.*?)&lt;!--/\1--&gt;",
                   lambda m: f'<span class="il {m.group(1)}">{m.group(2)}</span>', text)
-    return re.sub(r"&lt;!--(?:/)?(?:linux|android)--&gt;", "", text)
+    return re.sub(r"&lt;!--(?:/)?(?:linux|mac|android|desktop)--&gt;", "", text)
 
 
 def slug(text: str) -> str:
@@ -94,13 +90,13 @@ def markdown(text: str, prefix: str, image_base: str) -> str:
 def book(code: str) -> tuple[str, str]:
     """(index html, body html) of one language."""
     raw = (manual.MANUAL_DIR / f"manual-{code}.md").read_text(encoding="utf-8")
-    label = {"linux": "Linux", "android": "Android"}
+    label = {"linux": "Linux", "mac": "Mac", "desktop": "Linux · Mac", "android": "Android"}
 
     def mark(match: re.Match) -> str:
         return f'\n\n<<{match.group(1)}>>\n{match.group(2)}\n<</{match.group(1)}>>\n\n'
 
-    raw = re.sub(r"(<!--(?:linux|android)-->\n)(# [^\n]+\n)", r"\2\1", raw)       # a block that wraps a whole chapter starts after its title
-    raw = re.sub(r"^(?!<!--).*\S.*<!--(?:linux|android)-->.*<!--/(?:linux|android)-->.*$", lambda m: m.group(0).replace("\n", " "), raw, flags=re.M)
+    raw = re.sub(r"(<!--(?:linux|mac|android|desktop)-->\n)(# [^\n]+\n)", r"\2\1", raw)       # a block that wraps a whole chapter starts after its title
+    raw = re.sub(r"^(?!<!--).*\S.*<!--(?:linux|mac|android|desktop)-->.*<!--/(?:linux|mac|android|desktop)-->.*$", lambda m: m.group(0).replace("\n", " "), raw, flags=re.M)
     marked = BLOCK_ONLY.sub(mark, raw)
     chapters, current = [], None
     for line in marked.splitlines():
@@ -114,8 +110,8 @@ def book(code: str) -> tuple[str, str]:
         cid = f"{code}-c{number}"
         text = "\n".join(lines)
         parts, sections = [], []
-        for piece in re.split(r"(<<(?:/)?(?:linux|android)>>)", text):
-            m = re.match(r"<<(/)?(linux|android)>>", piece)
+        for piece in re.split(r"(<<(?:/)?(?:linux|mac|android|desktop)>>)", text):
+            m = re.match(r"<<(/)?(linux|mac|android|desktop)>>", piece)
             if m:
                 parts.append(("close" if m.group(1) else "open", m.group(2)))
             else:
@@ -141,7 +137,7 @@ PAGE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Juke 1.0 — Manual</title>
-<meta name="description" content="The complete manual of Juke 1.0, for Linux and Android, in English and Spanish.">
+<meta name="description" content="The complete manual of Juke 1.0, for Linux, Mac and Android, in English and Spanish.">
 <meta name="theme-color" content="#181825">
 <link rel="icon" type="image/svg+xml" href="assets/juke.svg">
 <style>
@@ -171,9 +167,9 @@ h3 { font-size:21px; margin:28px 0 6px; } h4 { font-size:17px; margin:20px 0 4px
 code { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:1px 6px; font-size:.88em; } pre { background:var(--crust); border:1px solid var(--border); border-radius:12px; padding:14px 16px; overflow:auto; } pre code { background:none; border:0; padding:0; }
 figure { margin:18px 0; } figure img { border-radius:14px; border:1px solid var(--border); max-width:min(100%,760px); } figcaption { color:var(--muted); font-size:13.5px; margin-top:6px; }
 .tbl { overflow-x:auto; margin:14px 0; } table { border-collapse:collapse; width:100%; font-size:15px; } th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top; } th { color:var(--muted); font-size:12px; letter-spacing:.08em; text-transform:uppercase; background:var(--panel); }
-.plat { border-left:3px solid var(--border); padding:2px 0 2px 16px; margin:14px 0; } .plat.linux { border-color:var(--accent); } .plat.android { border-color:#a6e3a1; }
-.pill { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:2px 9px; border-radius:99px; background:var(--surface); color:var(--sub); margin-bottom:2px; } .plat.linux .pill { color:var(--accent); } .plat.android .pill { color:#6fcf7b; }
-.il.linux { color:var(--accent); } .il.android { color:#6fcf7b; } .il::before { content:""; }
+.plat { border-left:3px solid var(--border); padding:2px 0 2px 16px; margin:14px 0; } .plat.linux, .plat.desktop { border-color:var(--accent); } .plat.mac { border-color:var(--accent2); } .plat.android { border-color:#a6e3a1; }
+.pill { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:2px 9px; border-radius:99px; background:var(--surface); color:var(--sub); margin-bottom:2px; } .plat.linux .pill, .plat.desktop .pill { color:var(--accent); } .plat.mac .pill { color:var(--accent2); } .plat.android .pill { color:#6fcf7b; }
+.il.linux, .il.desktop { color:var(--accent); } .il.mac { color:var(--accent2); } .il.android { color:#6fcf7b; } .il::before { content:""; }
 .lang { display:none; } .lang.on { display:block; }
 html, body { overflow-x:clip; } .layout > * { min-width:0; } main { overflow-wrap:anywhere; } pre { max-width:100%; overflow-x:auto; } img { max-width:100%; height:auto; }
 @media (min-width:901px) { aside summary { pointer-events:none; } }

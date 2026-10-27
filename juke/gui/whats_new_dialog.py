@@ -11,6 +11,12 @@ from . import icons, styles
 
 # version -> the news worth a window: (icon, tone, title key, text key) for the cards, then the short lines
 NEWS: dict[str, dict] = {
+    "1.0.4": {
+        "sub": "news.104.sub",
+        "cards": [("youtube", "rose", "news.104.yt.title", "news.104.yt.text"),
+                  ("refresh", "accent", "news.104.sync.title", "news.104.sync.text")],
+        "lines": ["news.104.line1", "news.104.line2"],
+    },
     "1.0.3": {
         "cards": [("queue", "accent", "news.103.queue.title", "news.103.queue.text"),
                   ("heart", "rose", "news.103.fav.title", "news.103.fav.text")],
@@ -34,7 +40,7 @@ class WhatsNewDialog(QDialog):
         picture.setPixmap(icons.render_svg(ICON_SVG.read_bytes(), 52))
         headline = QLabel(tr("news.headline", version=version))
         headline.setObjectName("heading")
-        sub = QLabel(tr("news.sub"))
+        sub = QLabel(tr(news.get("sub", "news.sub")))
         sub.setObjectName("muted")
         titles = QVBoxLayout()
         titles.setSpacing(2)

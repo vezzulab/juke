@@ -7,13 +7,14 @@ from PySide6.QtWidgets import QApplication
 
 from juke import manual
 from juke.i18n import translator
+from juke.system import IS_MAC
 
 app = QApplication.instance() or QApplication([])
 
 
 class ManualContentTests(unittest.TestCase):
     def test_both_languages_have_the_same_book_for_each_system(self):
-        for platform in ("linux", "android"):
+        for platform in ("linux", "mac", "android"):
             en, es = manual.load("en", platform), manual.load("es", platform)
             self.assertEqual(len(en), len(es), platform)                                    # same chapters
             self.assertEqual([len(c.sections) for c in en], [len(c.sections) for c in es], platform)   # same sections
@@ -21,15 +22,24 @@ class ManualContentTests(unittest.TestCase):
                 self.assertTrue(chapter.title and chapter.body.strip(), platform)
 
     def test_each_system_gets_only_its_own_parts(self):
-        linux, android = manual.load("en", "linux"), manual.load("en", "android")
+        linux, mac, android = manual.load("en", "linux"), manual.load("en", "mac"), manual.load("en", "android")
         self.assertGreater(len(linux), len(android))                                       # folders, phones and shortcuts are Linux
         self.assertIn("Keyboard shortcuts", [c.title for c in linux])
         self.assertNotIn("Keyboard shortcuts", [c.title for c in android])
-        for chapters in (linux, android):
+        for chapters in (linux, mac, android):
             for chapter in chapters:
                 self.assertNotIn("<!--", chapter.body, chapter.title)                       # no tag is left over
         self.assertFalse(any("img/linux" in c.body for c in android))                       # the phone never needs the PC's pictures
         self.assertFalse(any("img/android" in c.body for c in linux))
+        text = lambda chapters: "\n".join(c.title + "\n" + c.body for c in chapters)
+        self.assertIn("Installing on Mac", text(mac))                                       # each computer reads its own install steps
+        self.assertNotIn("AppImage", text(mac))
+        self.assertNotIn("Phones and tablets", [c.title for c in mac])                      # USB phones are for Linux only
+        self.assertIn("Phones and tablets", [c.title for c in linux])
+        self.assertIn("Installing on Linux", text(linux))
+        self.assertNotIn("Installing on Mac", text(linux) + text(android))
+        self.assertIn("Keyboard shortcuts", [c.title for c in mac])
+        self.assertNotIn("PulseAudio", text(mac))
 
     def test_every_picture_of_the_book_exists(self):
         for code in manual.LANGUAGES:
@@ -56,7 +66,7 @@ class ManualWindowTests(unittest.TestCase):
 
         translator.set_language("en")
         dialog = ManualDialog()
-        chapters = manual.load("en", "linux")
+        chapters = manual.load("en", "mac" if IS_MAC else "linux")      # the window shows the book of the computer it runs on
         self.assertEqual(dialog.index.topLevelItemCount(), len(chapters))
         self.assertTrue(dialog.chapter_title.text().startswith("1."))
         dialog.next.click()

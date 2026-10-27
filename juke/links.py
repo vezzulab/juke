@@ -14,6 +14,7 @@ from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QUrl, Slot
 from PySide6.QtGui import QDesktopServices
 
 from .i18n import tr
+from .system import IS_MAC
 
 log = logging.getLogger(__name__)
 
@@ -89,10 +90,14 @@ def open_url(url: QUrl | str) -> bool:
     """Open ``url`` in the default browser or file manager. If nothing on the system can, the address is copied to the
     clipboard and the person is told, so the click is never silent."""
     target = url.toString() if isinstance(url, QUrl) else str(url)
-    if _via_portal(target):
+    if IS_MAC:                                    # (QDesktopServices would come straight back to this handler)
+        if _started(QProcess.startDetached("open", [target])):
+            log.info("Opened %s with open", target)
+            return True
+    elif _via_portal(target):
         log.info("Opened %s through the desktop portal", target)
         return True
-    if _via_program(target):
+    if not IS_MAC and _via_program(target):
         return True
     log.warning("Could not open %s: no portal, xdg-open, gio or kde-open answered", target)
     try:

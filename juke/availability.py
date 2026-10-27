@@ -18,7 +18,7 @@ import time
 
 from PySide6.QtCore import QObject, Signal
 
-from .db.database import SOURCE_AIRSONIC, Track
+from .db.database import SOURCE_AIRSONIC, SOURCE_YOUTUBE, Track
 
 FILE_TTL_S = 30.0          # how long "this file is there / is not there" is trusted before looking again
 
@@ -63,13 +63,15 @@ class Availability(QObject):
         there) or None when it can be played."""
         if track.source_type == SOURCE_AIRSONIC:
             return "server" if self.server_online is False else None
+        if track.source_type == SOURCE_YOUTUBE:
+            return None
         hit = self._files.get(track.location)
         return "file" if hit is not None and not hit[0] else None
 
     def want(self, tracks: list[Track | None]) -> None:
         """Look (in the background) at the local files of these rows, unless they were looked at a moment ago."""
         now = time.monotonic()
-        fresh = [t.location for t in tracks if t is not None and t.source_type != SOURCE_AIRSONIC
+        fresh = [t.location for t in tracks if t is not None and t.source_type not in (SOURCE_AIRSONIC, SOURCE_YOUTUBE)
                  and (t.location not in self._files or now - self._files[t.location][1] > FILE_TTL_S)]
         if not fresh:
             return

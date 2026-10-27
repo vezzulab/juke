@@ -17,8 +17,9 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 
+from ..system import IS_MAC
 from ..workers import AsyncWorker
-from . import icy
+from . import icy, libvlc
 from .balance import StreamBalance
 from .equalizer import BANDS_HZ, Equalizer
 
@@ -99,6 +100,8 @@ class AudioEngine(QObject):
             return self._player is not None
         self._backend_tried = True
         try:
+            if IS_MAC:
+                libvlc.prepare()
             import vlc
         except (ImportError, OSError) as exc:  # python-vlc missing or libvlc.so not installed
             self.unavailable_reason = str(exc) or "libVLC not found"
@@ -106,11 +109,13 @@ class AudioEngine(QObject):
         # libVLC 3's PipeWire output crashes if volume/mute are touched before its stream exists,
         # while the PulseAudio output has no such problem. Prefer pulse when installed; otherwise
         # hold volume/mute back until audio is really flowing.
-        self._aout_safe = _pulse_plugin_present()
+        self._aout_safe = IS_MAC or _pulse_plugin_present()      # (macOS: CoreAudio, whose output has no such problem)
         self._audio_ready = self._aout_safe
         args = ["--no-video", "--quiet", "--no-metadata-network-access", "--no-snapshot-preview",
                 "--http-user-agent=Juke"]
-        if self._aout_safe:
+        if IS_MAC:
+            args.append("--aout=auhal")
+        elif self._aout_safe:
             args.append("--aout=pulse,any")
         try:
             self._instance = vlc.Instance(*args)

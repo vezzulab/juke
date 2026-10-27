@@ -35,6 +35,7 @@ data class Station(
     val uuid: String = "",
     val homepage: String = "",
     val sourceUrl: String = "",
+    val added: Long = 0L,          // when it was saved (milliseconds): a station deleted on another device later than this goes away here too
 ) {
     val detail: String
         get() = listOf(codec, if (bitrate > 0) "$bitrate kbps" else "", tags.split(",").firstOrNull()?.trim().orEmpty())
@@ -42,13 +43,13 @@ data class Station(
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("name", name); put("streamUrl", streamUrl); put("favicon", favicon); put("tags", tags); put("country", country)
-        put("codec", codec); put("bitrate", bitrate); put("uuid", uuid); put("homepage", homepage); put("sourceUrl", sourceUrl)
+        put("codec", codec); put("bitrate", bitrate); put("uuid", uuid); put("homepage", homepage); put("sourceUrl", sourceUrl); put("added", added)
     }
 
     companion object {
         fun fromJson(o: JSONObject) = Station(
             o.optString("name"), o.optString("streamUrl"), o.optString("favicon"), o.optString("tags"), o.optString("country"),
-            o.optString("codec"), o.optInt("bitrate"), o.optString("uuid"), o.optString("homepage"), o.optString("sourceUrl"),
+            o.optString("codec"), o.optInt("bitrate"), o.optString("uuid"), o.optString("homepage"), o.optString("sourceUrl"), o.optLong("added"),
         )
     }
 }

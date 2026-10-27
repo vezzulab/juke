@@ -19,7 +19,7 @@ from PySide6.QtGui import (QAction, QColor, QDrag, QFont, QFontMetrics, QFontMet
                            QPixmap)
 from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QMenu, QPushButton, QTableView
 
-from ...db.database import SOURCE_AIRSONIC, Database, Scope, Track
+from ...db.database import SOURCE_AIRSONIC, SOURCE_YOUTUBE, Database, Scope, Track
 from ...db.folders import ordered
 from ...i18n import tr, trn
 from .. import icons, styles
@@ -155,7 +155,7 @@ class TrackModel(QAbstractTableModel):
             return self._db.query_ids(self._scope, self._text, self._sort, self._descending)
         if self._sort is None and not self._text:
             return list(self._fixed)
-        ordered = self._db.query_ids(Scope(), self._text, self._sort, self._descending)
+        ordered = self._db.query_ids(Scope(with_online=True), self._text, self._sort, self._descending)
         if self._sort is None:  # keep the queue order, just filter
             keep = set(ordered)
             return [i for i in self._fixed if i in keep]
@@ -401,7 +401,7 @@ class TrackModel(QAbstractTableModel):
         if column == "artist":
             return track.artist or tr("unknown_artist")
         if column == "album":
-            return track.album or tr("unknown_album")
+            return track.album or ("" if track.source_type == SOURCE_YOUTUBE else tr("unknown_album"))
         if column == "duration":
             return format_duration(track.duration)
         if column == "genre":
@@ -412,7 +412,7 @@ class TrackModel(QAbstractTableModel):
             return ", ".join(self._names.get(track.id, ()))
         if why:                                       # the note where the source is: what to do about it
             return tr("avail.go_online" if why == "server" else "avail.not_connected")
-        return "Airsonic" if track.source_type == SOURCE_AIRSONIC else tr("source.local")
+        return "Airsonic" if track.source_type == SOURCE_AIRSONIC else "YouTube" if track.source_type == SOURCE_YOUTUBE else tr("source.local")
 
 
 class TrackTable(QTableView):

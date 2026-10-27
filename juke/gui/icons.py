@@ -14,6 +14,7 @@ from PySide6.QtGui import QColor, QGuiApplication, QIcon, QImage, QPainter, QPix
 from PySide6.QtSvg import QSvgRenderer
 
 from ..assets import ICON_SVG
+from ..system import IS_MAC
 from . import styles
 
 # name -> (kind, body). "stroke" glyphs are outlines, "fill" glyphs are solid shapes.
@@ -39,6 +40,7 @@ _GLYPHS: dict[str, tuple[str, str]] = {
     "clock": ("stroke", '<circle cx="12" cy="12" r="9.5"/><path d="M12 6.5V12l3.8 2.2"/>'),
     "queue": ("stroke", '<path d="M4 6h12M4 12h12M4 18h7"/><path d="M17.5 14.5v6l4.5-3z" fill="currentColor"/>'),
     "radio": ("stroke", '<circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/>'),
+    "youtube": ("stroke", '<rect x="2.5" y="5.5" width="19" height="13" rx="4"/><path d="M10.2 9.4l4.6 2.6-4.6 2.6z" fill="currentColor"/>'),
     "globe": ("stroke", '<circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c3 3 3 16 0 19M12 2.5c-3 3-3 16 0 19"/>'),
     "heart-outline": ("stroke", '<path d="M12 20.6s-7.6-4.6-9.6-9.7A5.4 5.4 0 0 1 12 6.2a5.4 5.4 0 0 1 9.6 4.7c-2 5.1-9.6 9.7-9.6 9.7z"/>'),
     "gear": ("stroke", '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
@@ -134,8 +136,26 @@ def placeholder_cover(size: int, radio: bool = False) -> QPixmap:
     return render_svg(_placeholder_svg(radio), size)
 
 
+MAC_ARTWORK = 824 / 1024     # a macOS icon is drawn inside the canvas with a margin around it: Apple's grid puts the artwork at 824 of 1024
+
+
+def mac_pixmap(size: int) -> QPixmap:
+    """The icon as macOS draws icons: the artwork centred in a transparent square, so the Dock shows it the size of the others."""
+    canvas = QImage(size, size, QImage.Format_ARGB32_Premultiplied)
+    canvas.fill(Qt.transparent)
+    inner = round(size * MAC_ARTWORK)
+    painter = QPainter(canvas)
+    painter.drawPixmap((size - inner) // 2, (size - inner) // 2, render_svg(ICON_SVG.read_bytes(), inner, 1.0))
+    painter.end()
+    return QPixmap.fromImage(canvas)
+
+
 def app_icon() -> QIcon:
     result = QIcon()
+    if IS_MAC:                                   # (what Qt sets as the Dock icon while Juke runs)
+        for size in (16, 32, 64, 128, 256, 512, 1024):
+            result.addPixmap(mac_pixmap(size))
+        return result
     result.addFile(str(ICON_SVG))
     return result
 

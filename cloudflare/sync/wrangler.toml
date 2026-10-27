@@ -1,0 +1,11 @@
+name = "juke-sync"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[triggers]
+crons = ["17 3 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "juke-sync"
+database_id = "68abbe7e-f0f9-42f7-933c-f3f06c58a24a"

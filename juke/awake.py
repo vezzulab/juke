@@ -8,6 +8,8 @@ There is no single way to ask, so Juke asks in every standard way that is there:
 * ``org.freedesktop.ScreenSaver.Inhibit``: the common screen saver protocol (KDE, Cinnamon, MATE, XFCE…);
 * systemd-logind ``Inhibit("idle:sleep")``: anything that follows the system's own idle action.
 
+On a Mac the one way to ask is ``caffeinate``, which holds the idle sleep and the display off for as long as it runs.
+
 It asks when playback starts and lets go the moment it pauses or stops, so nothing is held while nothing plays and
 nothing is polled. The asking is done on a connection of its own to the session bus: all of these protocols end the
 request when the connection that made it goes away, so letting go is closing that connection (which also means a Juke
@@ -19,9 +21,13 @@ from __future__ import annotations
 
 import itertools
 import logging
+import os
+import subprocess
 
 from PySide6.QtCore import QObject
 from PySide6.QtDBus import QDBusConnection, QDBusInterface, QDBusMessage
+
+from .system import IS_MAC
 
 log = logging.getLogger("juke")
 
@@ -54,6 +60,7 @@ class StayAwake(QObject):
         self.methods: list[str] = []                       # which ways worked, for the log and the tests
         self._session_name = ""                            # the connection the requests were made on
         self._lock = None                                  # the logind lock: a file descriptor, closed to let go
+        self._caffeinate: subprocess.Popen | None = None   # macOS: the helper that holds the sleep off
 
     def set(self, on: bool) -> None:
         if not self.enabled:
@@ -67,6 +74,9 @@ class StayAwake(QObject):
     def _acquire(self) -> None:
         self.active = True
         self.methods = []
+        if IS_MAC:
+            self._acquire_mac()
+            return
         self._session_name = f"juke-awake-{next(_connections)}"
         session = QDBusConnection.connectToBus(QDBusConnection.SessionBus, self._session_name)
 
@@ -90,9 +100,23 @@ class StayAwake(QObject):
         else:
             log.warning("Could not ask the desktop to stay awake while playing: the computer may go to sleep")
 
+    def _acquire_mac(self) -> None:
+        try:
+            # -i: no idle sleep, -d: no display sleep; -w: it ends by itself if Juke does, so a crash never keeps the Mac up
+            self._caffeinate = subprocess.Popen(["caffeinate", "-id", "-w", str(os.getpid())],
+                                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.methods.append("caffeinate")
+            log.info("Keeping the computer awake while playing (caffeinate)")
+        except OSError:
+            log.warning("Could not ask macOS to stay awake while playing: the computer may go to sleep")
+
     # -- letting go -------------------------------------------------------------------------------------
     def _let_go(self) -> None:
         self.active = False
+        if self._caffeinate is not None:
+            self._caffeinate.terminate()
+            self._caffeinate.wait(2)
+            self._caffeinate = None
         self._lock = None                                  # closes the logind descriptor
         if self._session_name:
             QDBusConnection.disconnectFromBus(self._session_name)      # the desktop drops what this connection asked for

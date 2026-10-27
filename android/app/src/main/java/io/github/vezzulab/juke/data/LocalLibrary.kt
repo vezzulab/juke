@@ -16,6 +16,8 @@ object LocalLibrary {
         fun children(path: String): List<Folder> = folders[path].orEmpty()
         fun tracks(path: String): List<Track> = tracks[path].orEmpty()
         val isEmpty get() = roots.isEmpty()
+        /** Every song on the phone and the card, to find again the songs a playlist talks about. */
+        fun all(): List<Track> = tracks.values.flatten()
         /** Every song under a folder, in browsing order: what "play all" queues up. */
         fun deepTracks(path: String, limit: Int = 2000): List<Track> {
             val out = ArrayList<Track>()

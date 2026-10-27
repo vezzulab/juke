@@ -1,8 +1,4 @@
-"""Render the README / website images from the real widgets (offscreen, demo library).
-
-    QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=2 python tools/make_assets.py OUTPUT_DIR
-
-Nothing here touches the user's own library: it runs in a throw-away XDG tree.
+"""The README and website pictures.
 """
 
 from __future__ import annotations
@@ -179,8 +175,9 @@ def rounded(image: QImage, radius: float) -> QImage:
     return out
 
 
-def make_hero(shot: Path, out: Path, tagline: str, sub: str, chips: tuple[str, ...] = ()) -> None:
-    """Wide banner in deep space: nebula glow, stars, a huge record, the wordmark, tagline and the real screenshot."""
+def make_hero(shot: Path, out: Path, tagline: str, sub: str, chips: tuple[str, ...] = (), version: str = "1.0.4", backdrop: Path | None = None) -> None:
+    """Wide banner in deep space: nebula glow, stars, a huge record, the wordmark, tagline and the real screenshot.
+    With a ``backdrop`` (the painted space of the website) that picture is the sky and the record, and only the text is drawn."""
     import math
     from PySide6.QtCore import QPointF
     from PySide6.QtGui import QConicalGradient, QFont, QFontMetrics, QPen
@@ -203,56 +200,64 @@ def make_hero(shot: Path, out: Path, tagline: str, sub: str, chips: tuple[str, .
         p.setBrush(g)
         p.drawEllipse(QPointF(cx, cy), r, r)
 
-    bg = QLinearGradient(0, 0, W, H)
-    bg.setColorAt(0, QColor("#04030c"))
-    bg.setColorAt(0.55, QColor("#0d0722"))
-    bg.setColorAt(1, QColor("#1a0b2e"))
-    p.fillRect(0, 0, W, H, bg)
-    glow(280, 40, 560, "#5b6cf0", 95)
-    glow(1060, 100, 560, "#b04cf0", 95)
-    glow(640, 800, 620, "#ff9a1f", 95)
-    rnd = random.Random(7)
-    for _ in range(360):
-        x, y = rnd.uniform(0, W), rnd.uniform(0, H)
-        r = rnd.choice((0.5, 0.6, 0.8, 1.0, 1.3))
-        c = QColor(rnd.choice(("#ffffff", "#cfd8ff", "#ffe9c4")))
-        c.setAlpha(rnd.randint(70, 230))
-        p.setPen(Qt.NoPen)
-        p.setBrush(c)
-        p.drawEllipse(QPointF(x, y), r, r)
-    for x, y, sz in ((120, 70, 9), (1170, 60, 12), (640, 30, 7), (1240, 330, 8)):
-        glow(x, y, sz * 3, "#ffffff", 90)
-        p.setPen(QPen(QColor(255, 255, 255, 190), 0.9))
-        p.drawLine(QPointF(x - sz, y), QPointF(x + sz, y))
-        p.drawLine(QPointF(x, y - sz), QPointF(x, y + sz))
+    if backdrop is not None:
+        art = QImage(str(backdrop))
+        art = art.scaledToWidth(W * scale, Qt.SmoothTransformation)
+        p.save()
+        p.resetTransform()
+        p.drawImage(0, 0, art, 0, 0, W * scale, H * scale)
+        p.restore()
+    else:
+        bg = QLinearGradient(0, 0, W, H)
+        bg.setColorAt(0, QColor("#04030c"))
+        bg.setColorAt(0.55, QColor("#0d0722"))
+        bg.setColorAt(1, QColor("#1a0b2e"))
+        p.fillRect(0, 0, W, H, bg)
+        glow(280, 40, 560, "#5b6cf0", 95)
+        glow(1060, 100, 560, "#b04cf0", 95)
+        glow(640, 800, 620, "#ff9a1f", 95)
+        rnd = random.Random(7)
+        for _ in range(360):
+            x, y = rnd.uniform(0, W), rnd.uniform(0, H)
+            r = rnd.choice((0.5, 0.6, 0.8, 1.0, 1.3))
+            c = QColor(rnd.choice(("#ffffff", "#cfd8ff", "#ffe9c4")))
+            c.setAlpha(rnd.randint(70, 230))
+            p.setPen(Qt.NoPen)
+            p.setBrush(c)
+            p.drawEllipse(QPointF(x, y), r, r)
+        for x, y, sz in ((120, 70, 9), (1170, 60, 12), (640, 30, 7), (1240, 330, 8)):
+            glow(x, y, sz * 3, "#ffffff", 90)
+            p.setPen(QPen(QColor(255, 255, 255, 190), 0.9))
+            p.drawLine(QPointF(x - sz, y), QPointF(x + sz, y))
+            p.drawLine(QPointF(x, y - sz), QPointF(x, y + sz))
 
-    cx, cy, R = 1090, 150, 250                                                 # the record, cropped by the top-right corner
-    glow(cx, cy, R * 1.5, "#9a6cff", 110)
-    disc = QRadialGradient(cx, cy, R)
-    disc.setColorAt(0, QColor("#1a1530"))
-    disc.setColorAt(0.97, QColor("#05040a"))
-    disc.setColorAt(1, QColor("#2a2150"))
-    p.setPen(QPen(QColor(150, 130, 255, 200), 2))
-    p.setBrush(disc)
-    p.drawEllipse(QPointF(cx, cy), R, R)
-    p.setBrush(Qt.NoBrush)
-    for i in range(46):
-        p.setPen(QPen(QColor(120, 105, 200, 26 if i % 3 else 55), 0.8))
-        p.drawEllipse(QPointF(cx, cy), R * (0.36 + i * 0.0135), R * (0.36 + i * 0.0135))
-    sheen = QConicalGradient(cx, cy, 30)
-    for pos, al in ((0, 0), (0.08, 70), (0.16, 0), (0.5, 0), (0.58, 70), (0.66, 0), (1, 0)):
-        sheen.setColorAt(pos, QColor(255, 255, 255, al))
-    p.setPen(Qt.NoPen)
-    p.setBrush(sheen)
-    p.drawEllipse(QPointF(cx, cy), R * 0.97, R * 0.97)
-    label = QRadialGradient(cx, cy, R * 0.34)
-    label.setColorAt(0, QColor("#ffd35c"))
-    label.setColorAt(0.6, QColor("#f0a928"))
-    label.setColorAt(1, QColor("#c4701a"))
-    p.setBrush(label)
-    p.drawEllipse(QPointF(cx, cy), R * 0.34, R * 0.34)
-    p.setBrush(QColor("#0d0722"))
-    p.drawEllipse(QPointF(cx, cy), 8, 8)
+        cx, cy, R = 1090, 150, 250                                                 # the record, cropped by the top-right corner
+        glow(cx, cy, R * 1.5, "#9a6cff", 110)
+        disc = QRadialGradient(cx, cy, R)
+        disc.setColorAt(0, QColor("#1a1530"))
+        disc.setColorAt(0.97, QColor("#05040a"))
+        disc.setColorAt(1, QColor("#2a2150"))
+        p.setPen(QPen(QColor(150, 130, 255, 200), 2))
+        p.setBrush(disc)
+        p.drawEllipse(QPointF(cx, cy), R, R)
+        p.setBrush(Qt.NoBrush)
+        for i in range(46):
+            p.setPen(QPen(QColor(120, 105, 200, 26 if i % 3 else 55), 0.8))
+            p.drawEllipse(QPointF(cx, cy), R * (0.36 + i * 0.0135), R * (0.36 + i * 0.0135))
+        sheen = QConicalGradient(cx, cy, 30)
+        for pos, al in ((0, 0), (0.08, 70), (0.16, 0), (0.5, 0), (0.58, 70), (0.66, 0), (1, 0)):
+            sheen.setColorAt(pos, QColor(255, 255, 255, al))
+        p.setPen(Qt.NoPen)
+        p.setBrush(sheen)
+        p.drawEllipse(QPointF(cx, cy), R * 0.97, R * 0.97)
+        label = QRadialGradient(cx, cy, R * 0.34)
+        label.setColorAt(0, QColor("#ffd35c"))
+        label.setColorAt(0.6, QColor("#f0a928"))
+        label.setColorAt(1, QColor("#c4701a"))
+        p.setBrush(label)
+        p.drawEllipse(QPointF(cx, cy), R * 0.34, R * 0.34)
+        p.setBrush(QColor("#0d0722"))
+        p.drawEllipse(QPointF(cx, cy), 8, 8)
 
     title = QFont("Inter")
     title.setPixelSize(150)
@@ -268,20 +273,21 @@ def make_hero(shot: Path, out: Path, tagline: str, sub: str, chips: tuple[str, .
     p.setPen(Qt.NoPen)
     p.setBrush(fill)
     p.drawPath(path)
-    bx, by = 70 + tw + 20, 62                                                  # the "1.0" pill at the end of the wordmark
-    pill = QRectF(bx, by, 118, 52)
-    pill_fill = QLinearGradient(bx, 0, bx + 118, 0)
-    pill_fill.setColorAt(0, QColor("#7aa2f7"))
-    pill_fill.setColorAt(1, QColor("#e09bff"))
-    glow(bx + 59, by + 26, 90, "#b98cff", 120)
-    p.setBrush(pill_fill)
-    p.drawRoundedRect(pill, 26, 26)
     pill_font = QFont("Inter")
     pill_font.setPixelSize(34)
     pill_font.setBold(True)
+    pw = QFontMetrics(pill_font).horizontalAdvance(version) + 44
+    bx, by = 70 + tw + 20, 62                                                  # the version pill at the end of the wordmark
+    pill = QRectF(bx, by, pw, 52)
+    pill_fill = QLinearGradient(bx, 0, bx + pw, 0)
+    pill_fill.setColorAt(0, QColor("#7aa2f7"))
+    pill_fill.setColorAt(1, QColor("#e09bff"))
+    glow(bx + pw / 2, by + 26, 90, "#b98cff", 120)
+    p.setBrush(pill_fill)
+    p.drawRoundedRect(pill, 26, 26)
     p.setFont(pill_font)
     p.setPen(QColor("#12102a"))
-    p.drawText(pill, Qt.AlignCenter, "1.0")
+    p.drawText(pill, Qt.AlignCenter, version)
 
     def fit(font: QFont, text: str, size: int, room: int) -> None:          # the line stops short of the record
         font.setPixelSize(size)
@@ -291,12 +297,12 @@ def make_hero(shot: Path, out: Path, tagline: str, sub: str, chips: tuple[str, .
 
     font = QFont("Inter")
     font.setWeight(QFont.DemiBold)
-    fit(font, tagline, 30, 740)
+    fit(font, tagline, 30, 640 if backdrop is not None else 740)
     p.setFont(font)
     p.setPen(QColor("#f1ecff"))
     p.drawText(QPointF(74, 236), tagline)
     font.setWeight(QFont.Medium)
-    fit(font, sub, 18, 760)
+    fit(font, sub, 18, 650 if backdrop is not None else 760)
     p.setFont(font)
     p.setPen(QColor(205, 200, 240, 205))
     p.drawText(QPointF(74, 272), sub)
@@ -354,8 +360,104 @@ def make_hero(shot: Path, out: Path, tagline: str, sub: str, chips: tuple[str, .
     print("wrote", out)
 
 
+def make_share(out: Path, backdrop: Path, tagline: str, sub: str, chips: tuple[str, ...], version: str = "1.0.4") -> None:
+    """The picture links show when Juke is shared: the painted space, the wordmark, the headline and what is new."""
+    from PySide6.QtGui import QFont, QFontMetrics
+    W, H = 1200, 630
+    scale = 2
+    canvas = QImage(W * scale, H * scale, QImage.Format_ARGB32_Premultiplied)
+    p = QPainter(canvas)
+    p.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing | QPainter.SmoothPixmapTransform)
+    art = QImage(str(backdrop)).scaledToWidth(W * scale, Qt.SmoothTransformation)
+    p.drawImage(0, 0, art, 0, 0, W * scale, H * scale)
+    p.scale(scale, scale)
+    title = QFont("Inter")
+    title.setPixelSize(190)
+    title.setBold(True)
+    title.setLetterSpacing(QFont.AbsoluteSpacing, -6)
+    tw = QFontMetrics(title).horizontalAdvance("Juke")
+    path = QPainterPath()
+    path.addText(70, 250, title, "Juke")
+    fill = QLinearGradient(0, 100, 0, 260)
+    fill.setColorAt(0, QColor("#ffffff"))
+    fill.setColorAt(1, QColor("#c9c2ff"))
+    p.setPen(Qt.NoPen)
+    p.setBrush(fill)
+    p.drawPath(path)
+    pill_font = QFont("Inter")
+    pill_font.setPixelSize(40)
+    pill_font.setBold(True)
+    pw = QFontMetrics(pill_font).horizontalAdvance(version) + 52
+    pill = QRectF(70 + tw + 26, 112, pw, 62)
+    pf = QLinearGradient(pill.left(), 0, pill.right(), 0)
+    pf.setColorAt(0, QColor("#7aa2f7"))
+    pf.setColorAt(1, QColor("#e09bff"))
+    p.setBrush(pf)
+    p.drawRoundedRect(pill, 31, 31)
+    p.setFont(pill_font)
+    p.setPen(QColor("#12102a"))
+    p.drawText(pill, Qt.AlignCenter, version)
+    font = QFont("Inter")
+    font.setWeight(QFont.DemiBold)
+    font.setPixelSize(46)
+    while QFontMetrics(font).horizontalAdvance(tagline) > 620 and font.pixelSize() > 20:
+        font.setPixelSize(font.pixelSize() - 1)
+    p.setFont(font)
+    p.setPen(QColor("#f1ecff"))
+    p.drawText(QPointF(74, 332), tagline)
+    font.setWeight(QFont.Medium)
+    font.setPixelSize(24)
+    while QFontMetrics(font).horizontalAdvance(sub) > 620 and font.pixelSize() > 12:
+        font.setPixelSize(font.pixelSize() - 1)
+    p.setFont(font)
+    p.setPen(QColor(205, 200, 240, 215))
+    p.drawText(QPointF(74, 376), sub)
+    chip_font = QFont("Inter")
+    chip_font.setPixelSize(20)
+    chip_font.setWeight(QFont.DemiBold)
+    metrics = QFontMetrics(chip_font)
+    x0, y0 = 74, 424
+    for text in chips:
+        cw = metrics.horizontalAdvance(text) + 36
+        if x0 + cw > 640:                                                      # a second row rather than reaching the devices
+            x0, y0 = 74, y0 + 52
+        box = QRectF(x0, y0, cw, 40)
+        edge = QColor("#ffb338")
+        edge.setAlpha(160)
+        fill_c = QColor("#ffb338")
+        fill_c.setAlpha(36)
+        p.setPen(edge)
+        p.setBrush(fill_c)
+        p.drawRoundedRect(box, 20, 20)
+        p.setFont(chip_font)
+        p.setPen(QColor("#ffe7bd"))
+        p.drawText(box, Qt.AlignCenter, text)
+        x0 += cw + 12
+    p.end()
+    canvas.save(str(out), "PNG")
+    print("wrote", out)
+
+
+def banners(out: Path) -> None:
+    """README banners and share pictures, English and Spanish, on the website's painted space (docs/assets/hero-bg.jpg)."""
+    art = out / "hero-bg.jpg"
+    backdrop = art if art.exists() else None
+    make_hero(out / "screenshot-main.png", out / "hero.png",
+              "Now better — for Linux, Mac & Android", "Songs from the web, playlists that follow you between devices, updates inside the app.",
+              ("Songs from the web", "Playlists on every device", "An equalizer for everyone", "Updates inside the app"), backdrop=backdrop)
+    make_hero(out / "screenshot-main-es.png", out / "hero-es.png",
+              "Ahora mejorado — para Linux, Mac y Android", "Canciones de la web, playlists que te siguen entre aparatos, actualizaciones dentro de la app.",
+              ("Canciones de la web", "Playlists en cada aparato", "Un ecualizador para todos", "Actualizaciones dentro de la app"), backdrop=backdrop)
+    if backdrop is not None:
+        make_share(out / "share.png", backdrop, "Juke, now better.", "Linux, Mac & Android — music from the web, everywhere.",
+                   ("Songs from the web", "Playlists everywhere", "Updates inside the app"))
+        make_share(out / "share-es.png", backdrop, "Juke, ahora mejorado.", "Linux, Mac y Android — música de la web, en todas partes.",
+                   ("Canciones de la web", "Playlists en todas partes", "Actualizaciones en la app"))
+
+
 def main() -> None:
-    out = Path(sys.argv[1] if len(sys.argv) > 1 else "assets").resolve()
+    out = Path(sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "assets").resolve()
+    banners_only = "--banners-only" in sys.argv                                  # the pictures made of words and art; the screenshots stay as they are
     out.mkdir(parents=True, exist_ok=True)
     ensure_dirs()
     app = QApplication.instance() or QApplication([])
@@ -365,6 +467,8 @@ def main() -> None:
     app.setPalette(styles.build_palette())
     app.setStyleSheet(styles.build_stylesheet())
 
+    if banners_only:
+        return banners(out)
     # English main window, playing
     window, db, eq = make_window("en")
     stage_playing(window, db)
@@ -482,13 +586,7 @@ def main() -> None:
     grab(window, out / "screenshot-main-es.png")
     window.close()
 
-    make_hero(out / "screenshot-main.png", out / "hero.png",
-              "A modern music player for Linux & Android", "Three panes. Airsonic streaming. Internet radio. Instant with 50,000+ tracks.",
-              ("Media keys", "Crossfade", "Lyrics in any language", "An equalizer for everyone"))
-    translator.set_language("es")
-    make_hero(out / "screenshot-main-es.png", out / "hero-es.png",
-              "Un reproductor de música moderno para Linux y Android", "Tres paneles. Streaming Airsonic. Radio por Internet. Instantáneo con más de 50.000 pistas.",
-              ("Teclas multimedia", "Crossfade", "Letras en cualquier idioma", "Un ecualizador para todos"))
+    banners(out)
 
     svg = ICON_SVG.read_bytes()
     icons.render_svg(svg, 512, 1.0).save(str(out / "icon.png"), "PNG")

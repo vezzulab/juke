@@ -5,8 +5,14 @@ import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import android.net.Uri
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import io.github.vezzulab.juke.data.YouTube
+import io.github.vezzulab.juke.data.YouTubeException
+import java.io.IOException
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
@@ -20,6 +26,8 @@ import java.util.concurrent.TimeUnit
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
 
+    companion object { const val YT_SCHEME = "juke-yt" }
+
     override fun onCreate() {
         super.onCreate()
         EqualizerHub.init(Store(this))
@@ -28,7 +36,17 @@ class PlaybackService : MediaSessionService() {
             // files on the card come in as content:// and file://, streams over http: this factory serves both
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(
-                    DefaultDataSource.Factory(this, OkHttpDataSource.Factory(client).setUserAgent("Juke-Android/0.1"))
+                    ResolvingDataSource.Factory(
+                        DefaultDataSource.Factory(this, OkHttpDataSource.Factory(client).setUserAgent("Juke-Android/0.1")),
+                        // a YouTube song is queued as juke-yt://<video id>; the audio address (it expires) is found when it is about to play
+                        ResolvingDataSource.Resolver { spec: DataSpec ->
+                            if (spec.uri.scheme != YT_SCHEME) spec
+                            else try {
+                                spec.withUri(Uri.parse(YouTube.streamUrl(spec.uri.host.orEmpty())))
+                            } catch (e: YouTubeException) { throw IOException(e.message, e) }
+                            catch (e: Throwable) { throw IOException(e.message ?: e.javaClass.simpleName, e) }
+                        },
+                    )
                 )
             )
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)

@@ -29,6 +29,7 @@ import io.github.vezzulab.juke.R
 import io.github.vezzulab.juke.data.Folder
 import io.github.vezzulab.juke.data.SortOrder
 import io.github.vezzulab.juke.data.Track
+import io.github.vezzulab.juke.data.TrackRef
 
 /** The title strip every screen wears: back key, where you are, and what is in there. */
 @Composable
@@ -82,7 +83,7 @@ fun BrowseList(
                 LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
                 itemsIndexed(state.folders, key = { _, f -> "f" + f.id }) { i, folder -> FolderRow(labels[i]) { onOpen(folder) } }
                 itemsIndexed(state.tracks, key = { _, t -> "t" + t.id }) { index, track ->
-                    TrackRow(track, index + 1, vm.currentTrackId == track.id, vm.isPlaying) { vm.playTracks(state.tracks, index) }
+                    TrackRow(track, index + 1, vm.currentTrackId == track.id, vm.isPlaying, onAdd = { vm.askAdd(listOf(TrackRef.of(track))) }) { vm.playTracks(state.tracks, index) }
                 }
                 }
             }
@@ -105,7 +106,7 @@ private fun FolderRow(name: String, onOpen: () -> Unit) {
 }
 
 @Composable
-fun TrackRow(track: Track, number: Int, current: Boolean, playing: Boolean, onPlay: () -> Unit) {
+fun TrackRow(track: Track, number: Int, current: Boolean, playing: Boolean, onAdd: (() -> Unit)? = null, onPlay: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Row(
         Modifier.fillMaxWidth().heightIn(min = 62.dp).clip(RoundedCornerShape(16.dp))
@@ -123,6 +124,7 @@ fun TrackRow(track: Track, number: Int, current: Boolean, playing: Boolean, onPl
             if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (track.durationSec > 0) Text(formatTime(track.durationSec * 1000L), style = Meter, color = colors.onSurfaceVariant)
+        if (onAdd != null) Key(R.drawable.ic_playlist, stringResource(R.string.add_to_playlist), onAdd, size = 44.dp, icon = 19.dp, tint = colors.onSurfaceVariant)
     }
 }
 

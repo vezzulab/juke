@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QLineEdit, QPushBut
 
 from .. import manual
 from ..i18n import tr, translator
+from ..system import IS_MAC
 
 CHAPTER_ROLE = Qt.UserRole
 SECTION_ROLE = Qt.UserRole + 1
@@ -90,7 +91,7 @@ class ManualDialog(QDialog):
         self.search.setPlaceholderText(tr("manual.search"))
         self.previous.setText(tr("manual.previous"))
         self.next.setText(tr("manual.next"))
-        self._chapters = manual.load(translator.code, "linux")
+        self._chapters = manual.load(translator.code, "mac" if IS_MAC else "linux")
         self.index.clear()
         for number, chapter in enumerate(self._chapters):
             top = QTreeWidgetItem(self.index, [f"{number + 1}.  {chapter.title}"])

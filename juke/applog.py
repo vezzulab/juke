@@ -81,10 +81,11 @@ def qt_messages() -> None:
 
 def system_summary() -> str:
     """Version and system facts that help someone reproduce a problem."""
-    lines = [f"Juke {__version__}" + (" (AppImage)" if os.environ.get("APPIMAGE") else "")]
+    lines = [f"Juke {__version__}" + (" (AppImage)" if os.environ.get("APPIMAGE") else " (app)" if getattr(sys, "frozen", False) else "")]
     lines.append(f"System: {_os_name()} · {platform.machine()}")
-    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "?")
-    lines.append(f"Desktop: {desktop} · session {os.environ.get('XDG_SESSION_TYPE', '?')}")
+    if sys.platform != "darwin":
+        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "?")
+        lines.append(f"Desktop: {desktop} · session {os.environ.get('XDG_SESSION_TYPE', '?')}")
     try:
         import PySide6
         from PySide6.QtCore import qVersion
@@ -93,6 +94,10 @@ def system_summary() -> str:
     except Exception:
         lines.append(f"Python {platform.python_version()}")
     try:
+        if sys.platform == "darwin":
+            from .audio import libvlc
+
+            libvlc.prepare()
         import vlc
 
         version = vlc.libvlc_get_version()
@@ -103,6 +108,8 @@ def system_summary() -> str:
 
 
 def _os_name() -> str:
+    if sys.platform == "darwin":
+        return f"macOS {platform.mac_ver()[0]}"
     try:
         for line in Path("/etc/os-release").read_text().splitlines():
             if line.startswith("PRETTY_NAME="):

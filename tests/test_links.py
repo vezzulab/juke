@@ -44,10 +44,24 @@ class OpeningALinkTests(unittest.TestCase):
     def setUp(self):
         import juke.links as links
         self.links = links
-        self.saved = (links._via_portal, links._via_program)
+        self.saved = (links._via_portal, links._via_program, links.IS_MAC)
+        links.IS_MAC = False                       # these are the Linux ways of opening a link, whatever computer runs them
 
     def tearDown(self):
-        self.links._via_portal, self.links._via_program = self.saved
+        self.links._via_portal, self.links._via_program, self.links.IS_MAC = self.saved
+
+    def test_on_a_mac_the_system_open_command_does_it(self):
+        from PySide6.QtCore import QProcess
+        self.links.IS_MAC = True
+        started = []
+        original = QProcess.startDetached
+        QProcess.startDetached = staticmethod(lambda program, args=None, *a: started.append((program, args)) or (True, 1))
+        try:
+            self.links._via_portal = self.links._via_program = lambda t: self.fail("not on a Mac")
+            self.assertTrue(self.links.open_url("https://ko-fi.com/S1K526XVUI"))
+        finally:
+            QProcess.startDetached = original
+        self.assertEqual(started, [("open", ["https://ko-fi.com/S1K526XVUI"])])
 
     def test_the_desktop_portal_is_tried_first_then_the_programs(self):
         calls = []

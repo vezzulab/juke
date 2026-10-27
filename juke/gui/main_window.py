@@ -17,18 +17,20 @@ from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMa
                                QProgressBar, QPushButton, QSizePolicy, QSplitter, QStackedWidget, QToolButton, QVBoxLayout,
                                QWidget)
 
-from .. import REPO_URL, __version__, integration, mpris, updater
+from .. import REPO_URL, __version__, autosync, integration, macmedia, mpris, updater
 from ..availability import Availability
 from ..awake import StayAwake
 from ..sysvolume import SystemVolume
+from ..system import IS_MAC
 from ..api import radio as radio_api
+from ..api import youtube
 from ..api.airsonic import AirsonicClient, normalize_base_url
 from ..audio.engine import AudioEngine
 from ..audio.equalizer import Equalizer
 from ..audio.queue import PlayQueue
 from ..audio.sources import SourceError, SourceResolver
 from ..config import AUDIO_EXTENSIONS, Config
-from ..db.database import SOURCE_AIRSONIC, SOURCE_LOCAL, Database, Scope, Station, Track
+from ..db.database import SOURCE_AIRSONIC, SOURCE_LOCAL, SOURCE_YOUTUBE, Database, Scope, Station, Track
 from .. import lyrics as lyrics_lib
 from ..db.folders import DB_NAME, PACKAGE_NAME, FolderStore, prepare_package
 from ..devices import mtp, transfer
@@ -74,6 +76,9 @@ class MainWindow(QMainWindow):
         self.theme = theme or ThemeManager(QApplication.instance(), config.get("theme"))
         self.theme.apply()          # palette + stylesheet first, so every icon below is built in the right colours
         self.config, self.db, self.engine, self.equalizer = config, db, engine, equalizer
+        self.autosync = autosync.AutoSync(db, config, self)           # playlists, stations and settings follow the person between devices
+        self.autosync.finished.connect(self._autosync_done)
+        equalizer.changed.connect(lambda: self.autosync.request())
         # Music.juke, the folders the user organises the music in (main.py puts it in the Music folder)
         self.folders = folders or FolderStore(prepare_package(Path(config.path).parent / PACKAGE_NAME) / DB_NAME)
         self.db.attach_folders(self.folders.path)
@@ -112,6 +117,12 @@ class MainWindow(QMainWindow):
         self._errors_in_a_row = 0
         self._warned_no_vlc = False
         self._live_refresh = False
+        self._yt_ids: list[int] = []            # the songs of the last YouTube search, in the order they are listed
+        self._yt_query = ""
+        self._yt_state = ""                     # "" | "searching" | "failed"
+        self._yt_error = ""
+        self._yt_search_token = 0               # bumps on every search / song change so late answers can be ignored
+        self._yt_play_token = 0
         self._last_live_refresh = 0.0
 
         self.setWindowIcon(icons.app_icon())
@@ -176,6 +187,15 @@ class MainWindow(QMainWindow):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
         column.addLayout(header)
+        self._header = header
+        self._search_central = False
+        self.yt_bar = QWidget()                              # in YouTube the search is the page's main control: it sits in the middle
+        self._yt_row = QHBoxLayout(self.yt_bar)
+        self._yt_row.setContentsMargins(22, 4, 22, 14)
+        self._yt_row.addStretch(1)
+        self._yt_row.addStretch(1)
+        self.yt_bar.hide()
+        column.addWidget(self.yt_bar)
         column.addWidget(self.stack, 1)
 
         self.splitter = QSplitter(Qt.Horizontal)
@@ -257,6 +277,11 @@ class MainWindow(QMainWindow):
         self._search_timer.setInterval(140)
         self._search_timer.timeout.connect(self._apply_search)
         self.search.textChanged.connect(lambda _: self._search_timer.start())
+        self._yt_timer = QTimer(self)
+        self._yt_timer.setSingleShot(True)
+        self._yt_timer.setInterval(900)
+        self._yt_timer.timeout.connect(self._youtube_search)
+        self.search.returnPressed.connect(lambda: self._youtube_search() if self._view[0] == "youtube" else None)
 
         self._wire()
         self._restore_state()
@@ -389,7 +414,7 @@ class MainWindow(QMainWindow):
 
     def _wire_mpris(self) -> None:
         """Media keys, the shell's media widget and ``playerctl``: the desktop talks to us over the session bus."""
-        c = self.media = mpris.Controls(self)
+        c = self.media = (macmedia if IS_MAC else mpris).Controls(self)
         c.play.connect(self._media_play)
         c.pause.connect(self.engine.pause)
         c.play_pause.connect(self._play_pressed)
@@ -902,6 +927,7 @@ class MainWindow(QMainWindow):
         self.media.unregister()
         self.sysvol.stop()
         self.devices.shutdown()
+        self.autosync.shutdown()
         self.radio_view.cancel()
         for worker in list(self._radio_workers):
             worker.cancel()
@@ -922,7 +948,8 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------------------ text
     def retranslate(self) -> None:
-        self.search.setPlaceholderText(tr("radio.search_placeholder") if self._radio_active() else tr("search.placeholder"))
+        self.search.setPlaceholderText(tr("radio.search_placeholder") if self._radio_active() else
+                                       tr("youtube.search_placeholder") if self._view[0] == "youtube" else tr("search.placeholder"))
         self.add_station_button.setText(tr("radio.add_url"))
         self.radio_view.retranslate()
         self.device_view.retranslate()
@@ -978,6 +1005,7 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         add(tr("menu.settings"), self.open_settings, "Ctrl+,")
         add(tr("menu.check_updates"), lambda: self.check_for_updates(manual=True))
+        add(tr("menu.backup"), self.open_backup)
         add(tr("menu.feedback"), self.send_feedback)
         add(tr("menu.view_log"), self.show_log)
         add(tr("menu.manual"), self.open_manual, "F1")
@@ -986,6 +1014,32 @@ class MainWindow(QMainWindow):
         add(tr("menu.quit"), self.close, "Ctrl+Q")
         self.menu_button.setMenu(menu)
         self._menu = menu
+
+    def open_backup(self) -> None:
+        from .backup_dialog import BackupDialog
+
+        BackupDialog(self).exec()
+
+    def _autosync_done(self, ok: bool, changed: bool, message: str) -> None:
+        if changed:                                       # another device's news came in: show it
+            from types import SimpleNamespace
+
+            self.backup_restored(SimpleNamespace(settings=True))
+        elif not ok and message:
+            logging.getLogger("juke.sync").warning("sync did not work: %s", message)
+
+    def backup_restored(self, report) -> None:
+        """A copy was put into the library and the settings: show what changed."""
+        self.refresh_playlists()
+        self.radio_view.refresh()
+        self._update_counts()
+        if report.settings:
+            translator.set_language(self.config.get("language"))
+            self.theme.apply(self.config.get("theme"))
+            self._apply_crossfade(int(self.config.get("crossfade") or 0))
+            self.equalizer.reload()
+            self.equalizer.changed.emit()
+        self.refresh_library()
 
     def open_manual(self) -> None:
         """The manual, a book with an index (F1). One window: asking again brings it forward."""
@@ -1193,6 +1247,8 @@ class MainWindow(QMainWindow):
             self.table.track_model.set_entries(self.db.playlist_entries(value))
         elif key == "queue":
             self.table.track_model.set_fixed_ids(self.queue.view())
+        elif key == "youtube":
+            self.table.track_model.set_fixed_ids(list(self._yt_ids))
         elif key == "ufolder":                       # the folder may have gained subfolders since it was opened
             self.table.track_model.update_scope(self._scope_for(key, value)[0])
         else:
@@ -1233,8 +1289,33 @@ class MainWindow(QMainWindow):
     def _radio_active(self) -> bool:
         return self.stack.currentWidget() is self.radio_view
 
+    def _place_search(self, central: bool) -> None:
+        """The search box lives in the header; on the YouTube page it moves to the middle of the page, bigger."""
+        if central == self._search_central:
+            return
+        self._search_central = central
+        if central:
+            self._header.removeWidget(self.search)
+            self._yt_row.insertWidget(1, self.search)
+            self.search.setFixedHeight(46)
+            self.search.setMinimumWidth(480)
+            self.search.setMaximumWidth(720)
+            self.search.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.yt_bar.show()
+        else:
+            self._yt_row.removeWidget(self.search)
+            self._header.insertWidget(1, self.search)
+            self.search.setMinimumHeight(0)
+            self.search.setMaximumHeight(16777215)
+            self.search.setMinimumWidth(300)
+            self.search.setMaximumWidth(16777215)
+            self.search.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+            self.yt_bar.hide()
+
     def _show_view(self, key: str, value: object) -> None:
+        was_youtube = self._view[0] == "youtube"
         self._view = (key, value)
+        self._place_search(key == "youtube")
         if key == "device":
             device = self.devices.get(str(value))
             self._device_identity = (device.vendor, device.product) if device else None
@@ -1256,8 +1337,25 @@ class MainWindow(QMainWindow):
             self.stack.setCurrentWidget(self.device_view)
             self._update_heading()
             return
+        if key == "youtube":
+            self.stack.setCurrentWidget(self.table)
+            self.add_station_button.hide()
+            if not was_youtube:                                # what was typed for the library is not a YouTube search
+                self.search.blockSignals(True)
+                self.search.clear()
+                self.search.blockSignals(False)
+                self.table.track_model.set_text("")
+            self.search.setPlaceholderText(tr("youtube.search_placeholder"))
+            if not was_youtube:
+                self.search.setFocus()
+            self.table.queue_mode = self.table.playlist_mode = self.table.folder_mode = False
+            self.table.drop_name, self.table.duplicate_mode = "", None
+            self.table.show_view(Scope(with_online=True), list(self._yt_ids), None)
+            self.table.track_model.set_current(self.current_track.id if self.current_track else None)
+            self._update_heading()
+            return
         radio = key in ("stations", "explore")
-        switching = radio or self._radio_active()
+        switching = radio or was_youtube or self._radio_active()
         self.stack.setCurrentWidget(self.radio_view if radio else self.table)
         self.add_station_button.setVisible(radio)
         self.search.setPlaceholderText(tr("radio.search_placeholder") if radio else tr("search.placeholder"))
@@ -1290,6 +1388,9 @@ class MainWindow(QMainWindow):
             self.sync_airsonic()
 
     def _apply_search(self) -> None:
+        if self._view[0] == "youtube":
+            self._yt_timer.start()                             # the search runs once typing pauses, or on Enter
+            return
         if self._view[0] == "device":
             self.device_view.filter(self.search.text())
             return
@@ -1315,7 +1416,7 @@ class MainWindow(QMainWindow):
         return tr({"all": "sidebar.all", "artists": "sidebar.artists", "albums": "sidebar.albums",
                    "genres": "sidebar.genres", "airsonic": "sidebar.airsonic", "favorites": "sidebar.favorites",
                    "recent": "sidebar.recent", "queue": "sidebar.queue", "stations": "sidebar.stations",
-                   "explore": "sidebar.explore"}.get(key, "sidebar.all"))
+                   "explore": "sidebar.explore", "youtube": "sidebar.youtube"}.get(key, "sidebar.all"))
 
     def _update_heading(self) -> None:
         if self._view[0] == "device":
@@ -1332,7 +1433,9 @@ class MainWindow(QMainWindow):
         count = model.rowCount()
         text = trn("summary.songs", count)
         key = self._view[0]
-        if count and key not in ("queue", "playlist"):
+        if key == "youtube":
+            text = tr("youtube.searching") if self._yt_state == "searching" else trn("summary.songs", count) if count else ""
+        if count and key not in ("queue", "playlist", "youtube"):
             scope, _fixed, _ = self._scope_for(*self._view)
             _, seconds = self.db.summary(scope, self.search.text())
             if seconds:
@@ -1347,7 +1450,16 @@ class MainWindow(QMainWindow):
     def _update_empty_text(self) -> None:
         key = self._view[0]
         action, kind = "", ""
-        if self.search.text().strip():
+        if key == "youtube":
+            if self._yt_state == "searching":
+                title, hint = tr("youtube.searching"), ""
+            elif self._yt_state == "failed":
+                title, hint = self._yt_error, ""
+            elif self._yt_query:
+                title, hint = tr("youtube.no_results.title"), tr("youtube.no_results.hint")
+            else:
+                title, hint = tr("youtube.empty.title"), tr("youtube.empty.hint")
+        elif self.search.text().strip():
             title, hint = tr("empty.search.title"), tr("empty.search.hint")
         elif key == "airsonic":
             if self.airsonic is None:
@@ -1406,12 +1518,21 @@ class MainWindow(QMainWindow):
         if why:
             self._skip_after_error(tr("msg.unavailable_server" if why == "server" else "msg.unavailable_file", title=track.title))
             return
+        self._yt_play_token += 1                   # any YouTube song still being looked up is no longer wanted
+        if track.source_type == SOURCE_YOUTUBE:
+            self._start_youtube(track)
+            return
         try:
             url = self.resolver.resolve(track)
         except SourceError as exc:
             reason = tr("msg.airsonic_not_configured") if str(exc) == "airsonic" else tr("msg.file_missing", path=str(exc))
             self._skip_after_error(reason)
             return
+        self._begin(track, url)
+
+    def _begin(self, track: Track, url: str) -> None:
+        """Start sounding: ``url`` is the track's playable address."""
+        track_id = track.id
         self.engine.set_live(False)                # leaving live radio: no ICY reading, no station state
         self.equalizer.begin_song(track.id, self.equalizer.parse_curve(track.eq))
         fade, self._fade_next = self._fade_next, False
@@ -1430,6 +1551,118 @@ class MainWindow(QMainWindow):
         self._refresh_queue_view()
         self._load_lyrics(track)
         self._sync_media()
+        if track.source_type == SOURCE_YOUTUBE:
+            self._fetch_youtube_cover(track)
+        self._prefetch_next_youtube()
+
+    # ------------------------------------------------------------------------------ YouTube
+    def _youtube_search(self) -> None:
+        self._yt_timer.stop()
+        query = self.search.text().strip()
+        if self._view[0] != "youtube" or query == self._yt_query and self._yt_state != "failed":
+            return
+        self._yt_search_token += 1
+        token = self._yt_search_token
+        self._yt_query = query
+        if not query:
+            self._yt_ids, self._yt_state = [], ""
+            self._reload_view()
+            self._update_heading()
+            return
+        self._yt_state = "searching"
+        self._update_heading()
+
+        async def look(_progress):
+            return await asyncio.to_thread(youtube.search, query)
+
+        worker = AsyncWorker(look, self)
+        worker.result.connect(lambda found: self._youtube_found(token, found))
+        worker.failed.connect(lambda message: self._youtube_failed(token, message))
+        self._run_worker(worker)
+
+    def _run_worker(self, worker: AsyncWorker) -> None:
+        self._workers.add(worker)
+        worker.finished.connect(lambda: (self._workers.discard(worker), worker.deleteLater()))
+        worker.start()
+
+    def _youtube_found(self, token: int, found: list) -> None:
+        if token != self._yt_search_token:
+            return                                           # a newer search replaced this one
+        by_video = self.db.upsert_youtube(found)
+        self._yt_ids = [by_video[r["video_id"]] for r in found if r["video_id"] in by_video]
+        self._yt_state = ""
+        if self._view[0] == "youtube":
+            self.table.track_model.set_fixed_ids(list(self._yt_ids))
+            self.table.track_model.set_current(self.current_track.id if self.current_track else None)
+            self._update_heading()
+
+    def _youtube_failed(self, token: int, message: str) -> None:
+        if token != self._yt_search_token:
+            return
+        code = message.split(":", 1)[0]
+        detail = message.split(":", 1)[-1].strip()
+        self._yt_ids, self._yt_state = [], "failed"
+        self._yt_error = (tr("youtube.err_network") if code in ("network", "unavailable") else
+                          tr("youtube.err_missing") if code == "missing" else tr("youtube.err_unknown", detail=detail))
+        if self._view[0] == "youtube":
+            self.table.track_model.set_fixed_ids([])
+            self._update_heading()
+
+    def _start_youtube(self, track: Track) -> None:
+        """The audio address of a YouTube song expires, so it is looked up now (2 to 4 s), off the window's thread.
+        The song that is playing keeps playing until the new one is ready."""
+        token = self._yt_play_token
+        self.notify(tr("youtube.connecting", title=track.title), 15000)
+
+        async def find(_progress):
+            return await asyncio.to_thread(youtube.resolve_stream, track.location)
+
+        def ready(url: str) -> None:
+            if token != self._yt_play_token:
+                return                                       # the person already chose something else
+            self.statusBar().clearMessage()
+            self._begin(track, url)
+
+        def failed(message: str) -> None:
+            if token == self._yt_play_token:
+                self._skip_after_error(tr("youtube.unavailable", title=track.title))
+
+        worker = AsyncWorker(find, self)
+        worker.result.connect(ready)
+        worker.failed.connect(failed)
+        self._run_worker(worker)
+
+    def _prefetch_next_youtube(self) -> None:
+        """Look up the next YouTube song while this one plays, so the party never waits between songs."""
+        upcoming = self.queue.upcoming()[:1]
+        track = self.db.get_track(upcoming[0]) if upcoming else None
+        if track is None or track.source_type != SOURCE_YOUTUBE:
+            return
+
+        async def warm(_progress):
+            return await asyncio.to_thread(youtube.resolve_stream, track.location)
+
+        worker = AsyncWorker(warm, self)
+        worker.failed.connect(lambda _m: None)
+        self._run_worker(worker)
+
+    def _fetch_youtube_cover(self, track: Track) -> None:
+        key, video_id = track.cover_key, track.location
+        if not key or cover_path(key).exists():
+            return
+
+        async def fetch(_progress) -> str:
+            data = await asyncio.to_thread(youtube.download_thumbnail, video_id)      # urllib: no httpx (13 MB) for one picture
+            return key if save_cover(key, data) else ""
+
+        def done(saved: str) -> None:
+            if saved and self.current_track and self.current_track.cover_key == saved:
+                self.top_bar.lcd.set_cover(QPixmap(str(cover_path(saved))))
+
+        worker = AsyncWorker(fetch, self)
+        worker.result.connect(done)
+        worker.failed.connect(lambda _m: None)
+        self._run_worker(worker)
 
     def _skip_after_error(self, reason: str) -> None:
         self._errors_in_a_row += 1
@@ -1490,6 +1723,7 @@ class MainWindow(QMainWindow):
                 self._play_from_table(first)
 
     def _stop(self) -> None:
+        self._yt_play_token += 1                   # a YouTube song still being looked up must not start after Stop
         self.engine.stop()
 
     def _crossfade_next(self) -> None:
@@ -1601,6 +1835,7 @@ class MainWindow(QMainWindow):
         ids = [i for i in saved if isinstance(i, int)] if isinstance(saved, list) else []
         self.queue.user = [i for i in ids if self.db.get_track(i) is not None]
         self._queue_loaded = True
+        self.db.cleanup_youtube(keep_ids=self.queue.user)
         self._save_queue()
 
     def _update_next_hint(self) -> None:
@@ -1736,6 +1971,7 @@ class MainWindow(QMainWindow):
         self._show_view("stations", None)
 
     def _after_stations_changed(self) -> None:
+        self.autosync.request()
         self._update_counts()
         self.radio_view.refresh()
         self._update_heading()
@@ -1986,6 +2222,7 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------------------ playlists
     def refresh_playlists(self) -> None:
+        self.autosync.request()                          # a playlist changed (or was just made so by a sync): tell the cloud soon
         self._playlists = self.db.playlists()
         self.sidebar.set_playlists(self._playlists)
         self.table.set_playlists([(pid, name) for pid, name, _ in self._playlists])
@@ -2205,12 +2442,20 @@ class MainWindow(QMainWindow):
         if target is None or not release.asset_url:
             QDesktopServices.openUrl(QUrl(release.page_url))
             return
-        dialog = DownloadDialog(release, target.parent, self)
+        dialog = DownloadDialog(release, updater.download_dir(target), self, target)
         path = dialog.run()
         if path is None:
             if dialog.error:
                 text = tr("update.verify_failed") if dialog.error == "checksum" else tr("update.download_failed", error=dialog.error)
                 notice(self, tr("update.title"), text)
+            return
+        if target.suffix == ".app":                      # a Mac: the new app is ready beside the old; it takes its place when Juke closes
+            restart = confirm(self, tr("update.title"), tr("update.restart_ask"))
+            updater.swap_app_after_exit(path, target, open_after=restart)
+            if restart:
+                self.close()
+            else:
+                self.notify(tr("update.installed_on_quit", version=release.version), 8000)
             return
         try:
             updater.install_update(path, target)
@@ -2235,6 +2480,8 @@ class MainWindow(QMainWindow):
     def _startup_tasks(self) -> None:
         QTimer.singleShot(900, self._show_whats_new)
         QTimer.singleShot(6_000, self._auto_update_check)
+        self.autosync.start()
+        threading.Thread(target=youtube.refresh_if_stale, daemon=True).start()          # a newer yt-dlp, for anyone who uses YouTube
         self._check_server(force=True)
         if self.config.get("scan_on_start") or self.db.count(SOURCE_LOCAL) == 0:
             self.start_scan()
@@ -2432,6 +2679,7 @@ class MainWindow(QMainWindow):
         if self.config.get("airsonic") != old_airsonic and self.airsonic is not None:
             self.sync_airsonic()
         self._update_empty_text()
+        self.autosync.request()
 
     def _integrate_first_time(self) -> None:
         """The first time the AppImage runs it adds itself to the applications menu, with no question asked. It only

@@ -123,12 +123,18 @@ class Equalizer(QObject):
         self.song_id: int | None = None                    # set while the song that plays has an equalizer of its own
         self.song_saver = None                             # callable(song id, curve): where edits of that curve are kept
         self._general: tuple | None = None                 # the general curve, put away while a song's own plays
-        state = config.get("equalizer")
-        self.enabled: bool = bool(state["enabled"])
-        self.preamp: float = _clamp(state["preamp"])
-        self.gains: list[float] = [_clamp(g) for g in state["gains"]]
-        self.preset: str | None = state["preset"]
-        self.origin: str | None = self.preset              # the preset the curve in play came from, even after a bar moved
+        self.reload()
+
+    def reload(self) -> None:
+        """Read the curves again from the settings (a restored copy changed them). A song's own curve in play is left alone."""
+        config = self._config
+        if self.song_id is None:
+            state = config.get("equalizer")
+            self.enabled: bool = bool(state["enabled"])
+            self.preamp: float = _clamp(state["preamp"])
+            self.gains: list[float] = [_clamp(g) for g in state["gains"]]
+            self.preset: str | None = state["preset"]
+            self.origin: str | None = self.preset          # the preset the curve in play came from, even after a bar moved
         stored = config.get("advanced_eq", {})
         self.advanced: dict[str, int] = {
             k: max(0, min(150 if k == "room" else 100, int(stored.get(k, d)))) if isinstance(stored, dict) else d

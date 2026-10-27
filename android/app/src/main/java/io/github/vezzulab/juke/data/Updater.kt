@@ -85,7 +85,7 @@ object Updater {
             }
         }
         if (url.isBlank()) return@withContext null
-        UpdateRelease(version, json.optString("body").trim(), json.optString("html_url"), url, size, sha, installedSha256(context))
+        UpdateRelease(version, json.optString("body").replace(Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL), "").trim(), json.optString("html_url"), url, size, sha, installedSha256(context))
     }
 
     /** Downloads the APK next to the app's cache and checks it against the published SHA-256. Throws if anything is off. */

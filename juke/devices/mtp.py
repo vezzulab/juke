@@ -11,6 +11,7 @@ import ctypes as C
 import ctypes.util
 import os
 import re
+import sys
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -153,7 +154,8 @@ def _load():
 
 
 def available() -> bool:
-    return _load() is not None
+    """Linux only: the device list comes from sysfs. A Mac has no MTP stack to talk to, so phones are left out there."""
+    return sys.platform.startswith("linux") and _load() is not None
 
 
 def _text(pointer: int | None) -> str:

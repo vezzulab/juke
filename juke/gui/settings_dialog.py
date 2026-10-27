@@ -6,9 +6,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
                                QLabel, QLineEdit, QListWidget, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
+from .. import integration
 from ..api.airsonic import AirsonicClient, normalize_base_url
 from ..config import Config
 from ..i18n import LANGUAGES, tr
+from ..system import IS_MAC
 from ..workers import AsyncWorker
 from . import styles
 from .icons import theme_swatch
@@ -112,8 +114,9 @@ class SettingsDialog(QDialog):
         self._gap(layout)
         self.integration = QCheckBox(tr("settings.integration"))
         self.integration.setChecked(integration_installed)
-        layout.addWidget(self.integration)
-        layout.addWidget(self._hint(tr("settings.integration_hint")))
+        if integration.supported():          # (on a Mac the app is dragged to Applications: there is no menu entry to write)
+            layout.addWidget(self.integration)
+            layout.addWidget(self._hint(tr("settings.integration_hint")))
         layout.addStretch(1)
         return page
 
@@ -126,8 +129,9 @@ class SettingsDialog(QDialog):
         self._gap(layout, 22)
         self.follow_volume = QCheckBox(tr("settings.volume_follow"))
         self.follow_volume.setChecked(bool(self._config.get("volume_follows_system")))
-        layout.addWidget(self.follow_volume)
-        layout.addWidget(self._hint(tr("settings.volume_follow_hint")))
+        if not IS_MAC:                       # (the Mac's own volume is the keys' and the menu bar's business: the slider is Juke's)
+            layout.addWidget(self.follow_volume)
+            layout.addWidget(self._hint(tr("settings.volume_follow_hint")))
         self._gap(layout, 22)
         self.crossfade = QSpinBox()
         self.crossfade.setRange(0, 12)

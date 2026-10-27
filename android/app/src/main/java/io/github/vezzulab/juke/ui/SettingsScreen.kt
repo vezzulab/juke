@@ -28,6 +28,7 @@ fun SettingsScreen(vm: JukeViewModel, onLanguage: (String) -> Unit, onEqualizer:
     if (page == "feedback") { FeedbackScreen(vm) { page = "" }; return }
     if (page == "log") { LogScreen(vm) { page = "" }; return }
     if (page == "manual") { ManualScreen { page = "" }; return }
+    if (page == "backup") { BackupScreen(vm) { page = "" }; return }
     Column(Modifier.fillMaxSize().padding(horizontal = 10.dp)) {
         Crumb(stringResource(R.string.nav_settings), "", canGoUp = false, onUp = {})
         Column(
@@ -47,7 +48,7 @@ fun SettingsScreen(vm: JukeViewModel, onLanguage: (String) -> Unit, onEqualizer:
             Block(stringResource(R.string.language)) {
                 Segmented(
                     listOf("system" to stringResource(R.string.lang_system), "en" to "English", "es" to "Español"),
-                    language, { language = it; vm.store.language = it; onLanguage(it) }, Modifier.fillMaxWidth(),
+                    language, { language = it; vm.store.language = it; onLanguage(it); vm.languageChanged() }, Modifier.fillMaxWidth(),
                 )
             }
             Block(stringResource(R.string.lyrics)) {
@@ -70,6 +71,9 @@ fun SettingsScreen(vm: JukeViewModel, onLanguage: (String) -> Unit, onEqualizer:
                         Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
                     )
                 }
+            }
+            Block(stringResource(R.string.backup_title)) {
+                ActionKey(stringResource(R.string.backup_open), { page = "backup" }, Modifier.fillMaxWidth(), icon = R.drawable.ic_cloud, accent = false)
             }
             Block(stringResource(R.string.equalizer)) {
                 ActionKey(stringResource(R.string.equalizer), onEqualizer, icon = R.drawable.ic_sliders, accent = false)

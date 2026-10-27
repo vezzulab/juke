@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -35,7 +36,7 @@ class UpdateDialog(QDialog):
         headline.setObjectName("heading")
         headline.setWordWrap(True)
         current_label = QLabel(
-            tr("update.current_build", current=current, old=release.installed_sha256[:8], new=release.asset_sha256[:8]) if release.is_rebuild
+            tr("update.current_build", current=current, old=release.installed_id[:8], new=release.asset_id[:8]) if release.is_rebuild
             else tr("update.current", current=current, version=release.version))
         current_label.setObjectName("muted")
         titles = QVBoxLayout()
@@ -92,11 +93,12 @@ class UpdateDialog(QDialog):
 class DownloadDialog(QDialog):
     """Downloads the new AppImage with a progress bar. ``run()`` returns its path, or None."""
 
-    def __init__(self, release: updater.ReleaseInfo, directory: Path, parent=None) -> None:
+    def __init__(self, release: updater.ReleaseInfo, directory: Path, parent=None, target: Path | None = None) -> None:
         super().__init__(parent)
         self.path: Path | None = None
         self.error = ""
         self._release, self._directory = release, directory
+        self._installing = target is not None and target.suffix == ".app"
         self.setWindowTitle(tr("update.title"))
         self.setMinimumWidth(440)
         self.setModal(True)
@@ -115,10 +117,21 @@ class DownloadDialog(QDialog):
         row.addStretch(1)
         row.addWidget(self.cancel_button)
         layout.addLayout(row)
-        self._worker = AsyncWorker(lambda progress: updater.download_asset(release, directory, progress), self)
-        self._worker.progress.connect(self.bar.setValue)
+        async def job(progress):
+            path = await updater.download_asset(release, directory, progress)
+            if target is not None and target.suffix == ".app":           # a Mac: open the disk image and get the new app ready
+                return await asyncio.to_thread(updater.stage_mac_app, path, target)
+            return path
+
+        self._worker = AsyncWorker(job, self)
+        self._worker.progress.connect(self._progress)
         self._worker.result.connect(self._done)
         self._worker.failed.connect(self._failed)
+
+    def _progress(self, percent: int) -> None:
+        self.bar.setValue(percent)
+        if percent >= 100 and self._installing:
+            self.label.setText(tr("update.installing", version=self._release.version))
 
     def run(self) -> Path | None:
         self._worker.start()

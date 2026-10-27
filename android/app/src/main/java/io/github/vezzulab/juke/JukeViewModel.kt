@@ -32,6 +32,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** What the YouTube page is showing right now. */
+sealed interface YtState {
+    data object Idle : YtState
+    data object Searching : YtState
+    data class Failed(val kind: String) : YtState
+    data class Ready(val query: String, val songs: List<YtSong>) : YtState
+}
+
 /** What a browser screen is showing right now. */
 sealed interface BrowseState {
     data object Idle : BrowseState                       // nothing set up yet (no server, no permission)
@@ -43,6 +51,288 @@ sealed interface BrowseState {
 class JukeViewModel(app: Application) : AndroidViewModel(app) {
     val store = Store(app)
     val stations = mutableStateListOf<Station>()
+
+    // ---- playlists (songs of the phone and of YouTube) --------------------------------------------------
+    private val playlistStore = PlaylistStore(app)
+    val playlists = mutableStateListOf<Playlist>()
+    /** The songs waiting for a playlist to be picked (the "add to playlist" sheet shows while this is set). */
+    var addTarget by mutableStateOf<List<TrackRef>?>(null); private set
+    var notice by mutableStateOf<String?>(null); private set
+
+    fun askAdd(refs: List<TrackRef>) { if (refs.isNotEmpty()) addTarget = refs }
+    fun dismissAdd() { addTarget = null }
+    fun clearNotice() { notice = null }
+
+    private fun savePlaylists() = playlistStore.save(playlists.toList())
+
+    private fun playlistIndex(name: String) = playlists.indexOfFirst { it.name.equals(name.trim(), ignoreCase = true) }
+
+    /** Adds songs to a playlist, making it if there is none with that name. A song already in it is not added again. Returns how many went in. */
+    fun addToPlaylist(name: String, refs: List<TrackRef>): Int {
+        val clean = name.trim().ifEmpty { return 0 }
+        val at = playlistIndex(clean)
+        val have = if (at >= 0) playlists[at].tracks.map { it.key }.toHashSet() else HashSet()
+        val fresh = refs.filter { have.add(it.key) }
+        val now = System.currentTimeMillis()
+        if (at >= 0) { if (fresh.isNotEmpty()) playlists[at] = playlists[at].copy(tracks = playlists[at].tracks + fresh, updated = now) }
+        else { playlists += Playlist(clean, fresh, now); forgetDeleted(clean) }
+        playlists.sortBy { it.name.lowercase() }
+        savePlaylists()
+        requestSync()
+        return fresh.size
+    }
+
+    /** A playlist made again after it was deleted is new: the mark of its deletion goes. */
+    private fun forgetDeleted(name: String) { store.deletedLists = store.deletedLists - Backup.key(name) }
+    private fun markDeleted(name: String) { store.deletedLists = store.deletedLists + (Backup.key(name) to (name to System.currentTimeMillis())) }
+
+    fun createPlaylist(name: String) { addToPlaylist(name, emptyList()) }
+
+    /** "Add to playlist" answered: the songs go in, the panel closes and a short note says what happened. */
+    fun addAndSay(name: String, refs: List<TrackRef>) {
+        val app = getApplication<Application>()
+        val added = addToPlaylist(name, refs)
+        addTarget = null
+        notice = if (added > 0) app.getString(R.string.added_to, added, name.trim()) else app.getString(R.string.already_in, name.trim())
+    }
+    fun deletePlaylist(name: String) { playlists.removeAll { it.name == name }; markDeleted(name); savePlaylists(); requestSync() }
+    fun renamePlaylist(name: String, to: String) {
+        val clean = to.trim()
+        val at = playlists.indexOfFirst { it.name == name }
+        if (at < 0 || clean.isEmpty() || (playlistIndex(clean) >= 0 && !clean.equals(name, ignoreCase = true))) return
+        markDeleted(name); forgetDeleted(clean)                       // to the other devices the old name is a playlist that was deleted
+        playlists[at] = playlists[at].copy(name = clean, updated = System.currentTimeMillis()); playlists.sortBy { it.name.lowercase() }; savePlaylists(); requestSync()
+    }
+    fun removeFromPlaylist(name: String, index: Int) {
+        val at = playlists.indexOfFirst { it.name == name }
+        if (at < 0 || index !in playlists[at].tracks.indices) return
+        playlists[at] = playlists[at].copy(tracks = playlists[at].tracks.filterIndexed { i, _ -> i != index }, updated = System.currentTimeMillis()); savePlaylists(); requestSync()
+    }
+
+    // ---- backup and sync ---------------------------------------------------------------------------------
+    var syncStatus by mutableStateOf<Pair<Boolean, String>?>(null); private set      // (ok?, what to tell the person)
+    var syncBusy by mutableStateOf(false); private set
+    var syncAuto by mutableStateOf(store.syncAuto); private set
+    var syncLastOk by mutableStateOf(store.syncLastOk); private set
+
+    private fun say(ok: Boolean, text: String) { syncStatus = ok to text }
+    private fun kept() = runCatching { org.json.JSONObject(store.syncKept) }.getOrDefault(org.json.JSONObject())
+
+    private fun localState() = Backup.State(playlists.toList(), stations.toList(), store.deletedLists, store.deletedStations, kept(), store.syncSettingsAt, store.language)
+
+    private fun errorText(e: Exception): String {
+        val app = getApplication<Application>()
+        val kind = (e as? SyncException)?.kind ?: "server"
+        val res = mapOf("server" to R.string.sync_err_server, "denied" to R.string.sync_err_denied, "none" to R.string.sync_err_none, "changed" to R.string.sync_err_changed,
+            "big" to R.string.sync_err_big, "soon" to R.string.sync_err_soon, "busy" to R.string.sync_err_busy, "full" to R.string.sync_err_full,
+            "corrupt" to R.string.sync_err_corrupt, "url" to R.string.sync_err_url, "code" to R.string.sync_err_code, "newer" to R.string.sync_err_newer)[kind] ?: R.string.sync_err_server
+        return app.getString(res)
+    }
+
+    fun newSyncCode(): String = Sync.newCode().also { store.syncCode = it; store.syncUpdated = 0 }
+
+    private fun usable(server: String = store.syncServer, code: String = store.syncCode) = server.isNotBlank() && Sync.cleanCode(code) != null
+
+    /** The language is one of the settings that follow the person between devices: say when it changed. */
+    fun languageChanged() { store.syncSettingsAt = System.currentTimeMillis(); requestSync() }
+
+    fun changeSyncAuto(on: Boolean) { syncAuto = on; store.syncAuto = on; if (on) requestSync(1_000) }
+
+    fun saveSyncSetup(server: String, code: String): Boolean {
+        val clean = Sync.cleanCode(code) ?: run { say(false, getApplication<Application>().getString(R.string.sync_err_code)); return false }
+        if (server.isBlank()) { say(false, getApplication<Application>().getString(R.string.sync_err_server_empty)); return false }
+        store.syncServer = server.trim(); store.syncCode = clean
+        return true
+    }
+
+    private val syncLock = kotlinx.coroutines.sync.Mutex()
+    private var syncDebounce: Job? = null
+
+    /** Something changed here (or the app just opened): a round soon, once, however many changes come. */
+    fun requestSync(delayMs: Long = 8_000) {
+        if (!syncAuto || !usable()) return
+        syncDebounce?.cancel()
+        syncDebounce = viewModelScope.launch { delay(delayMs); syncRound(manual = false) }
+    }
+
+    fun syncNow(server: String, code: String) {
+        if (!saveSyncSetup(server, code)) return
+        viewModelScope.launch { syncRound(manual = true) }
+    }
+
+    /** One round: ask the server for its copy, bring in what the other devices did, and send ours back only if it says something new. */
+    private suspend fun syncRound(manual: Boolean) {
+        if (!usable()) return
+        if (!syncLock.tryLock()) return
+        if (manual) { syncBusy = true; syncStatus = null }
+        try {
+            val server = store.syncServer
+            val code = store.syncCode
+            var tries = 0
+            while (true) {
+                val remote = try { Sync.pull(server, code) } catch (e: SyncException) { if (e.kind == "none") null else throw e }
+                var changed = false
+                val doc = remote?.let { Backup.parse(it.first) }
+                if (doc != null) {
+                    val merged = Backup.merge(doc, localState(), System.currentTimeMillis())
+                    changed = merged.changed
+                    adopt(merged)
+                }
+                val mine = Backup.snapshot(localState())
+                if (doc != null && Backup.fingerprint(org.json.JSONObject(mine)) == Backup.fingerprint(doc)) { store.syncUpdated = remote!!.second; finishRound(manual, changed); return }
+                try {
+                    store.syncUpdated = Sync.push(server, code, mine, remote?.second ?: 0L)
+                    finishRound(manual, changed); return
+                } catch (e: SyncException) {
+                    if (e.kind == "changed" && ++tries < 3) continue            // another device saved in between: look again
+                    throw e
+                }
+            }
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            AppLog.w("sync", "Syncing failed", e)
+            if (manual) say(false, errorText(e as? Exception ?: RuntimeException(e)))
+        } finally {
+            if (manual) syncBusy = false
+            syncLock.unlock()
+        }
+    }
+
+    private fun finishRound(manual: Boolean, changed: Boolean) {
+        store.syncLastOk = System.currentTimeMillis(); syncLastOk = store.syncLastOk
+        if (manual) say(true, getApplication<Application>().getString(R.string.sync_done))
+    }
+
+    /** Puts a merged copy in place: playlists, stations, the marks of what was deleted, and what the copy holds that this phone does not use. */
+    private fun adopt(m: Backup.Merged) {
+        val s = m.state
+        playlists.clear(); playlists.addAll(s.playlists); savePlaylists()
+        stations.clear(); stations.addAll(s.stations); store.stations = stations.toList()
+        store.deletedLists = s.deletedLists; store.deletedStations = s.deletedStations
+        store.syncKept = s.kept.toString(); store.syncSettingsAt = s.settingsAt
+        m.language?.takeIf { it != store.language }?.let {
+            store.language = it
+            androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(androidx.core.os.LocaleListCompat.forLanguageTags(it))
+        }
+    }
+
+    fun syncForget(server: String, code: String) {
+        if (!saveSyncSetup(server, code)) return
+        syncBusy = true; syncStatus = null
+        viewModelScope.launch {
+            try { Sync.delete(store.syncServer, store.syncCode); store.syncUpdated = 0; say(true, getApplication<Application>().getString(R.string.sync_forgotten)) }
+            catch (e: Exception) { if (e is CancellationException) throw e; say(false, errorText(e)) }
+            syncBusy = false
+        }
+    }
+
+    init {
+        viewModelScope.launch {                       // a few seconds after opening, then every few minutes for as long as the app lives
+            delay(6_000)
+            while (true) {
+                if (syncAuto && usable()) syncRound(manual = false)
+                delay(5 * 60_000L)
+            }
+        }
+    }
+
+    fun exportTo(uri: android.net.Uri) {
+        val app = getApplication<Application>()
+        try {
+            app.contentResolver.openOutputStream(uri)?.use { it.write(Backup.snapshot(localState()).toByteArray(Charsets.UTF_8)) } ?: throw java.io.IOException("no file")
+            say(true, app.getString(R.string.backup_saved))
+        } catch (e: Exception) { AppLog.w("sync", "Saving the copy failed", e); say(false, app.getString(R.string.backup_file_error, e.message ?: "")) }
+    }
+
+    fun importFrom(uri: android.net.Uri) {
+        val app = getApplication<Application>()
+        try {
+            val text = app.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: throw java.io.IOException("no file")
+            val merged = Backup.addFrom(Backup.parse(text), localState(), System.currentTimeMillis())
+            adopt(merged)
+            say(true, app.getString(R.string.backup_restored_file))
+            requestSync()
+        } catch (e: SyncException) { say(false, errorText(e)) }
+        catch (e: Exception) { AppLog.w("sync", "Reading the copy failed", e); say(false, app.getString(R.string.backup_file_error, e.message ?: "")) }
+    }
+
+    // ---- YouTube ---------------------------------------------------------------------------------------
+    var youtube by mutableStateOf<YtState>(YtState.Idle); private set
+    private var ytJob: Job? = null
+
+    fun searchYouTube(query: String) {
+        val text = query.trim()
+        ytJob?.cancel()
+        if (text.isEmpty()) { youtube = YtState.Idle; return }
+        youtube = YtState.Searching
+        ytJob = viewModelScope.launch {
+            youtube = try { YtState.Ready(text, YouTube.search(text)) } catch (e: Throwable) {
+                if (e is CancellationException) throw e
+                AppLog.w("youtube", "Searching YouTube failed", e)
+                YtState.Failed((e as? YouTubeException)?.kind ?: "unavailable")
+            }
+        }
+    }
+
+    fun playYouTube(songs: List<YtSong>, start: Int) {
+        val c = controller ?: return
+        if (songs.isEmpty()) return
+        c.setMediaItems(songs.map { ytItem(TrackRef.of(it)) }, start.coerceIn(0, songs.lastIndex), 0); c.prepare(); c.play()
+    }
+
+    private fun ytItem(ref: TrackRef) = MediaItem.Builder().setMediaId("yt:" + ref.yt).setUri("juke-yt://" + ref.yt)
+        .setMediaMetadata(
+            MediaMetadata.Builder().setTitle(ref.title).setArtist(ref.artist)
+                .setDurationMs(ref.durationSec.takeIf { it > 0 }?.let { it * 1000L })
+                .setArtworkUri(YouTube.thumbnail(ref.yt).toUri())
+                .setExtras(Bundle().apply { putString("badge", "YouTube") }).build()
+        ).build()
+
+    private var hereFor: LocalLibrary.Tree? = null
+    private var hereUris: Set<String> = emptySet()
+    private var hereNames: Set<String> = emptySet()
+
+    /** Can this device play the song? A YouTube song always, a song of the server when it is set up, a song of the card when it is there. */
+    fun isHere(ref: TrackRef): Boolean {
+        if (ref.isYouTube) return true
+        if (ref.sid.isNotEmpty() && client() != null) return true
+        val library = tree ?: return false
+        if (hereFor !== library) {
+            val all = library.all()
+            hereUris = all.mapNotNullTo(HashSet()) { it.uri }
+            hereNames = all.mapTo(HashSet()) { YouTube.normalize("${it.title}|${it.artist}") }
+            hereFor = library
+        }
+        return (ref.uri.isNotEmpty() && ref.uri in hereUris) || YouTube.normalize("${ref.title}|${ref.artist}") in hereNames
+    }
+
+    /** Plays a playlist from [start]. Songs that this phone does not have are skipped (and said). */
+    fun playRefs(refs: List<TrackRef>, start: Int) {
+        val c = controller ?: return
+        val all = tree?.all().orEmpty()
+        val byUri = all.associateBy { it.uri }
+        val byName = all.groupBy { YouTube.normalize("${it.title}|${it.artist}") }
+        val api = client()
+        val items = ArrayList<MediaItem>()
+        var first = 0
+        var skipped = 0
+        refs.forEachIndexed { index, ref ->
+            val item = when {
+                ref.isYouTube -> ytItem(ref)
+                else -> {
+                    val track = byUri[ref.uri.takeIf { it.isNotEmpty() }]
+                        ?: byName[YouTube.normalize("${ref.title}|${ref.artist}")]?.minByOrNull { kotlin.math.abs(it.durationSec - ref.durationSec) }
+                        ?: ref.sid.takeIf { it.isNotEmpty() && api != null }?.let { Track(it, ref.title, ref.artist, ref.album, ref.durationSec, null, "", 0) }
+                    track?.let { trackItem(it, api) }
+                }
+            }
+            if (item == null) { skipped++; if (index <= start) first = items.size.coerceAtLeast(0) } else { if (index == start) first = items.size; items += item }
+        }
+        val app = getApplication<Application>()
+        if (items.isEmpty()) { notice = app.getString(R.string.playlist_none_here); return }
+        if (skipped > 0) notice = app.getString(R.string.playlist_skipped, skipped)
+        c.setMediaItems(items, first.coerceIn(0, items.lastIndex), 0); c.prepare(); c.play()
+    }
 
     var theme by mutableStateOf(store.theme.also { id -> Accents.use(id) }); private set
     fun applyTheme(value: String) { theme = value; store.theme = value; Accents.use(value) }
@@ -239,6 +529,7 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
     var lyricsText by mutableStateOf(""); private set
     var lyricsLines by mutableStateOf<List<LyricLine>>(emptyList()); private set        // the same lyrics with times, when they have them
     var lyricsAuto by mutableStateOf(store.lyricsAuto); private set
+    private val retried = HashSet<String>()
     private var lyricsFor: String? = null
     private val lyricsTried = HashSet<String>()
 
@@ -334,6 +625,7 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
         }
         EqualizerHub.init(store)
         stations.addAll(store.stations)
+        playlists.addAll(playlistStore.load().sortedBy { it.name.lowercase() })
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         val future = MediaController.Builder(app, token).buildAsync()
         future.addListener({
@@ -347,10 +639,18 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     AppLog.e("player", "Playback failed (${error.errorCodeName}) for ${c.currentMediaItem?.mediaMetadata?.title}", error)
+                    val id = c.currentMediaItem?.mediaId.orEmpty()
+                    if (id.startsWith("yt:")) {                      // the audio address may have expired or been refused: ask for a new one, once
+                        YouTube.forget(id.removePrefix("yt:"))
+                        if (retried.add(id)) { c.prepare(); return }
+                        if (c.hasNextMediaItem()) { c.seekToNextMediaItem(); c.prepare() }
+                    }
                 }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    val next = if (c.hasNextMediaItem()) c.getMediaItemAt(c.nextMediaItemIndex).mediaId else ""
+                    if (next.startsWith("yt:")) viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { YouTube.streamUrl(next.removePrefix("yt:")) } }   // the next song starts without a pause
                     val id = mediaItem?.mediaId
-                    if (id != null && !id.startsWith("local:") && mediaItem.mediaMetadata.extras?.getBoolean("live") != true &&
+                    if (id != null && !id.startsWith("local:") && !id.startsWith("yt:") && mediaItem.mediaMetadata.extras?.getBoolean("live") != true &&
                         reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
                         viewModelScope.launch { runCatching { client()?.scrobble(id) } }
                     }
@@ -384,20 +684,22 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
     fun playTracks(tracks: List<Track>, start: Int) {
         val c = controller ?: return
         val api = client()
-        val items = tracks.mapNotNull { t ->
-            val address = t.uri ?: api?.streamUrl(t.id) ?: return@mapNotNull null     // the server URL is asked for only here
-            MediaItem.Builder().setMediaId(t.id).setUri(address)
-                .setMediaMetadata(
-                    MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist).setAlbumTitle(t.album)
-                        .setDurationMs(t.durationSec.takeIf { it > 0 }?.let { it * 1000L })
-                        .setArtworkUri((t.artworkUri ?: t.coverArt?.let { api?.coverUrl(it) })?.toUri())
-                        .setExtras(Bundle().apply {
-                            putString("badge", listOf(t.codec, if (t.bitRate > 0) "${t.bitRate} kbps" else "").filter { it.isNotBlank() }.joinToString(" "))
-                        }).build()
-                ).build()
-        }
+        val items = tracks.mapNotNull { trackItem(it, api) }
         if (items.isEmpty()) return
         c.setMediaItems(items, start.coerceIn(0, items.lastIndex), 0); c.prepare(); c.play()
+    }
+
+    private fun trackItem(t: Track, api: AirsonicClient?): MediaItem? {
+        val address = t.uri ?: api?.streamUrl(t.id) ?: return null                    // the server URL is asked for only here
+        return MediaItem.Builder().setMediaId(t.id).setUri(address)
+            .setMediaMetadata(
+                MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist).setAlbumTitle(t.album)
+                    .setDurationMs(t.durationSec.takeIf { it > 0 }?.let { it * 1000L })
+                    .setArtworkUri((t.artworkUri ?: t.coverArt?.let { api?.coverUrl(it) })?.toUri())
+                    .setExtras(Bundle().apply {
+                        putString("badge", listOf(t.codec, if (t.bitRate > 0) "${t.bitRate} kbps" else "").filter { it.isNotBlank() }.joinToString(" "))
+                    }).build()
+            ).build()
     }
 
     fun playStation(station: Station) {
@@ -460,12 +762,18 @@ class JukeViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- stations ---------------------------------------------------------------------------------
     fun saveStations(list: List<Station>) {
-        list.forEach { s -> if (stations.none { it.streamUrl == s.streamUrl }) stations += s }
+        val now = System.currentTimeMillis()
+        list.forEach { s -> if (stations.none { it.streamUrl == s.streamUrl }) { stations += s.copy(added = now); store.deletedStations = store.deletedStations - s.streamUrl } }
         stations.sortBy { it.name.lowercase() }
         store.stations = stations.toList()
+        requestSync()
     }
 
-    fun removeStation(station: Station) { stations.remove(station); store.stations = stations.toList() }
+    fun removeStation(station: Station) {
+        stations.remove(station); store.stations = stations.toList()
+        store.deletedStations = store.deletedStations + (station.streamUrl to System.currentTimeMillis())
+        requestSync()
+    }
 
     private fun replaceStation(old: Station, fresh: Station) {
         val i = stations.indexOfFirst { it.streamUrl == old.streamUrl }

@@ -1,8 +1,8 @@
-"""The manual: one book in Markdown per language, shared by Juke for Linux and Juke for Android.
+"""The manual: one book in Markdown per language, shared by Juke for Linux, Mac and Android.
 
-The text lives in ``assets/manual/manual-en.md`` and ``manual-es.md``. Parts that only apply to one system sit between
-``<!--linux-->`` and ``<!--/linux-->`` (or ``android``); each app keeps its own and drops the other's, so the same
-files serve both and also read as a complete book on GitHub. Chapters start with ``# N. Title`` and sections with
+The text lives in ``assets/manual/manual-en.md`` and ``manual-es.md``. Parts that only apply to some systems sit between
+``<!--linux-->`` and ``<!--/linux-->`` (or ``mac``, ``android``, and ``desktop`` for Linux and Mac together); each app
+keeps its own and drops the others', so the same files serve all three and also read as a complete book on GitHub. Chapters start with ``# N. Title`` and sections with
 ``## Title``. The numbers in the files are for readers of the raw text: the apps number the chapters they show.
 """
 
@@ -14,7 +14,8 @@ from pathlib import Path
 
 MANUAL_DIR = Path(__file__).resolve().parent / "assets" / "manual"
 LANGUAGES = ("en", "es")
-_TAG = re.compile(r"<!--(linux|android)-->(.*?)<!--/\1-->", re.DOTALL)
+TAGS = ("linux", "mac", "android", "desktop")
+_TAG = re.compile(r"<!--(linux|mac|android|desktop)-->(.*?)<!--/\1-->", re.DOTALL)
 _NUMBER = re.compile(r"^\s*\d+\.\s*")
 
 
@@ -25,9 +26,14 @@ class Chapter:
     sections: list[str] = field(default_factory=list)
 
 
+def applies(tag: str, platform: str) -> bool:
+    """Does a part tagged ``tag`` belong in the book of ``platform``? ``desktop`` is the computer app, on Linux and on Mac."""
+    return tag == platform or (tag == "desktop" and platform in ("linux", "mac"))
+
+
 def for_platform(text: str, platform: str) -> str:
     """Keep what belongs to ``platform`` (and to everyone), drop what belongs to the other system."""
-    kept = _TAG.sub(lambda m: m.group(2) if m.group(1) == platform else "", text)
+    kept = _TAG.sub(lambda m: m.group(2) if applies(m.group(1), platform) else "", text)
     kept = re.sub(r"\n\s*---\s*(?=\n)", "\n", kept)                  # rules between chapters: the app draws its own
     return re.sub(r"\n{3,}", "\n\n", kept).strip() + "\n"
 
@@ -58,7 +64,7 @@ def split_chapters(text: str) -> list[Chapter]:
 
 
 def load(language: str, platform: str = "linux") -> list[Chapter]:
-    """The chapters of the manual in ``language`` ("en" or "es") for ``platform`` ("linux" or "android")."""
+    """The chapters of the manual in ``language`` ("en" or "es") for ``platform`` ("linux", "mac" or "android")."""
     code = language if language in LANGUAGES else "en"
     text = (MANUAL_DIR / f"manual-{code}.md").read_text(encoding="utf-8")
     return split_chapters(for_platform(text, platform))
