@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/hero-104.png" alt="Juke 1.0.4 — now better: Linux, Mac and Android" width="100%">
+<img src="docs/assets/hero.png" alt="Juke — now better: Linux, Mac and Android" width="100%">
 
 <br>
 
@@ -13,7 +13,6 @@ Make playlists with songs from the web and your own music — and play them on L
 
 <br>
 
-![Version](https://img.shields.io/badge/version-1.0.4-cba6f7?style=for-the-badge)
 ![Linux](https://img.shields.io/badge/platform-Linux-7aa2f7?style=for-the-badge&logo=linux&logoColor=white)
 ![Mac](https://img.shields.io/badge/platform-macOS-cba6f7?style=for-the-badge&logo=apple&logoColor=white)
 ![Android](https://img.shields.io/badge/platform-Android-7aa2f7?style=for-the-badge&logo=android&logoColor=white)
@@ -24,7 +23,7 @@ Make playlists with songs from the web and your own music — and play them on L
 
 <br>
 
-## New in 1.0.4
+## What's new
 
 - **Security update.** Safer updates and downloads, a secure connection by default for servers on the internet, and stricter sync. [Details in the release notes](https://github.com/vezzulab/juke/releases/latest).
 - **Songs from the web.** Search any song or artist and play just its audio — no video, no ads, nothing downloaded. Search an artist and you get the whole repertoire. Add what you like to a playlist and play it later without searching again. On Linux, Mac and Android.
@@ -49,7 +48,7 @@ Needs x86_64 Linux with glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36+
 
 Juke is not signed with a paid Apple developer certificate, so the first time macOS says it cannot check the app. Open *System Settings ▸ Privacy & Security*, scroll down to *Security* and press **Open Anyway** next to Juke. You only do it once. From the terminal: `xattr -dr com.apple.quarantine /Applications/Juke.app`.
 
-**Android** — download `Juke-1.0.4.apk` from the same page (Android 8 or newer).
+**Android** — download the Juke `.apk` file from the same page (Android 8 or newer).
 
 Juke tells you when a new version is out, or press *Check for updates…* in the menu or in *Settings ▸ General*.
 

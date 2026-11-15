@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Juke 1.0 — Manual</title>
-<meta name="description" content="The complete manual of Juke 1.0, for Linux, Mac and Android, in English and Spanish.">
+<title>Juke — Manual</title>
+<meta name="description" content="The complete manual of Juke, for Linux, Mac and Android, in English and Spanish.">
 <meta name="theme-color" content="#181825">
 <link rel="icon" type="image/svg+xml" href="assets/juke.svg">
 <style>
@@ -63,7 +63,7 @@ html, body { overflow-x:clip; } .layout > * { min-width:0; } main { overflow-wra
   <aside>
     <details class="toc" open>
       <summary><span class="lang on" data-lang="en">Contents</span><span class="lang" data-lang="es">Contenido</span></summary>
-      <div class="lang on" data-lang="en"><ul><li><a href="#en-c1"><span class="n">1</span> Welcome to Juke 1.0</a><ul><li><a href="#en-c1-what-is-new-in-1-0-4">What is new in 1.0.4</a></li><li><a href="#en-c1-what-is-new-in-1-0">What is new in 1.0</a></li><li><a href="#en-c1-how-this-manual-is-written">How this manual is written</a></li></ul></li>
+      <div class="lang on" data-lang="en"><ul><li><a href="#en-c1"><span class="n">1</span> Welcome to Juke</a><ul><li><a href="#en-c1-what-is-new-in-1-0-4">What is new</a></li><li><a href="#en-c1-what-is-new-in-1-0">What came with the first version</a></li><li><a href="#en-c1-how-this-manual-is-written">How this manual is written</a></li></ul></li>
 <li><a href="#en-c2"><span class="n">2</span> Installing and updating</a><ul><li><a href="#en-c2-installing-on-linux">Installing on Linux</a></li><li><a href="#en-c2-installing-on-mac">Installing on Mac</a></li><li><a href="#en-c2-installing-on-android">Installing on Android</a></li><li><a href="#en-c2-updating">Updating</a></li></ul></li>
 <li><a href="#en-c3"><span class="n">3</span> A tour of the window</a><ul><li><a href="#en-c3-the-song-that-is-playing">The song that is playing</a></li></ul></li>
 <li><a href="#en-c4"><span class="n">4</span> Your music</a><ul><li><a href="#en-c4-the-library">The library</a></li><li><a href="#en-c4-favorites-and-recent-songs">Favorites and recent songs</a></li><li><a href="#en-c4-edit-tags-and-covers">Edit tags and covers</a></li><li><a href="#en-c4-find-duplicates">Find duplicates</a></li></ul></li>
@@ -81,7 +81,7 @@ html, body { overflow-x:clip; } .layout > * { min-width:0; } main { overflow-wra
 <li><a href="#en-c16"><span class="n">16</span> Keyboard shortcuts</a></li>
 <li><a href="#en-c17"><span class="n">17</span> When something goes wrong</a></li>
 <li><a href="#en-c18"><span class="n">18</span> About Juke</a></li></ul></div>
-      <div class="lang" data-lang="es"><ul><li><a href="#es-c1"><span class="n">1</span> Bienvenido a Juke 1.0</a><ul><li><a href="#es-c1-qu-hay-de-nuevo-en-1-0-4">Qué hay de nuevo en 1.0.4</a></li><li><a href="#es-c1-qu-hay-de-nuevo-en-1-0">Qué hay de nuevo en 1.0</a></li><li><a href="#es-c1-cmo-est-escrito-este-manual">Cómo está escrito este manual</a></li></ul></li>
+      <div class="lang" data-lang="es"><ul><li><a href="#es-c1"><span class="n">1</span> Bienvenido a Juke</a><ul><li><a href="#es-c1-qu-hay-de-nuevo-en-1-0-4">Qué hay de nuevo</a></li><li><a href="#es-c1-qu-hay-de-nuevo-en-1-0">Lo que trajo la primera versión</a></li><li><a href="#es-c1-cmo-est-escrito-este-manual">Cómo está escrito este manual</a></li></ul></li>
 <li><a href="#es-c2"><span class="n">2</span> Instalar y actualizar</a><ul><li><a href="#es-c2-instalar-en-linux">Instalar en Linux</a></li><li><a href="#es-c2-instalar-en-mac">Instalar en Mac</a></li><li><a href="#es-c2-instalar-en-android">Instalar en Android</a></li><li><a href="#es-c2-actualizar">Actualizar</a></li></ul></li>
 <li><a href="#es-c3"><span class="n">3</span> Un recorrido por la ventana</a><ul><li><a href="#es-c3-la-cancin-que-suena">La canción que suena</a></li></ul></li>
 <li><a href="#es-c4"><span class="n">4</span> Tu música</a><ul><li><a href="#es-c4-la-biblioteca">La biblioteca</a></li><li><a href="#es-c4-favoritas-y-canciones-recientes">Favoritas y canciones recientes</a></li><li><a href="#es-c4-editar-etiquetas-y-portadas">Editar etiquetas y portadas</a></li><li><a href="#es-c4-buscar-duplicados">Buscar duplicados</a></li></ul></li>
@@ -105,11 +105,11 @@ html, body { overflow-x:clip; } .layout > * { min-width:0; } main { overflow-wra
     <div class="cover"><img src="assets/icon.png" alt="Juke" width="96" height="96">
       <h1><b>Juke</b> 1.0</h1>
       <p class="lang on" data-lang="en">The manual — for Linux and Android</p><p class="lang" data-lang="es">El manual — para Linux y Android</p></div>
-    <div class="lang on" data-lang="en"><section class="chapter" id="en-c1"><p class="chno">1</p><h2>Welcome to Juke 1.0</h2><p>Juke is a music player for your own music: the files on your computer or phone, the songs on your Airsonic / Subsonic server, and internet radio, all in one place that stays fast and light on the battery.</p>
+    <div class="lang on" data-lang="en"><section class="chapter" id="en-c1"><p class="chno">1</p><h2>Welcome to Juke</h2><p>Juke is a music player for your own music: the files on your computer or phone, the songs on your Airsonic / Subsonic server, and internet radio, all in one place that stays fast and light on the battery.</p>
 <p>This manual is a book. The index on the side lists every chapter and section; you can read it from the first page or jump to what you need. It is also inside the app (press <code>F1</code> on Linux and Mac, or <em>Settings ▸ Manual</em> on Android), so it is always with you and in your language.</p>
-<h3 id="en-c1-what-is-new-in-1-0-4">What is new in 1.0.4</h3>
+<h3 id="en-c1-what-is-new-in-1-0-4">What is new</h3>
 <ul><li><strong>YouTube, audio only</strong>, on the computer and on the phone: search a song, or an artist to get the whole repertoire, and play just the audio with no video and no ads. Add songs to playlists and play them later.</li><li><strong>Playlists on Android.</strong> The phone now has playlists, with songs from your music and from YouTube.</li><li><strong>Everything follows you.</strong> Playlists, radio stations and a few settings sync by themselves between your Linux, Mac and Android, deletions included. A copy in a file is there too.</li><li><strong>Updates inside the app, on every system.</strong> On a Mac, <em>Update now</em> installs the new Juke by itself, as on Linux and Android. The YouTube part also updates itself.</li></ul>
-<h3 id="en-c1-what-is-new-in-1-0">What is new in 1.0</h3>
+<h3 id="en-c1-what-is-new-in-1-0">What came with the first version</h3>
 <ul><li><strong>Media keys and the desktop's controls.</strong> Play, pause, next and back work from your keyboard, headset and the media widget of your desktop. The volume slider is the computer's own volume, both ways.</li><li><strong>Crossfade.</strong> The next song comes in a few seconds before the current one ends. A light under the volume shows whether it is on.</li><li><strong>An equalizer anyone can use.</strong> Every bar says what it changes, and there are 35 presets.</li><li><strong>Lyrics in any language.</strong> Several free services are searched at once.</li><li><strong>Better playlists.</strong> A song is never added twice, you are told when it is already there, and the same menu takes it out.</li><li><strong>It knows what can play.</strong> Songs on an offline server or a disconnected drive turn grey with a note.</li><li><strong>Marks on the list.</strong> Bars dance beside the song that is playing and a green ✓ marks what already played.</li><li><strong>A manual inside the app</strong>, with an index, in English and Spanish.</li></ul>
 <h3 id="en-c1-how-this-manual-is-written">How this manual is written</h3>
 <p>Words in <em>italics</em> are names you see on screen: menus, buttons, tabs. Keys are written like <code>Ctrl</code> + <code>E</code>. Parts that only apply to one system say so in the title: <strong>Linux</strong> and <strong>Mac</strong> for the computer app, <strong>Android</strong> for the phone and tablet app. Everything else is the same everywhere.</p></section>
@@ -222,11 +222,11 @@ html, body { overflow-x:clip; } .layout > * { min-width:0; } main { overflow-wra
 <section class="chapter" id="en-c18"><p class="chno">18</p><h2>About Juke</h2><p>Juke is made by Vezzu Studio. It is free to use, for any purpose, on as many computers and devices as you own. The source is published so it can be read and checked; the full terms are in the Juke License 1.0. The software of others that Juke includes keeps its own licence, listed in <code>NOTICE.md</code>.</p>
 <p>If Juke is useful to you, you can support it on Ko-fi from the button in the sidebar<span class="il android"> or in <em>Settings</em></span>.</p>
 <p>Thank you for listening.</p></section></div>
-    <div class="lang" data-lang="es"><section class="chapter" id="es-c1"><p class="chno">1</p><h2>Bienvenido a Juke 1.0</h2><p>Juke es un reproductor para tu propia música: los archivos de tu computadora o de tu teléfono, las canciones de tu servidor Airsonic / Subsonic y la radio por internet, todo en un solo lugar que se mantiene rápido y cuida la batería.</p>
+    <div class="lang" data-lang="es"><section class="chapter" id="es-c1"><p class="chno">1</p><h2>Bienvenido a Juke</h2><p>Juke es un reproductor para tu propia música: los archivos de tu computadora o de tu teléfono, las canciones de tu servidor Airsonic / Subsonic y la radio por internet, todo en un solo lugar que se mantiene rápido y cuida la batería.</p>
 <p>Este manual es un libro. El índice del costado lista cada capítulo y cada sección; puedes leerlo desde la primera página o saltar a lo que necesitas. También está dentro de la app (pulsa <code>F1</code> en Linux y Mac, o <em>Ajustes ▸ Manual</em> en Android), así que siempre lo tienes contigo y en tu idioma.</p>
-<h3 id="es-c1-qu-hay-de-nuevo-en-1-0-4">Qué hay de nuevo en 1.0.4</h3>
+<h3 id="es-c1-qu-hay-de-nuevo-en-1-0-4">Qué hay de nuevo</h3>
 <ul><li><strong>YouTube, solo audio</strong>, en la computadora y en el teléfono: busca una canción, o un artista para ver todo su repertorio, y escucha solo el audio, sin video y sin anuncios. Añade canciones a playlists y tócalas después.</li><li><strong>Playlists en Android.</strong> El teléfono ya tiene playlists, con canciones de tu música y de YouTube.</li><li><strong>Todo te sigue.</strong> Playlists, emisoras de radio y algunos ajustes se sincronizan solos entre tu Linux, tu Mac y tu Android, borrados incluidos. También hay una copia en un archivo.</li><li><strong>Actualizaciones dentro de la app, en todos los sistemas.</strong> En una Mac, <em>Actualizar ahora</em> instala la Juke nueva por sí sola, como en Linux y Android. La parte de YouTube también se actualiza sola.</li></ul>
-<h3 id="es-c1-qu-hay-de-nuevo-en-1-0">Qué hay de nuevo en 1.0</h3>
+<h3 id="es-c1-qu-hay-de-nuevo-en-1-0">Lo que trajo la primera versión</h3>
 <ul><li><strong>Teclas multimedia y controles del escritorio.</strong> Reproducir, pausar, siguiente y anterior funcionan desde tu teclado, tus auriculares y el widget multimedia de tu escritorio. El control de volumen es el volumen de la computadora, en ambos sentidos.</li><li><strong>Crossfade.</strong> La siguiente canción entra unos segundos antes de que termine la actual. Una luz bajo el volumen muestra si está activo.</li><li><strong>Un ecualizador que cualquiera puede usar.</strong> Cada barra dice qué cambia, y hay 35 presets.</li><li><strong>Letras en cualquier idioma.</strong> Se buscan en varios servicios gratuitos a la vez.</li><li><strong>Mejores listas.</strong> Una canción nunca se agrega dos veces, te avisa cuando ya está, y el mismo menú la quita.</li><li><strong>Sabe qué se puede reproducir.</strong> Las canciones de un servidor sin conexión o de un disco desconectado se ven en gris con una nota.</li><li><strong>Marcas en la lista.</strong> Unas barras bailan junto a la canción que suena y una ✓ verde marca lo que ya sonó.</li><li><strong>Un manual dentro de la app</strong>, con índice, en español e inglés.</li></ul>
 <h3 id="es-c1-cmo-est-escrito-este-manual">Cómo está escrito este manual</h3>
 <p>Las palabras en <em>cursiva</em> son nombres que ves en pantalla: menús, botones, pestañas. Las teclas se escriben así: <code>Ctrl</code> + <code>E</code>. Las partes que solo valen para un sistema lo dicen en el título: <strong>Linux</strong> y <strong>Mac</strong> para la app de computadora, <strong>Android</strong> para la de teléfono y tableta. Todo lo demás es igual en todas.</p></section>
@@ -348,7 +348,7 @@ let lang = store("juke-lang") || ((navigator.language || "en").startsWith("es") 
 function apply() {
   document.querySelectorAll(".lang").forEach(el => el.classList.toggle("on", el.dataset.lang === lang));
   root.lang = lang; document.getElementById("lang").textContent = lang === "en" ? "ES" : "EN";
-  document.title = lang === "es" ? "Juke 1.0 — Manual" : "Juke 1.0 — Manual";
+  document.title = lang === "es" ? "Juke — Manual" : "Juke — Manual";
 }
 document.getElementById("lang").onclick = () => { lang = lang === "en" ? "es" : "en"; store("juke-lang", lang); apply(); };
 const dark = () => root.dataset.theme !== "light";

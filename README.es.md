@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/hero-es-104.png" alt="Juke 1.0.4 — ahora mejorado: Linux, Mac y Android" width="100%">
+<img src="docs/assets/hero-es.png" alt="Juke — ahora mejorado: Linux, Mac y Android" width="100%">
 
 <br>
 
@@ -13,7 +13,6 @@ Arma tus playlists con canciones de la web y de tu música — y tócalas en Lin
 
 <br>
 
-![Versión](https://img.shields.io/badge/versi%C3%B3n-1.0.4-cba6f7?style=for-the-badge)
 ![Linux](https://img.shields.io/badge/plataforma-Linux-7aa2f7?style=for-the-badge&logo=linux&logoColor=white)
 ![Mac](https://img.shields.io/badge/plataforma-macOS-cba6f7?style=for-the-badge&logo=apple&logoColor=white)
 ![Android](https://img.shields.io/badge/plataforma-Android-7aa2f7?style=for-the-badge&logo=android&logoColor=white)
@@ -24,7 +23,7 @@ Arma tus playlists con canciones de la web y de tu música — y tócalas en Lin
 
 <br>
 
-## Novedades de la 1.0.4
+## Novedades
 
 - **Actualización de seguridad.** Actualizaciones y descargas más seguras, conexión segura por defecto con los servidores de internet y sincronización más estricta. [Detalles en las notas de la versión](https://github.com/vezzulab/juke/releases/latest).
 - **Canciones de la web.** Busca cualquier canción o artista y escucha solo su audio — sin video, sin anuncios y sin descargar nada. Si buscas un artista, sale todo su repertorio. Añade lo que te guste a una playlist y tócala después sin volver a buscar. En Linux, Mac y Android.
@@ -49,7 +48,7 @@ Necesita Linux x86_64 con glibc 2.35 o más nueva (Ubuntu 22.04, Debian 12, Fedo
 
 Juke no está firmado con un certificado de desarrollador de Apple de pago, así que la primera vez macOS dice que no puede verificar la app. Abre *Ajustes del Sistema ▸ Privacidad y seguridad*, baja hasta *Seguridad* y pulsa **Abrir de todos modos** junto a Juke. Solo se hace una vez. Desde la terminal: `xattr -dr com.apple.quarantine /Applications/Juke.app`.
 
-**Android** — descarga `Juke-1.0.4.apk` de la misma página (Android 8 o más nuevo).
+**Android** — descarga el archivo `.apk` de Juke de la misma página (Android 8 o más nuevo).
 
 Juke te avisa cuando sale una versión nueva, o pulsa *Buscar actualizaciones…* en el menú o en *Ajustes ▸ General*.
 
